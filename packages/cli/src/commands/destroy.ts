@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
-import { StackManifest } from '@fillet/core';
+import { StackManifest } from '@pricectl/core';
 
 export default class Destroy extends Command {
   static description = 'Destroy all resources in the stack';
@@ -18,7 +18,7 @@ export default class Destroy extends Command {
     app: Flags.string({
       char: 'a',
       description: 'Path to the app file that defines your stack',
-      default: './fillet.ts',
+      default: './pricectl.ts',
     }),
     force: Flags.boolean({
       char: 'f',

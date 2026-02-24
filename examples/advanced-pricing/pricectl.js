@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-const core_1 = require("@fillet/core");
-const constructs_1 = require("@fillet/constructs");
+const core_1 = require("@pricectl/core");
+const constructs_1 = require("@pricectl/constructs");
 /**
  * Advanced Pricing Example
  *

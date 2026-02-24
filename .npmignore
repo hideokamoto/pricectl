@@ -1,7 +1,10 @@
 test/
 dev/
-.fillet/
+.pricectl/
 .circleci/
 .nyc_output/
 .eslint*
-.edirotconfig
+.editorconfig
+coverage/
+examples/
+*.tsbuildinfo

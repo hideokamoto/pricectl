@@ -14,12 +14,12 @@ export default class Synth extends Command {
     app: Flags.string({
       char: 'a',
       description: 'Path to the app file that defines your stack',
-      default: './fillet.ts',
+      default: './pricectl.ts',
     }),
     output: Flags.string({
       char: 'o',
       description: 'Output directory for the synthesized manifest',
-      default: './fillet.out',
+      default: './pricectl.out',
     }),
   };
 
