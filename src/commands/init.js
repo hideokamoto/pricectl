@@ -9,7 +9,7 @@ class InitCommand extends Command {
     const path = './.gitignore'
     try {
       content = fs.readFileSync(path, 'utf8')
-      if (/.fillet/g.test(content)) return
+      if (/.pricectl/g.test(content)) return
     } catch (e) {
       if (e.code !== 'ENOENT') {
         this.log(e)
@@ -17,7 +17,7 @@ class InitCommand extends Command {
         return
       }
     }
-    content += '\n.fillet/'
+    content += '\n.pricectl/'
     try {
       fs.writeFileSync(path, content)
     } catch (e) {
@@ -83,9 +83,9 @@ class InitCommand extends Command {
   }
 }
 
-InitCommand.description = `Initialize fillet
+InitCommand.description = `Initialize pricectl
 ...
-To put Stripe secret key into .fillet/config
+To put Stripe secret key into .pricectl/config
 The file will be ignored from git.
 `
 

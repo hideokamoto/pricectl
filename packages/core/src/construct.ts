@@ -1,5 +1,5 @@
 /**
- * Base class for all Fillet constructs.
+ * Base class for all pricectl constructs.
  * Inspired by AWS CDK's Construct class.
  */
 export interface IConstruct {

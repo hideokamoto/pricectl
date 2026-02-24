@@ -10,7 +10,7 @@ const getStripe = () => {
   } catch (e) {
     if (e.code !== 'ENOENT') {
       // eslint-disable-next-line no-console
-      console.log(red('Please run fillet init {STRIPE_SK_KEY} at first.'))
+      console.log(red('Please run pricectl init {STRIPE_SK_KEY} at first.'))
     }
     throw new Error(e)
   }
