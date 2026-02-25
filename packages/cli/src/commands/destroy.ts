@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
+import { StateManager } from '../engine/state';
 import { StackManifest } from '@pricectl/core';
 
 export default class Destroy extends Command {
@@ -24,6 +25,9 @@ export default class Destroy extends Command {
       char: 'f',
       description: 'Skip confirmation prompt',
       default: false,
+    }),
+    'state-file': Flags.string({
+      description: 'Path to the state file directory',
     }),
   };
 
@@ -72,8 +76,14 @@ export default class Destroy extends Command {
       this.log('Destroying resources...');
       this.log('');
 
-      const deployer = new StripeDeployer(apiKey);
+      // Load state
+      const stateManager = new StateManager(flags['state-file']);
+
+      const deployer = new StripeDeployer(apiKey, stateManager);
       const result = await deployer.destroy(manifest);
+
+      // Save state after destroy (resources removed from state during destroy)
+      stateManager.save();
 
       // Display results
       this.log(chalk.bold.green('✓ Destruction completed'));
@@ -106,6 +116,9 @@ export default class Destroy extends Command {
         this.log(`  Errors: ${chalk.red(result.errors.length)}`);
         this.error('Some resources could not be destroyed. See errors above.');
       }
+
+      this.log('');
+      this.log(chalk.gray(`State saved to ${stateManager.getFilePath()}`));
     } catch (error: any) {
       this.error(`Destroy failed: ${error.message}`);
     }

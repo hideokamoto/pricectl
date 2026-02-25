@@ -154,6 +154,7 @@ export default stack;
     const gitignoreContent = `
 .env
 pricectl.out/
+pricectl.state.json
 node_modules/
 dist/
 *.js

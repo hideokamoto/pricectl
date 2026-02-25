@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { createTwoFilesPatch } from 'diff';
 import Stripe from 'stripe';
 import { StackManifest } from '@pricectl/core';
+import { StateManager } from '../engine/state';
 
 export default class Diff extends Command {
   static description = 'Compare the deployed stack with the local definition';
@@ -19,6 +20,9 @@ export default class Diff extends Command {
       char: 'a',
       description: 'Path to the app file that defines your stack',
       default: './pricectl.ts',
+    }),
+    'state-file': Flags.string({
+      description: 'Path to the state file directory',
     }),
   };
 
@@ -54,6 +58,7 @@ export default class Diff extends Command {
     try {
 
       const stripe = new Stripe(apiKey, { apiVersion: '2023-10-16' });
+      const stateManager = new StateManager(flags['state-file']);
 
       // Fetch current state from Stripe
       this.log(chalk.bold(`Stack: ${manifest.stackId}`));
@@ -62,7 +67,7 @@ export default class Diff extends Command {
       let hasChanges = false;
 
       for (const resource of manifest.resources) {
-        const current = await this.fetchCurrentResource(stripe, resource);
+        const current = await this.fetchCurrentResource(stripe, resource, stateManager, manifest.stackId);
 
         if (!current) {
           this.log(chalk.green(`[+] ${resource.path} [${resource.type}]`));
@@ -102,9 +107,37 @@ export default class Diff extends Command {
 
   /**
    * Fetch the current state of a resource from Stripe.
-   * Uses the search API for efficient metadata-based lookup.
+   * Uses state file for fast lookup first, then falls back to the Search API.
    */
-  private async fetchCurrentResource(stripe: Stripe, resource: any): Promise<any> {
+  private async fetchCurrentResource(
+    stripe: Stripe,
+    resource: any,
+    stateManager: StateManager,
+    stackId: string,
+  ): Promise<any> {
+    // Try state-based lookup first for Products and Prices
+    if (resource.type === 'Stripe::Product' || resource.type === 'Stripe::Price') {
+      const stateEntry = stateManager.getResource(stackId, resource.id);
+      if (stateEntry?.physicalId) {
+        try {
+          if (resource.type === 'Stripe::Product') {
+            const product = await stripe.products.retrieve(stateEntry.physicalId);
+            if (product && !product.deleted) {
+              return product;
+            }
+          } else {
+            const price = await stripe.prices.retrieve(stateEntry.physicalId);
+            if (price && price.active) {
+              return price;
+            }
+          }
+        } catch {
+          // State entry is stale — fall through to search
+        }
+      }
+    }
+
+    // Fall back to search/retrieve
     try {
       // Escape backslashes first, then escape double quotes in resource.id to prevent search query injection
       const escapedId = resource.id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');

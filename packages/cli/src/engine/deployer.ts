@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { StackManifest, ResourceManifest } from '@pricectl/core';
+import { StateManager } from './state';
 
 export interface DeployResult {
   stackId: string;
@@ -33,11 +34,13 @@ export interface DestroyResult {
 export class StripeDeployer {
   private stripe: Stripe;
   private logicalToPhysicalId: Map<string, string> = new Map();
+  private stateManager: StateManager | undefined;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, stateManager?: StateManager) {
     this.stripe = new Stripe(apiKey, {
       apiVersion: '2023-10-16',
     });
+    this.stateManager = stateManager;
   }
 
   async deploy(manifest: StackManifest): Promise<DeployResult> {
@@ -52,11 +55,23 @@ export class StripeDeployer {
 
     for (const resource of manifest.resources) {
       try {
-        const deployed = await this.deployResource(resource);
+        const deployed = await this.deployResource(resource, manifest.stackId);
         result.deployed.push(deployed);
 
         // Store the mapping from logical ID to physical ID
         this.logicalToPhysicalId.set(resource.id, deployed.physicalId);
+
+        // Update state with deployed resource
+        if (this.stateManager) {
+          this.stateManager.setResource(manifest.stackId, {
+            logicalId: resource.id,
+            physicalId: deployed.physicalId,
+            type: resource.type,
+            path: resource.path,
+            lastDeployedAt: new Date().toISOString(),
+            propertiesHash: StateManager.computePropertiesHash(resource.properties),
+          });
+        }
       } catch (error: any) {
         result.errors.push({
           id: resource.id,
@@ -69,21 +84,21 @@ export class StripeDeployer {
     return result;
   }
 
-  private async deployResource(resource: ResourceManifest) {
+  private async deployResource(resource: ResourceManifest, stackId: string) {
     switch (resource.type) {
       case 'Stripe::Product':
-        return this.deployProduct(resource);
+        return this.deployProduct(resource, stackId);
       case 'Stripe::Price':
-        return this.deployPrice(resource);
+        return this.deployPrice(resource, stackId);
       case 'Stripe::Coupon':
-        return this.deployCoupon(resource);
+        return this.deployCoupon(resource, stackId);
       default:
         throw new Error(`Unknown resource type: ${resource.type}`);
     }
   }
 
-  private async deployProduct(resource: ResourceManifest) {
-    const existing = await this.findExistingProduct(resource.id);
+  private async deployProduct(resource: ResourceManifest, stackId: string) {
+    const existing = await this.findExistingProduct(resource.id, stackId);
 
     if (existing) {
       // Update existing product
@@ -113,11 +128,11 @@ export class StripeDeployer {
     }
   }
 
-  private async deployPrice(resource: ResourceManifest) {
+  private async deployPrice(resource: ResourceManifest, stackId: string) {
     // Resolve the product dependency
     const properties = this.resolveDependencies(resource.properties);
 
-    const existing = await this.findExistingPrice(resource.id);
+    const existing = await this.findExistingPrice(resource.id, stackId);
 
     if (existing) {
       // Check if properties match
@@ -165,7 +180,7 @@ export class StripeDeployer {
     }
   }
 
-  private async deployCoupon(resource: ResourceManifest) {
+  private async deployCoupon(resource: ResourceManifest, _stackId: string) {
     try {
       const existing = await this.stripe.coupons.retrieve(resource.id);
       return {
@@ -210,7 +225,27 @@ export class StripeDeployer {
     return resolved;
   }
 
-  private async findExistingProduct(logicalId: string): Promise<Stripe.Product | null> {
+  /**
+   * Find an existing product using state-based lookup first, then falling back
+   * to the Stripe Search API. This avoids Search API latency and index delays.
+   */
+  private async findExistingProduct(logicalId: string, stackId: string): Promise<Stripe.Product | null> {
+    // Try state-based lookup first
+    if (this.stateManager) {
+      const stateEntry = this.stateManager.getResource(stackId, logicalId);
+      if (stateEntry?.physicalId) {
+        try {
+          const product = await this.stripe.products.retrieve(stateEntry.physicalId);
+          if (product && !product.deleted) {
+            return product;
+          }
+        } catch {
+          // Physical ID from state is stale — fall through to search
+        }
+      }
+    }
+
+    // Fall back to Search API
     try {
       // Escape backslashes first, then escape double quotes in logicalId to prevent search query injection
       const escapedId = logicalId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -235,7 +270,27 @@ export class StripeDeployer {
     }
   }
 
-  private async findExistingPrice(logicalId: string): Promise<Stripe.Price | null> {
+  /**
+   * Find an existing price using state-based lookup first, then falling back
+   * to the Stripe Search API.
+   */
+  private async findExistingPrice(logicalId: string, stackId: string): Promise<Stripe.Price | null> {
+    // Try state-based lookup first
+    if (this.stateManager) {
+      const stateEntry = this.stateManager.getResource(stackId, logicalId);
+      if (stateEntry?.physicalId) {
+        try {
+          const price = await this.stripe.prices.retrieve(stateEntry.physicalId);
+          if (price && price.active) {
+            return price;
+          }
+        } catch {
+          // Physical ID from state is stale — fall through to search
+        }
+      }
+    }
+
+    // Fall back to Search API
     try {
       // Escape backslashes first, then escape double quotes in logicalId to prevent search query injection
       const escapedId = logicalId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -329,9 +384,14 @@ export class StripeDeployer {
 
     for (const resource of resources) {
       try {
-        const destroyed = await this.destroyResource(resource);
+        const destroyed = await this.destroyResource(resource, manifest.stackId);
         if (destroyed) {
           result.destroyed.push(destroyed);
+
+          // Remove from state
+          if (this.stateManager) {
+            this.stateManager.removeResource(manifest.stackId, resource.id);
+          }
         }
       } catch (error: any) {
         result.errors.push({
@@ -345,14 +405,14 @@ export class StripeDeployer {
     return result;
   }
 
-  private async destroyResource(resource: ResourceManifest): Promise<{
+  private async destroyResource(resource: ResourceManifest, stackId: string): Promise<{
     id: string;
     type: string;
     status: 'deleted' | 'deactivated';
   } | null> {
     switch (resource.type) {
       case 'Stripe::Product': {
-        const existing = await this.findExistingProduct(resource.id);
+        const existing = await this.findExistingProduct(resource.id, stackId);
         if (existing) {
           await this.stripe.products.del(existing.id);
           return {
@@ -364,7 +424,7 @@ export class StripeDeployer {
         return null;
       }
       case 'Stripe::Price': {
-        const existing = await this.findExistingPrice(resource.id);
+        const existing = await this.findExistingPrice(resource.id, stackId);
         if (existing) {
           // Prices cannot be deleted, only deactivated
           await this.stripe.prices.update(existing.id, { active: false });

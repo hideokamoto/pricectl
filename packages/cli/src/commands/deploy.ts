@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
+import { StateManager } from '../engine/state';
 import { StackManifest } from '@pricectl/core';
 
 export default class Deploy extends Command {
@@ -18,6 +19,9 @@ export default class Deploy extends Command {
       char: 'a',
       description: 'Path to the app file that defines your stack',
       default: './pricectl.ts',
+    }),
+    'state-file': Flags.string({
+      description: 'Path to the state file directory',
     }),
   };
 
@@ -51,9 +55,15 @@ export default class Deploy extends Command {
     }
 
     try {
+      // Load state
+      const stateManager = new StateManager(flags['state-file']);
+
       // Deploy using the deployer
-      const deployer = new StripeDeployer(apiKey);
+      const deployer = new StripeDeployer(apiKey, stateManager);
       const result = await deployer.deploy(manifest);
+
+      // Save state after successful deployment
+      stateManager.save();
 
       // Display results
       this.log(chalk.bold.green('✓ Deployment completed'));
@@ -89,6 +99,9 @@ export default class Deploy extends Command {
       if (result.errors.length > 0) {
         this.log(`  Errors: ${chalk.red(result.errors.length)}`);
       }
+
+      this.log('');
+      this.log(chalk.gray(`State saved to ${stateManager.getFilePath()}`));
     } catch (error: any) {
       this.error(`Deployment failed: ${error.message}`);
     }
