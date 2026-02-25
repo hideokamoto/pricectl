@@ -1,4 +1,4 @@
-import { Construct, Resource, ResourceProps } from '@fillet/core';
+import { Construct, Resource, ResourceProps } from '@pricectl/core';
 import { Product } from './product';
 import type Stripe from 'stripe';
 

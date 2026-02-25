@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import chalk from 'chalk';
 import { createTwoFilesPatch } from 'diff';
 import Stripe from 'stripe';
-import { StackManifest } from '@fillet/core';
+import { StackManifest } from '@pricectl/core';
 
 export default class Diff extends Command {
   static description = 'Compare the deployed stack with the local definition';
@@ -18,7 +18,7 @@ export default class Diff extends Command {
     app: Flags.string({
       char: 'a',
       description: 'Path to the app file that defines your stack',
-      default: './fillet.ts',
+      default: './pricectl.ts',
     }),
   };
 
@@ -106,17 +106,19 @@ export default class Diff extends Command {
    */
   private async fetchCurrentResource(stripe: Stripe, resource: any): Promise<any> {
     try {
+      // Escape single quotes in resource.id to prevent search query injection
+      const escapedId = resource.id.replace(/'/g, "\\'");
       switch (resource.type) {
         case 'Stripe::Product': {
           const result = await stripe.products.search({
-            query: `metadata['fillet_id']:'${resource.id}'`,
+            query: `metadata['pricectl_id']:'${escapedId}' OR metadata['fillet_id']:'${escapedId}'`,
             limit: 1,
           });
           return result.data.length > 0 ? result.data[0] : null;
         }
         case 'Stripe::Price': {
           const result = await stripe.prices.search({
-            query: `metadata['fillet_id']:'${resource.id}'`,
+            query: `metadata['pricectl_id']:'${escapedId}' OR metadata['fillet_id']:'${escapedId}'`,
             limit: 1,
           });
           return result.data.length > 0 ? result.data[0] : null;
@@ -157,9 +159,9 @@ export default class Diff extends Command {
           normalized.statement_descriptor = resource.statement_descriptor;
         }
         if (resource.tax_code !== undefined) normalized.tax_code = resource.tax_code;
-        // Exclude fillet metadata from comparison
+        // Exclude pricectl and legacy fillet metadata from comparison
         if (resource.metadata) {
-          const { fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = resource.metadata;
+          const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = resource.metadata;
           if (Object.keys(userMetadata).length > 0) {
             normalized.metadata = userMetadata;
           }
@@ -214,9 +216,9 @@ export default class Diff extends Command {
           };
         }
 
-        // Exclude fillet metadata from comparison
+        // Exclude pricectl and legacy fillet metadata from comparison
         if (resource.metadata) {
-          const { fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = resource.metadata;
+          const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = resource.metadata;
           if (Object.keys(userMetadata).length > 0) {
             normalized.metadata = userMetadata;
           }

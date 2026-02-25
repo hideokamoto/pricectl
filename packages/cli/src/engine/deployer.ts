@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { StackManifest, ResourceManifest } from '@fillet/core';
+import { StackManifest, ResourceManifest } from '@pricectl/core';
 
 export interface DeployResult {
   stackId: string;
@@ -100,8 +100,8 @@ export class StripeDeployer {
         ...resource.properties,
         metadata: {
           ...resource.properties.metadata,
-          fillet_id: resource.id,
-          fillet_path: resource.path,
+          pricectl_id: resource.id,
+          pricectl_path: resource.path,
         },
       });
       return {
@@ -136,8 +136,8 @@ export class StripeDeployer {
           ...properties,
           metadata: {
             ...properties.metadata,
-            fillet_id: resource.id,
-            fillet_path: resource.path,
+            pricectl_id: resource.id,
+            pricectl_path: resource.path,
           },
         });
         return {
@@ -152,8 +152,8 @@ export class StripeDeployer {
         ...properties,
         metadata: {
           ...properties.metadata,
-          fillet_id: resource.id,
-          fillet_path: resource.path,
+          pricectl_id: resource.id,
+          pricectl_path: resource.path,
         },
       });
       return {
@@ -212,9 +212,11 @@ export class StripeDeployer {
 
   private async findExistingProduct(logicalId: string): Promise<Stripe.Product | null> {
     try {
-      // Use search API for efficient lookup by metadata
+      // Escape single quotes in logicalId to prevent search query injection
+      const escapedId = logicalId.replace(/'/g, "\\'");
+      // Use search API with OR query to support both old and new metadata keys
       const result = await this.stripe.products.search({
-        query: `metadata['fillet_id']:'${logicalId}'`,
+        query: `metadata['pricectl_id']:'${escapedId}' OR metadata['fillet_id']:'${escapedId}'`,
         limit: 1,
       });
 
@@ -235,9 +237,11 @@ export class StripeDeployer {
 
   private async findExistingPrice(logicalId: string): Promise<Stripe.Price | null> {
     try {
-      // Use search API for efficient lookup by metadata
+      // Escape single quotes in logicalId to prevent search query injection
+      const escapedId = logicalId.replace(/'/g, "\\'");
+      // Use search API with OR query to support both old and new metadata keys
       const result = await this.stripe.prices.search({
-        query: `metadata['fillet_id']:'${logicalId}'`,
+        query: `metadata['pricectl_id']:'${escapedId}' OR metadata['fillet_id']:'${escapedId}'`,
         limit: 1,
       });
 
