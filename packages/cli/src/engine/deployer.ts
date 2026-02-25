@@ -57,11 +57,11 @@ export class StripeDeployer {
 
         // Store the mapping from logical ID to physical ID
         this.logicalToPhysicalId.set(resource.id, deployed.physicalId);
-      } catch (error: any) {
+      } catch (error: unknown) {
         result.errors.push({
           id: resource.id,
           type: resource.type,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
@@ -83,11 +83,12 @@ export class StripeDeployer {
   }
 
   private async deployProduct(resource: ResourceManifest) {
+    const props = resource.properties as unknown as Stripe.ProductCreateParams;
     const existing = await this.findExistingProduct(resource.id);
 
     if (existing) {
       // Update existing product
-      const updated = await this.stripe.products.update(existing.id, resource.properties);
+      const updated = await this.stripe.products.update(existing.id, props as Stripe.ProductUpdateParams);
       return {
         id: resource.id,
         type: resource.type,
@@ -97,9 +98,9 @@ export class StripeDeployer {
     } else {
       // Create new product
       const created = await this.stripe.products.create({
-        ...resource.properties,
+        ...props,
         metadata: {
-          ...resource.properties.metadata,
+          ...props.metadata,
           pricectl_id: resource.id,
           pricectl_path: resource.path,
         },
@@ -116,12 +117,13 @@ export class StripeDeployer {
   private async deployPrice(resource: ResourceManifest) {
     // Resolve the product dependency
     const properties = this.resolveDependencies(resource.properties);
+    const props = properties as unknown as Stripe.PriceCreateParams;
 
     const existing = await this.findExistingPrice(resource.id);
 
     if (existing) {
       // Check if properties match
-      const propsMatch = this.comparePriceProperties(existing, properties);
+      const propsMatch = this.comparePriceProperties(existing, props);
       if (propsMatch) {
         return {
           id: resource.id,
@@ -133,9 +135,9 @@ export class StripeDeployer {
         // Deactivate old price and create new one
         await this.stripe.prices.update(existing.id, { active: false });
         const created = await this.stripe.prices.create({
-          ...properties,
+          ...props,
           metadata: {
-            ...properties.metadata,
+            ...props.metadata,
             pricectl_id: resource.id,
             pricectl_path: resource.path,
           },
@@ -149,9 +151,9 @@ export class StripeDeployer {
       }
     } else {
       const created = await this.stripe.prices.create({
-        ...properties,
+        ...props,
         metadata: {
-          ...properties.metadata,
+          ...props.metadata,
           pricectl_id: resource.id,
           pricectl_path: resource.path,
         },
@@ -174,12 +176,13 @@ export class StripeDeployer {
         physicalId: existing.id,
         status: 'unchanged' as const,
       };
-    } catch (error: any) {
-      if (error.code === 'resource_missing') {
+    } catch (error: unknown) {
+      if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
         // Create new coupon
+        const props = resource.properties as unknown as Stripe.CouponCreateParams;
         const created = await this.stripe.coupons.create({
           id: resource.id,
-          ...resource.properties,
+          ...props,
         });
         return {
           id: resource.id,
@@ -196,7 +199,7 @@ export class StripeDeployer {
    * Resolve logical IDs to physical IDs in resource properties.
    * This is critical for handling dependencies between resources.
    */
-  private resolveDependencies(properties: any): any {
+  private resolveDependencies(properties: Record<string, unknown>): Record<string, unknown> {
     const resolved = { ...properties };
 
     // Resolve product reference in Price
@@ -225,9 +228,9 @@ export class StripeDeployer {
       }
 
       return null;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Only return null for resource_missing errors
-      if (error.code === 'resource_missing') {
+      if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
         return null;
       }
       // Re-throw other errors (auth, network, etc.)
@@ -250,9 +253,9 @@ export class StripeDeployer {
       }
 
       return null;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Only return null for resource_missing errors
-      if (error.code === 'resource_missing') {
+      if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
         return null;
       }
       // Re-throw other errors (auth, network, etc.)
@@ -265,7 +268,7 @@ export class StripeDeployer {
    * Prices are immutable in Stripe, so any property change requires deactivating
    * the old price and creating a new one.
    */
-  private comparePriceProperties(existing: Stripe.Price, desired: any): boolean {
+  private comparePriceProperties(existing: Stripe.Price, desired: Stripe.PriceCreateParams): boolean {
     // Compare basic properties
     if (existing.currency !== desired.currency) return false;
     if (existing.unit_amount !== desired.unit_amount) return false;
@@ -333,11 +336,11 @@ export class StripeDeployer {
         if (destroyed) {
           result.destroyed.push(destroyed);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         result.errors.push({
           id: resource.id,
           type: resource.type,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
@@ -384,8 +387,8 @@ export class StripeDeployer {
             type: resource.type,
             status: 'deleted',
           };
-        } catch (error: any) {
-          if (error.code === 'resource_missing') {
+        } catch (error: unknown) {
+          if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
             return null;
           }
           throw error;

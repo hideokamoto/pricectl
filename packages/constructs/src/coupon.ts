@@ -119,7 +119,7 @@ export class Coupon extends Resource {
     return 'Stripe::Coupon';
   }
 
-  protected synthesizeProperties(): Stripe.CouponCreateParams {
+  protected synthesizeProperties(): Record<string, unknown> {
     const params: Stripe.CouponCreateParams = {
       duration: this.duration,
     };
@@ -134,6 +134,6 @@ export class Coupon extends Resource {
     if (this.redeemBy !== undefined) params.redeem_by = this.redeemBy;
     if (this.appliesTo !== undefined) params.applies_to = this.appliesTo;
 
-    return params;
+    return params as unknown as Record<string, unknown>;
   }
 }

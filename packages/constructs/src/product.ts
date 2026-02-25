@@ -93,7 +93,7 @@ export class Product extends Resource {
     return 'Stripe::Product';
   }
 
-  protected synthesizeProperties(): Stripe.ProductCreateParams {
+  protected synthesizeProperties(): Record<string, unknown> {
     const params: Stripe.ProductCreateParams = {
       name: this.name,
       active: this.active,
@@ -107,6 +107,6 @@ export class Product extends Resource {
     if (this.statementDescriptor !== undefined) params.statement_descriptor = this.statementDescriptor;
     if (this.taxCode !== undefined) params.tax_code = this.taxCode;
 
-    return params;
+    return params as unknown as Record<string, unknown>;
   }
 }

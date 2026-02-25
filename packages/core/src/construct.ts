@@ -8,7 +8,7 @@ export interface IConstruct {
 
 export class ConstructNode {
   private _children: Construct[] = [];
-  private _metadata: Record<string, any> = {};
+  private _metadata: Record<string, unknown> = {};
 
   constructor(
     private readonly host: Construct,
@@ -46,11 +46,11 @@ export class ConstructNode {
     this._children.push(child);
   }
 
-  public addMetadata(key: string, value: any): void {
+  public addMetadata(key: string, value: unknown): void {
     this._metadata[key] = value;
   }
 
-  public getMetadata(key: string): any {
+  public getMetadata(key: string): unknown {
     return this._metadata[key];
   }
 

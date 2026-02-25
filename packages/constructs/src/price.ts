@@ -166,7 +166,7 @@ export class Price extends Resource {
     return 'Stripe::Price';
   }
 
-  protected synthesizeProperties(): Stripe.PriceCreateParams {
+  protected synthesizeProperties(): Record<string, unknown> {
     const params: Stripe.PriceCreateParams = {
       product: this.product instanceof Product ? this.product.physicalId || this.product.node.id : this.product,
       currency: this.currency,
@@ -207,6 +207,6 @@ export class Price extends Resource {
       }));
     }
 
-    return params;
+    return params as unknown as Record<string, unknown>;
   }
 }

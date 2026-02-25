@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import chalk from 'chalk';
 import { createTwoFilesPatch } from 'diff';
 import Stripe from 'stripe';
-import { StackManifest } from '@pricectl/core';
+import { StackManifest, ResourceManifest } from '@pricectl/core';
 
 export default class Diff extends Command {
   static description = 'Compare the deployed stack with the local definition';
@@ -95,8 +95,8 @@ export default class Diff extends Command {
       if (!hasChanges) {
         this.log(chalk.gray('No changes detected'));
       }
-    } catch (error: any) {
-      this.error(`Diff failed: ${error.message}`);
+    } catch (error: unknown) {
+      this.error(`Diff failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -104,7 +104,10 @@ export default class Diff extends Command {
    * Fetch the current state of a resource from Stripe.
    * Uses the search API for efficient metadata-based lookup.
    */
-  private async fetchCurrentResource(stripe: Stripe, resource: any): Promise<any> {
+  private async fetchCurrentResource(
+    stripe: Stripe,
+    resource: ResourceManifest
+  ): Promise<Stripe.Product | Stripe.Price | Stripe.Coupon | null> {
     try {
       // Escape backslashes first, then escape double quotes in resource.id to prevent search query injection
       const escapedId = resource.id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -129,9 +132,9 @@ export default class Diff extends Command {
         default:
           return null;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Only return null for resource_missing errors
-      if (error.code === 'resource_missing') {
+      if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
         return null;
       }
       // Re-throw other errors (auth, network, etc.) to surface them to the user
@@ -143,65 +146,72 @@ export default class Diff extends Command {
    * Normalize a Stripe resource to match the format of our construct properties.
    * This ensures accurate comparison by extracting all user-configurable properties.
    */
-  private normalizeResource(resource: any, resourceType: string): any {
-    const normalized: any = {};
+  private normalizeResource(
+    resource: Stripe.Product | Stripe.Price | Stripe.Coupon,
+    resourceType: string
+  ): Record<string, unknown> {
+    const normalized: Record<string, unknown> = {};
 
     switch (resourceType) {
-      case 'Stripe::Product':
+      case 'Stripe::Product': {
+        const product = resource as Stripe.Product;
         // Include all Product properties
-        if (resource.name !== undefined) normalized.name = resource.name;
-        if (resource.description !== undefined) normalized.description = resource.description;
-        if (resource.active !== undefined) normalized.active = resource.active;
-        if (resource.images) normalized.images = resource.images;
-        if (resource.url !== undefined) normalized.url = resource.url;
-        if (resource.unit_label !== undefined) normalized.unit_label = resource.unit_label;
-        if (resource.statement_descriptor !== undefined) {
-          normalized.statement_descriptor = resource.statement_descriptor;
+        if (product.name !== undefined) normalized.name = product.name;
+        if (product.description !== undefined) normalized.description = product.description;
+        if (product.active !== undefined) normalized.active = product.active;
+        if (product.images) normalized.images = product.images;
+        if (product.url !== undefined) normalized.url = product.url;
+        if (product.unit_label !== undefined) normalized.unit_label = product.unit_label;
+        if (product.statement_descriptor !== undefined) {
+          normalized.statement_descriptor = product.statement_descriptor;
         }
-        if (resource.tax_code !== undefined) normalized.tax_code = resource.tax_code;
+        if (product.tax_code !== undefined) normalized.tax_code = product.tax_code;
         // Exclude pricectl and legacy fillet metadata from comparison
-        if (resource.metadata) {
-          const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = resource.metadata;
+        if (product.metadata) {
+          const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = product.metadata;
           if (Object.keys(userMetadata).length > 0) {
             normalized.metadata = userMetadata;
           }
         }
         break;
+      }
 
-      case 'Stripe::Price':
+      case 'Stripe::Price': {
+        const price = resource as Stripe.Price;
         // Include all Price properties
         // Note: product ID is already resolved, so we include it as-is
-        if (resource.product !== undefined) normalized.product = resource.product;
-        if (resource.currency !== undefined) normalized.currency = resource.currency;
-        if (resource.unit_amount !== undefined) normalized.unit_amount = resource.unit_amount;
-        if (resource.unit_amount_decimal !== undefined) {
-          normalized.unit_amount_decimal = resource.unit_amount_decimal;
+        if (price.product !== undefined) normalized.product = price.product;
+        if (price.currency !== undefined) normalized.currency = price.currency;
+        if (price.unit_amount !== undefined) normalized.unit_amount = price.unit_amount;
+        if (price.unit_amount_decimal !== undefined) {
+          normalized.unit_amount_decimal = price.unit_amount_decimal;
         }
-        if (resource.active !== undefined) normalized.active = resource.active;
-        if (resource.nickname !== undefined) normalized.nickname = resource.nickname;
-        if (resource.lookup_key !== undefined) normalized.lookup_key = resource.lookup_key;
+        if (price.active !== undefined) normalized.active = price.active;
+        if (price.nickname !== undefined) normalized.nickname = price.nickname;
+        if (price.lookup_key !== undefined) normalized.lookup_key = price.lookup_key;
 
         // Recurring properties
-        if (resource.recurring) {
-          normalized.recurring = {};
-          if (resource.recurring.interval !== undefined) {
-            normalized.recurring.interval = resource.recurring.interval;
+        if (price.recurring) {
+          const recurring: Record<string, unknown> = {};
+          if (price.recurring.interval !== undefined) {
+            recurring.interval = price.recurring.interval;
           }
-          if (resource.recurring.interval_count !== undefined) {
-            normalized.recurring.interval_count = resource.recurring.interval_count;
+          if (price.recurring.interval_count !== undefined) {
+            recurring.interval_count = price.recurring.interval_count;
           }
-          if (resource.recurring.usage_type !== undefined) {
-            normalized.recurring.usage_type = resource.recurring.usage_type;
+          if (price.recurring.usage_type !== undefined) {
+            recurring.usage_type = price.recurring.usage_type;
           }
-          if (resource.recurring.trial_period_days !== undefined) {
-            normalized.recurring.trial_period_days = resource.recurring.trial_period_days;
+          if (price.recurring.trial_period_days !== undefined) {
+            recurring.trial_period_days = price.recurring.trial_period_days;
           }
+          normalized.recurring = recurring;
         }
 
         // Tiers
-        if (resource.tiers_mode !== undefined) normalized.tiers_mode = resource.tiers_mode;
-        if (resource.tiers) {
-          normalized.tiers = resource.tiers.map((tier: any) => ({
+        if (price.tiers_mode !== undefined) normalized.tiers_mode = price.tiers_mode;
+        if (price.tiers) {
+          normalized.tiers = price.tiers.map((tier: Stripe.Price.Tier) => ({
             up_to: tier.up_to,
             unit_amount: tier.unit_amount,
             flat_amount: tier.flat_amount,
@@ -209,39 +219,42 @@ export default class Diff extends Command {
         }
 
         // Transform quantity
-        if (resource.transform_quantity) {
+        if (price.transform_quantity) {
           normalized.transform_quantity = {
-            divide_by: resource.transform_quantity.divide_by,
-            round: resource.transform_quantity.round,
+            divide_by: price.transform_quantity.divide_by,
+            round: price.transform_quantity.round,
           };
         }
 
         // Exclude pricectl and legacy fillet metadata from comparison
-        if (resource.metadata) {
-          const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = resource.metadata;
+        if (price.metadata) {
+          const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = price.metadata;
           if (Object.keys(userMetadata).length > 0) {
             normalized.metadata = userMetadata;
           }
         }
         break;
+      }
 
-      case 'Stripe::Coupon':
+      case 'Stripe::Coupon': {
+        const coupon = resource as Stripe.Coupon;
         // Include all Coupon properties
-        if (resource.duration !== undefined) normalized.duration = resource.duration;
-        if (resource.amount_off !== undefined) normalized.amount_off = resource.amount_off;
-        if (resource.currency !== undefined) normalized.currency = resource.currency;
-        if (resource.percent_off !== undefined) normalized.percent_off = resource.percent_off;
-        if (resource.duration_in_months !== undefined) {
-          normalized.duration_in_months = resource.duration_in_months;
+        if (coupon.duration !== undefined) normalized.duration = coupon.duration;
+        if (coupon.amount_off !== undefined) normalized.amount_off = coupon.amount_off;
+        if (coupon.currency !== undefined) normalized.currency = coupon.currency;
+        if (coupon.percent_off !== undefined) normalized.percent_off = coupon.percent_off;
+        if (coupon.duration_in_months !== undefined) {
+          normalized.duration_in_months = coupon.duration_in_months;
         }
-        if (resource.max_redemptions !== undefined) {
-          normalized.max_redemptions = resource.max_redemptions;
+        if (coupon.max_redemptions !== undefined) {
+          normalized.max_redemptions = coupon.max_redemptions;
         }
-        if (resource.name !== undefined) normalized.name = resource.name;
-        if (resource.redeem_by !== undefined) normalized.redeem_by = resource.redeem_by;
-        if (resource.applies_to !== undefined) normalized.applies_to = resource.applies_to;
-        if (resource.metadata) normalized.metadata = resource.metadata;
+        if (coupon.name !== undefined) normalized.name = coupon.name;
+        if (coupon.redeem_by !== undefined) normalized.redeem_by = coupon.redeem_by;
+        if (coupon.applies_to !== undefined) normalized.applies_to = coupon.applies_to;
+        if (coupon.metadata) normalized.metadata = coupon.metadata;
         break;
+      }
     }
 
     return normalized;

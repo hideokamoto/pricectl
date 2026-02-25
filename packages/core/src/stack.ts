@@ -50,7 +50,7 @@ export class Stack extends Construct {
     for (const construct of constructs) {
       if (construct === this) continue;
 
-      const metadata = construct.node.getMetadata('resource');
+      const metadata = construct.node.getMetadata('resource') as StoredResourceMetadata | undefined;
       if (metadata) {
         resources.push({
           id: construct.node.id,
@@ -70,11 +70,17 @@ export class Stack extends Construct {
   }
 }
 
+/** Shape stored by Resource.registerResourceMetadata() */
+interface StoredResourceMetadata {
+  type: string;
+  properties: Record<string, unknown>;
+}
+
 export interface ResourceManifest {
   id: string;
   path: string;
   type: string;
-  properties: any;
+  properties: Record<string, unknown>;
 }
 
 export interface StackManifest {

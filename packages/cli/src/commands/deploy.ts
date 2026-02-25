@@ -89,8 +89,8 @@ export default class Deploy extends Command {
       if (result.errors.length > 0) {
         this.log(`  Errors: ${chalk.red(result.errors.length)}`);
       }
-    } catch (error: any) {
-      this.error(`Deployment failed: ${error.message}`);
+    } catch (error: unknown) {
+      this.error(`Deployment failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }
