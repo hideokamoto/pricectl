@@ -212,9 +212,9 @@ export class StripeDeployer {
 
   private async findExistingProduct(logicalId: string): Promise<Stripe.Product | null> {
     try {
-      // Use search API for efficient lookup by metadata
+      // Use search API with OR query to support both old and new metadata keys
       const result = await this.stripe.products.search({
-        query: `metadata['pricectl_id']:'${logicalId}'`,
+        query: `metadata['pricectl_id']:'${logicalId}' OR metadata['fillet_id']:'${logicalId}'`,
         limit: 1,
       });
 
@@ -235,9 +235,9 @@ export class StripeDeployer {
 
   private async findExistingPrice(logicalId: string): Promise<Stripe.Price | null> {
     try {
-      // Use search API for efficient lookup by metadata
+      // Use search API with OR query to support both old and new metadata keys
       const result = await this.stripe.prices.search({
-        query: `metadata['pricectl_id']:'${logicalId}'`,
+        query: `metadata['pricectl_id']:'${logicalId}' OR metadata['fillet_id']:'${logicalId}'`,
         limit: 1,
       });
 
