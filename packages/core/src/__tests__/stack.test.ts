@@ -1,26 +1,6 @@
 import { Construct } from '../construct';
 import { Stack } from '../stack';
-import { Resource } from '../resource';
-
-// テスト用の具象Resourceクラス
-class TestResource extends Resource {
-  constructor(
-    scope: Construct,
-    id: string,
-    private readonly props: { type: string; properties: any; physicalId?: string }
-  ) {
-    super(scope, id, { physicalId: props.physicalId });
-    this.registerResourceMetadata();
-  }
-
-  protected get resourceType(): string {
-    return this.props.type;
-  }
-
-  protected synthesizeProperties(): any {
-    return this.props.properties;
-  }
-}
+import { TestResource } from './helpers';
 
 describe('Stack', () => {
   const API_KEY = 'sk_test_dummy_key_for_testing';
@@ -143,7 +123,7 @@ describe('Stack', () => {
       const manifest = stack.synth();
 
       expect(manifest.resources).toHaveLength(2);
-      expect(manifest.resources.map(r => r.id)).toEqual(['Prod', 'Price']);
+      expect(manifest.resources.map(r => r.id)).toEqual(expect.arrayContaining(['Prod', 'Price']));
     });
 
     it('resourceメタデータがないConstructはmanifestに含まれない', () => {

@@ -116,7 +116,14 @@ describe('StripeDeployer', () => {
 
         expect(mockStripeInstance.products.update).toHaveBeenCalledWith(
           'prod_existing_456',
-          { name: 'Updated Widget', active: true }
+          expect.objectContaining({
+            name: 'Updated Widget',
+            active: true,
+            metadata: expect.objectContaining({
+              pricectl_id: 'MyProduct',
+              pricectl_path: 'TestStack/MyProduct',
+            }),
+          })
         );
       });
     });
@@ -447,6 +454,29 @@ describe('StripeDeployer', () => {
         status: 'deleted',
       });
       expect(mockStripeInstance.products.del).toHaveBeenCalledWith('prod_to_delete');
+    });
+
+    it('存在しないProductの削除はスキップされる', async () => {
+      mockStripeInstance.products.search.mockResolvedValue({ data: [] });
+
+      const manifest: StackManifest = {
+        stackId: 'TestStack',
+        tags: {},
+        resources: [
+          {
+            id: 'MissingProduct',
+            path: 'TestStack/MissingProduct',
+            type: 'Stripe::Product',
+            properties: { name: 'Widget' },
+          },
+        ],
+      };
+
+      const result = await deployer.destroy(manifest);
+
+      expect(result.destroyed).toHaveLength(0);
+      expect(result.errors).toHaveLength(0);
+      expect(mockStripeInstance.products.del).not.toHaveBeenCalled();
     });
 
     it('Priceを無効化する（Stripeでは削除不可）', async () => {

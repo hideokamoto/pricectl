@@ -1,12 +1,7 @@
-import { Stack } from '@pricectl/core';
 import { Product } from '../product';
+import { createStack } from './helpers';
 
 describe('Product', () => {
-  const API_KEY = 'sk_test_dummy_key_for_testing';
-
-  function createStack(id = 'TestStack'): Stack {
-    return new Stack(undefined, id, { apiKey: API_KEY });
-  }
 
   describe('プロパティの設定', () => {
     it('必須プロパティのみで生成できる', () => {
