@@ -9,7 +9,6 @@ workflows:
       - node/run:
           name: lint
           pkg-manager: pnpm
-          setup: true
           pnpm-run: lint
       - node/test:
           name: test-node-18
