@@ -15,8 +15,8 @@ Thank you for your interest in contributing to pricectl! This document provides 
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/fillet.git
-   cd fillet
+   git clone https://github.com/YOUR_USERNAME/pricectl.git
+   cd pricectl
    ```
 
 3. Install dependencies:
