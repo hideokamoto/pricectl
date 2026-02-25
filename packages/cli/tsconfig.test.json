@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "paths": {
+      "@pricectl/core": ["../core/src"],
+      "@pricectl/constructs": ["../constructs/src"]
+    }
+  },
+  "include": ["src/**/*"]
+}
