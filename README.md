@@ -272,8 +272,8 @@ Check out the [examples](./examples) directory for complete working examples:
 
 ```bash
 # Clone the repository
-git clone https://github.com/hideokamoto/fillet.git
-cd fillet
+git clone https://github.com/hideokamoto/pricectl.git
+cd pricectl
 
 # Install dependencies
 pnpm install
