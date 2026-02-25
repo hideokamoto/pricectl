@@ -106,17 +106,19 @@ export default class Diff extends Command {
    */
   private async fetchCurrentResource(stripe: Stripe, resource: any): Promise<any> {
     try {
+      // Escape single quotes in resource.id to prevent search query injection
+      const escapedId = resource.id.replace(/'/g, "\\'");
       switch (resource.type) {
         case 'Stripe::Product': {
           const result = await stripe.products.search({
-            query: `metadata['pricectl_id']:'${resource.id}' OR metadata['fillet_id']:'${resource.id}'`,
+            query: `metadata['pricectl_id']:'${escapedId}' OR metadata['fillet_id']:'${escapedId}'`,
             limit: 1,
           });
           return result.data.length > 0 ? result.data[0] : null;
         }
         case 'Stripe::Price': {
           const result = await stripe.prices.search({
-            query: `metadata['pricectl_id']:'${resource.id}' OR metadata['fillet_id']:'${resource.id}'`,
+            query: `metadata['pricectl_id']:'${escapedId}' OR metadata['fillet_id']:'${escapedId}'`,
             limit: 1,
           });
           return result.data.length > 0 ? result.data[0] : null;
