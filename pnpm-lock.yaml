@@ -44,13 +44,13 @@ importers:
 
   examples/advanced-pricing:
     dependencies:
-      '@fillet/cli':
+      '@pricectl/cli':
         specifier: workspace:*
         version: link:../../packages/cli
-      '@fillet/constructs':
+      '@pricectl/constructs':
         specifier: workspace:*
         version: link:../../packages/constructs
-      '@fillet/core':
+      '@pricectl/core':
         specifier: workspace:*
         version: link:../../packages/core
     devDependencies:
@@ -63,13 +63,13 @@ importers:
 
   examples/basic-subscription:
     dependencies:
-      '@fillet/cli':
+      '@pricectl/cli':
         specifier: workspace:*
         version: link:../../packages/cli
-      '@fillet/constructs':
+      '@pricectl/constructs':
         specifier: workspace:*
         version: link:../../packages/constructs
-      '@fillet/core':
+      '@pricectl/core':
         specifier: workspace:*
         version: link:../../packages/core
     devDependencies:
@@ -82,18 +82,18 @@ importers:
 
   packages/cli:
     dependencies:
-      '@fillet/constructs':
-        specifier: workspace:*
-        version: link:../constructs
-      '@fillet/core':
-        specifier: workspace:*
-        version: link:../core
       '@oclif/core':
         specifier: ^3.15.0
         version: 3.27.0
       '@oclif/plugin-help':
         specifier: ^6.0.9
         version: 6.2.36
+      '@pricectl/constructs':
+        specifier: workspace:*
+        version: link:../constructs
+      '@pricectl/core':
+        specifier: workspace:*
+        version: link:../core
       chalk:
         specifier: ^4.1.2
         version: 4.1.2
@@ -116,7 +116,7 @@ importers:
 
   packages/constructs:
     dependencies:
-      '@fillet/core':
+      '@pricectl/core':
         specifier: workspace:*
         version: link:../core
       stripe:
