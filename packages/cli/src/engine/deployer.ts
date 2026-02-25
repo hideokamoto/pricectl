@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { StackManifest, ResourceManifest } from '@pricectl/core';
+import { findExistingProduct, findExistingPrice } from './stripe-utils';
 
 export interface DeployResult {
   stackId: string;
@@ -210,54 +211,12 @@ export class StripeDeployer {
     return resolved;
   }
 
-  private async findExistingProduct(logicalId: string): Promise<Stripe.Product | null> {
-    try {
-      // Escape backslashes first, then escape double quotes in logicalId to prevent search query injection
-      const escapedId = logicalId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      // Use search API with OR query to support both old and new metadata keys
-      const result = await this.stripe.products.search({
-        query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
-        limit: 1,
-      });
-
-      if (result.data.length > 0) {
-        return result.data[0];
-      }
-
-      return null;
-    } catch (error: any) {
-      // Only return null for resource_missing errors
-      if (error.code === 'resource_missing') {
-        return null;
-      }
-      // Re-throw other errors (auth, network, etc.)
-      throw error;
-    }
+  private findExistingProduct(logicalId: string): Promise<Stripe.Product | null> {
+    return findExistingProduct(this.stripe, logicalId);
   }
 
-  private async findExistingPrice(logicalId: string): Promise<Stripe.Price | null> {
-    try {
-      // Escape backslashes first, then escape double quotes in logicalId to prevent search query injection
-      const escapedId = logicalId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      // Use search API with OR query to support both old and new metadata keys
-      const result = await this.stripe.prices.search({
-        query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
-        limit: 1,
-      });
-
-      if (result.data.length > 0) {
-        return result.data[0];
-      }
-
-      return null;
-    } catch (error: any) {
-      // Only return null for resource_missing errors
-      if (error.code === 'resource_missing') {
-        return null;
-      }
-      // Re-throw other errors (auth, network, etc.)
-      throw error;
-    }
+  private findExistingPrice(logicalId: string): Promise<Stripe.Price | null> {
+    return findExistingPrice(this.stripe, logicalId);
   }
 
   /**
