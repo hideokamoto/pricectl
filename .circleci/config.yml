@@ -1,41 +1,65 @@
----
 version: 2.1
-jobs:
-  test: &test
+
+executors:
+  node-18:
     docker:
-      - image: node:18
-    working_directory: ~/pricectl
+      - image: cimg/node:18.20
+    working_directory: ~/project
+  node-20:
+    docker:
+      - image: cimg/node:20.11
+    working_directory: ~/project
+
+commands:
+  setup:
+    description: "Checkout, enable corepack, and install dependencies"
     steps:
       - checkout
-      - restore_cache: &restore_cache
-          keys:
-            - v1-pnpm-{{checksum ".circleci/config.yml"}}-{{checksum "pnpm-lock.yaml"}}
-            - v1-pnpm-{{checksum ".circleci/config.yml"}}
       - run:
-          name: Install pnpm
-          command: npm install -g pnpm
+          name: Enable corepack
+          command: corepack enable
+      - restore_cache:
+          keys:
+            - v1-pnpm-store-{{ checksum "pnpm-lock.yaml" }}
+            - v1-pnpm-store-
       - run:
           name: Install dependencies
           command: pnpm install --frozen-lockfile
+      - save_cache:
+          key: v1-pnpm-store-{{ checksum "pnpm-lock.yaml" }}
+          paths:
+            - ~/.local/share/pnpm/store
+
+jobs:
+  lint:
+    executor: node-20
+    steps:
+      - setup
+      - run:
+          name: Lint
+          command: pnpm lint
+
+  build-and-test:
+    parameters:
+      executor:
+        type: executor
+    executor: << parameters.executor >>
+    steps:
+      - setup
       - run:
           name: Build
           command: pnpm build
       - run:
-          name: Testing
+          name: Test
           command: pnpm test
-      - save_cache:
-          key: v1-pnpm-{{checksum ".circleci/config.yml"}}-{{checksum "pnpm-lock.yaml"}}
-          paths:
-            - ~/pricectl/node_modules
-            - ~/.pnpm-store
-  test-node-20:
-    <<: *test
-    docker:
-      - image: node:20
 
 workflows:
-  version: 2
-  "pricectl":
+  ci:
     jobs:
-      - test
-      - test-node-20
+      - lint
+      - build-and-test:
+          name: build-and-test-node-18
+          executor: node-18
+      - build-and-test:
+          name: build-and-test-node-20
+          executor: node-20
