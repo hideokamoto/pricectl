@@ -9,10 +9,12 @@ workflows:
       - node/run:
           name: lint
           pkg-manager: pnpm
+          setup: true
           pnpm-run: lint
       - node/test:
           name: test-node-18
           pkg-manager: pnpm
+          setup: true
           executor:
             name: node/default
             tag: '18.20'
@@ -22,6 +24,7 @@ workflows:
       - node/test:
           name: test-node-20
           pkg-manager: pnpm
+          setup: true
           executor:
             name: node/default
             tag: '20.11'
