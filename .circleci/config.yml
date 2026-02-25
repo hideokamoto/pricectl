@@ -1,38 +1,41 @@
 ---
-version: 2
+version: 2.1
 jobs:
-  node-latest: &test
+  test: &test
     docker:
-      - image: node:latest
-    working_directory: ~/cli
+      - image: node:18
+    working_directory: ~/pricectl
     steps:
       - checkout
       - restore_cache: &restore_cache
           keys:
-            - v1-npm-{{checksum ".circleci/config.yml"}}-{{ checksum "package-lock.json"}}
-            - v1-npm-{{checksum ".circleci/config.yml"}}
+            - v1-pnpm-{{checksum ".circleci/config.yml"}}-{{checksum "pnpm-lock.yaml"}}
+            - v1-pnpm-{{checksum ".circleci/config.yml"}}
+      - run:
+          name: Install pnpm
+          command: npm install -g pnpm
       - run:
           name: Install dependencies
-          command: .circleci/greenkeeper
-      - run: ./bin/run --version
-      - run: ./bin/run --help
+          command: pnpm install --frozen-lockfile
+      - run:
+          name: Build
+          command: pnpm build
       - run:
           name: Testing
-          command: npm test
+          command: pnpm test
       - save_cache:
-          key: v1-yarn-{{checksum ".circleci/config.yml"}}-{{checksum "yarn.lock"}}
+          key: v1-pnpm-{{checksum ".circleci/config.yml"}}-{{checksum "pnpm-lock.yaml"}}
           paths:
-            - ~/cli/node_modules
-            - ~/.npm
-            - /usr/local/lib/node_modules
-  node-8:
+            - ~/pricectl/node_modules
+            - ~/.pnpm-store
+  test-node-20:
     <<: *test
     docker:
-      - image: node:8
+      - image: node:20
 
 workflows:
   version: 2
-  "fillet":
+  "pricectl":
     jobs:
-      - node-latest
-      - node-8
+      - test
+      - test-node-20
