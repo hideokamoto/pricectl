@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
-import { StackManifest } from '@pricectl/core';
+import { StackManifest, STRIPE_API_KEY_MISSING_ERROR } from '@pricectl/core';
 
 export default class Deploy extends Command {
   static description = 'Deploy the stack to Stripe';
@@ -11,6 +11,7 @@ export default class Deploy extends Command {
   static examples = [
     '<%= config.bin %> <%= command.id %>',
     '<%= config.bin %> <%= command.id %> --app ./infra/main.ts',
+    '<%= config.bin %> <%= command.id %> --dry-run',
   ];
 
   static flags = {
@@ -18,6 +19,10 @@ export default class Deploy extends Command {
       char: 'a',
       description: 'Path to the app file that defines your stack',
       default: './pricectl.ts',
+    }),
+    'dry-run': Flags.boolean({
+      description: 'Preview the API calls that would be made without actually deploying',
+      default: false,
     }),
   };
 
@@ -44,10 +49,30 @@ export default class Deploy extends Command {
 
     const manifest: StackManifest = stack.synth();
 
+    if (flags['dry-run']) {
+      this.log(chalk.bold.cyan('Dry run — no changes will be made to Stripe'));
+      this.log('');
+      this.log(`Stack: ${chalk.bold(manifest.stackId)}`);
+      if (manifest.description) this.log(`Description: ${manifest.description}`);
+      this.log('');
+      this.log(chalk.bold(`Resources to deploy (${manifest.resources.length}):`));
+      for (const resource of manifest.resources) {
+        this.log(chalk.green(`  + ${resource.path} [${resource.type}]`));
+        this.log('    Properties:');
+        for (const line of JSON.stringify(resource.properties, null, 2).split('\n')) {
+          this.log(`    ${line}`);
+        }
+      }
+      this.log('');
+      this.log(chalk.bold('Summary:'));
+      this.log(`  Total: ${chalk.green(manifest.resources.length)} resource(s) would be created/updated`);
+      return;
+    }
+
     // Get Stripe API key
     const apiKey = stack.apiKey || process.env.STRIPE_SECRET_KEY;
     if (!apiKey) {
-      this.error('Stripe API key not found. Set STRIPE_SECRET_KEY environment variable.', { exit: 1 });
+      this.error(STRIPE_API_KEY_MISSING_ERROR, { exit: 1 });
     }
 
     try {

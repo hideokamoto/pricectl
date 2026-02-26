@@ -1,4 +1,5 @@
 import { Construct } from './construct';
+import { STRIPE_API_KEY_MISSING_ERROR } from './errors';
 
 export interface StackProps {
   /**
@@ -42,9 +43,7 @@ export class Stack extends Construct {
     this.tags = props.tags || {};
 
     if (!this.apiKey) {
-      throw new Error(
-        'Stripe API key is required. Set it via props.apiKey or STRIPE_SECRET_KEY environment variable.'
-      );
+      throw new Error(STRIPE_API_KEY_MISSING_ERROR);
     }
   }
 
