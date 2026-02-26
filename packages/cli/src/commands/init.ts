@@ -166,14 +166,12 @@ dist/
       this.log(chalk.green('✓ Created .gitignore'));
     } else if (flags.force) {
       const existing = fs.readFileSync(gitignorePath, 'utf-8');
+      const existingLines = new Set(existing.split('\n').map(l => l.trim()));
       const linesToAdd: string[] = [];
-      if (!existing.includes('.env')) linesToAdd.push('.env');
-      if (!existing.includes('pricectl.out/')) linesToAdd.push('pricectl.out/');
-      if (!existing.includes('pricectl.state.json')) linesToAdd.push('pricectl.state.json');
-      if (!existing.includes('node_modules/')) linesToAdd.push('node_modules/');
-      if (!existing.includes('dist/')) linesToAdd.push('dist/');
-      if (!existing.includes('*.js')) linesToAdd.push('*.js');
-      if (!existing.includes('*.d.ts')) linesToAdd.push('*.d.ts');
+      const requiredEntries = ['.env', 'pricectl.out/', 'pricectl.state.json', 'node_modules/', 'dist/', '*.js', '*.d.ts'];
+      for (const entry of requiredEntries) {
+        if (!existingLines.has(entry)) linesToAdd.push(entry);
+      }
 
       if (linesToAdd.length > 0) {
         fs.appendFileSync(gitignorePath, '\n' + linesToAdd.join('\n') + '\n');

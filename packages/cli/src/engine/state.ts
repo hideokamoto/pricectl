@@ -37,7 +37,12 @@ export class StateManager {
       if (fs.existsSync(this.filePath)) {
         const raw = fs.readFileSync(this.filePath, 'utf-8');
         const parsed = JSON.parse(raw);
-        if (parsed.version === STATE_VERSION) {
+        if (
+          parsed.version === STATE_VERSION &&
+          parsed.stacks !== null &&
+          typeof parsed.stacks === 'object' &&
+          !Array.isArray(parsed.stacks)
+        ) {
           return parsed;
         }
         // Unsupported version — start fresh

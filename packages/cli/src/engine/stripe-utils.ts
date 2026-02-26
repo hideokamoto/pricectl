@@ -39,7 +39,10 @@ export async function findExistingProduct(
         if (product && !product.deleted) {
           return product;
         }
-      } catch {
+      } catch (error: any) {
+        if (error?.code !== 'resource_missing') {
+          throw error;
+        }
         // Physical ID from state is stale — fall through to search
       }
     }
@@ -78,10 +81,13 @@ export async function findExistingPrice(
     if (stateEntry?.physicalId) {
       try {
         const price = await stripe.prices.retrieve(stateEntry.physicalId);
-        if (price && price.active) {
+        if (price) {
           return price;
         }
-      } catch {
+      } catch (error: any) {
+        if (error?.code !== 'resource_missing') {
+          throw error;
+        }
         // Physical ID from state is stale — fall through to search
       }
     }

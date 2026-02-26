@@ -99,9 +99,14 @@ export default class Deploy extends Command {
       this.error(`Deployment failed: ${error.message}`);
     } finally {
       // Always save state, even if there were errors during deployment
-      stateManager.save();
-      this.log('');
-      this.log(chalk.gray(`State saved to ${stateManager.getFilePath()}`));
+      try {
+        stateManager.save();
+        this.log('');
+        this.log(chalk.gray(`State saved to ${stateManager.getFilePath()}`));
+      } catch (saveError: any) {
+        this.log('');
+        this.log(chalk.yellow(`Warning: Failed to save state: ${saveError.message}`));
+      }
     }
   }
 }

@@ -332,11 +332,11 @@ export class StripeDeployer {
         const destroyed = await this.destroyResource(resource, manifest.stackId);
         if (destroyed) {
           result.destroyed.push(destroyed);
+        }
 
-          // Remove from state
-          if (this.stateManager) {
-            this.stateManager.removeResource(manifest.stackId, resource.id);
-          }
+        // Always clean state when destroyResource succeeds (even if resource was already gone)
+        if (this.stateManager) {
+          this.stateManager.removeResource(manifest.stackId, resource.id);
         }
       } catch (error: any) {
         result.errors.push({
