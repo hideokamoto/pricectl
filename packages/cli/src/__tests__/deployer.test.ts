@@ -509,6 +509,9 @@ describe('StripeDeployer', () => {
     });
 
     it('Couponを削除する', async () => {
+      mockStripeInstance.coupons.retrieve.mockResolvedValue({
+        id: 'COUPON1',
+      });
       mockStripeInstance.coupons.del.mockResolvedValue({});
 
       const manifest: StackManifest = {

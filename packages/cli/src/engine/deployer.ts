@@ -194,30 +194,33 @@ export class StripeDeployer {
   }
 
   private async deployCoupon(resource: ResourceManifest) {
-    try {
-      const existing = await this.stripe.coupons.retrieve(resource.id);
+    const existing = await this.findExistingCoupon(resource.id);
+
+    if (existing) {
       return {
         id: resource.id,
         type: resource.type,
         physicalId: existing.id,
         status: 'unchanged' as const,
       };
-    } catch (error: unknown) {
-      if (isResourceNotFoundError(error)) {
-        // Create new coupon
-        const props = resource.properties as unknown as Stripe.CouponCreateParams;
-        const created = await this.stripe.coupons.create({
-          id: resource.id,
-          ...props,
-        });
-        return {
-          id: resource.id,
-          type: resource.type,
-          physicalId: created.id,
-          status: 'created' as const,
-        };
-      }
-      throw error;
+    } else {
+      // Create new coupon
+      const props = resource.properties as unknown as Stripe.CouponCreateParams;
+      const created = await this.stripe.coupons.create({
+        id: resource.id,
+        ...props,
+        metadata: {
+          ...props.metadata,
+          pricectl_id: resource.id,
+          pricectl_path: resource.path,
+        },
+      });
+      return {
+        id: resource.id,
+        type: resource.type,
+        physicalId: created.id,
+        status: 'created' as const,
+      };
     }
   }
 
@@ -269,6 +272,19 @@ export class StripeDeployer {
     }
 
     return null;
+  }
+
+  private async findExistingCoupon(logicalId: string): Promise<Stripe.Coupon | null> {
+    // Coupons don't support search API, so we retrieve by logical ID directly.
+    // If metadata support is needed in the future, coupons would need to be queried via list() with pagination.
+    try {
+      return await this.stripe.coupons.retrieve(logicalId);
+    } catch (error: unknown) {
+      if (isResourceNotFoundError(error)) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -395,19 +411,16 @@ export class StripeDeployer {
         return null;
       }
       case 'Stripe::Coupon': {
-        try {
-          await this.stripe.coupons.del(resource.id);
+        const existing = await this.findExistingCoupon(resource.id);
+        if (existing) {
+          await this.stripe.coupons.del(existing.id);
           return {
             id: resource.id,
             type: resource.type,
             status: 'deleted',
           };
-        } catch (error: unknown) {
-          if (isResourceNotFoundError(error)) {
-            return null;
-          }
-          throw error;
         }
+        return null;
       }
       default:
         throw new Error(`Unknown resource type: ${resource.type}`);
