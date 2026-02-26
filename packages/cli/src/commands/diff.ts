@@ -53,7 +53,7 @@ export default class Diff extends Command {
 
     try {
       const apiVersion = stack.apiVersion || manifest.apiVersion || '2024-12-18.acacia';
-      const stripe = new Stripe(apiKey, { apiVersion: apiVersion as any });
+      const stripe = new Stripe(apiKey, { apiVersion: apiVersion as unknown as Stripe.LatestApiVersion });
 
       // Fetch current state from Stripe
       this.log(chalk.bold(`Stack: ${manifest.stackId}`));
@@ -156,16 +156,16 @@ export default class Diff extends Command {
       case 'Stripe::Product': {
         const product = resource as Stripe.Product;
         // Include all Product properties
-        if (product.name !== undefined) normalized.name = product.name;
-        if (product.description !== undefined) normalized.description = product.description;
-        if (product.active !== undefined) normalized.active = product.active;
-        if (product.images) normalized.images = product.images;
-        if (product.url !== undefined) normalized.url = product.url;
-        if (product.unit_label !== undefined) normalized.unit_label = product.unit_label;
-        if (product.statement_descriptor !== undefined) {
+        if (product.name != null) normalized.name = product.name;
+        if (product.description != null) normalized.description = product.description;
+        if (product.active != null) normalized.active = product.active;
+        if (product.images != null) normalized.images = product.images;
+        if (product.url != null) normalized.url = product.url;
+        if (product.unit_label != null) normalized.unit_label = product.unit_label;
+        if (product.statement_descriptor != null) {
           normalized.statement_descriptor = product.statement_descriptor;
         }
-        if (product.tax_code !== undefined) normalized.tax_code = product.tax_code;
+        if (product.tax_code != null) normalized.tax_code = product.tax_code;
         // Exclude pricectl and legacy fillet metadata from comparison
         if (product.metadata) {
           const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = product.metadata;
