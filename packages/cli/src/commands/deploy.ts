@@ -57,7 +57,8 @@ export default class Deploy extends Command {
     const stateManager = new StateManager(flags['state-file']);
     try {
       // Deploy using the deployer
-      const deployer = new StripeDeployer(apiKey, stateManager);
+      const apiVersion = manifest.apiVersion || '2024-12-18.acacia';
+      const deployer = new StripeDeployer(apiKey, apiVersion, stateManager);
       const result = await deployer.deploy(manifest);
 
       // Display results

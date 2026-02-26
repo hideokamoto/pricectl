@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { StackManifest, ResourceManifest } from '@pricectl/core';
-import { findExistingProduct, findExistingPrice, escapeSearchQuery } from './stripe-utils';
+import { findExistingProduct as stripeFindExistingProduct, findExistingPrice as stripeFindExistingPrice } from './stripe-utils';
 import { StateManager } from './state';
 
 export interface DeployResult {
@@ -37,9 +37,9 @@ export class StripeDeployer {
   private logicalToPhysicalId: Map<string, string> = new Map();
   private stateManager: StateManager | undefined;
 
-  constructor(apiKey: string, stateManager?: StateManager) {
+  constructor(apiKey: string, apiVersion: string = '2024-12-18.acacia', stateManager?: StateManager) {
     this.stripe = new Stripe(apiKey, {
-      apiVersion: '2023-10-16',
+      apiVersion: apiVersion as any,
     });
     this.stateManager = stateManager;
   }
@@ -99,7 +99,7 @@ export class StripeDeployer {
   }
 
   private async deployProduct(resource: ResourceManifest, stackId: string) {
-    const existing = await findExistingProduct(
+    const existing = await stripeFindExistingProduct(
       this.stripe,
       resource.id,
       this.stateManager,
@@ -162,7 +162,7 @@ export class StripeDeployer {
     // Resolve the product dependency
     const properties = this.resolveDependencies(resource.properties);
 
-    const existing = await findExistingPrice(
+    const existing = await stripeFindExistingPrice(
       this.stripe,
       resource.id,
       this.stateManager,
@@ -357,7 +357,7 @@ export class StripeDeployer {
   } | null> {
     switch (resource.type) {
       case 'Stripe::Product': {
-        const existing = await findExistingProduct(
+        const existing = await stripeFindExistingProduct(
           this.stripe,
           resource.id,
           this.stateManager,
@@ -374,7 +374,7 @@ export class StripeDeployer {
         return null;
       }
       case 'Stripe::Price': {
-        const existing = await findExistingPrice(
+        const existing = await stripeFindExistingPrice(
           this.stripe,
           resource.id,
           this.stateManager,

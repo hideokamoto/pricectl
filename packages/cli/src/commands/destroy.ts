@@ -79,7 +79,8 @@ export default class Destroy extends Command {
       // Load state
       const stateManager = new StateManager(flags['state-file']);
 
-      const deployer = new StripeDeployer(apiKey, stateManager);
+      const apiVersion = manifest.apiVersion || '2024-12-18.acacia';
+      const deployer = new StripeDeployer(apiKey, apiVersion, stateManager);
       const result = await deployer.destroy(manifest);
 
       // Save state after destroy (resources removed from state during destroy)

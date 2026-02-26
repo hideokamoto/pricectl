@@ -10,6 +10,16 @@ export function escapeSearchQuery(id: string): string {
 }
 
 /**
+ * Strip internal metadata keys (pricectl_id, pricectl_path, fillet_id, fillet_path)
+ * and return undefined if no user-defined metadata remains.
+ */
+function stripInternalMetadata(metadata: Record<string, any> | undefined): Record<string, any> | undefined {
+  if (!metadata) return undefined;
+  const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = metadata;
+  return Object.keys(userMetadata).length > 0 ? userMetadata : undefined;
+}
+
+/**
  * Find an existing Stripe Product by logical ID.
  * Uses state-based lookup first for speed, then falls back to the Search API.
  * Supports both the current `pricectl_id` metadata key and the legacy `fillet_id` key.
@@ -113,7 +123,7 @@ export async function fetchCurrentResource(
       case 'Stripe::Coupon':
         return await stripe.coupons.retrieve(resource.id);
       default:
-        return null;
+        throw new Error(`Unsupported resource type: ${resource.type}`);
     }
   } catch (error: any) {
     if (error.code === 'resource_missing') {
@@ -145,10 +155,7 @@ export function normalizeResource(resource: any, resourceType: string): any {
       if (resource.tax_code !== undefined) normalized.tax_code = resource.tax_code;
       // Exclude pricectl and legacy fillet metadata from comparison
       if (resource.metadata) {
-        const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = resource.metadata;
-        if (Object.keys(userMetadata).length > 0) {
-          normalized.metadata = userMetadata;
-        }
+        normalized.metadata = stripInternalMetadata(resource.metadata);
       }
       break;
 
@@ -197,10 +204,7 @@ export function normalizeResource(resource: any, resourceType: string): any {
 
       // Exclude pricectl and legacy fillet metadata from comparison
       if (resource.metadata) {
-        const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = resource.metadata;
-        if (Object.keys(userMetadata).length > 0) {
-          normalized.metadata = userMetadata;
-        }
+        normalized.metadata = stripInternalMetadata(resource.metadata);
       }
       break;
 
