@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { StackManifest, ResourceManifest } from '@pricectl/core';
-import { findExistingProduct, findExistingPrice } from './stripe-utils';
+import { findExistingProduct as stripeFindExistingProduct, findExistingPrice as stripeFindExistingPrice } from './stripe-utils';
 
 export interface DeployResult {
   stackId: string;
@@ -219,11 +219,11 @@ export class StripeDeployer {
   }
 
   private findExistingProduct(logicalId: string): Promise<Stripe.Product | null> {
-    return findExistingProduct(this.stripe, logicalId);
+    return stripeFindExistingProduct(this.stripe, logicalId);
   }
 
   private findExistingPrice(logicalId: string): Promise<Stripe.Price | null> {
-    return findExistingPrice(this.stripe, logicalId);
+    return stripeFindExistingPrice(this.stripe, logicalId);
   }
 
   /**
