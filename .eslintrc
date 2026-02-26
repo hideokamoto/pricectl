@@ -1,6 +1,0 @@
-{
-  "extends": "oclif",
-  "rules": {
-    "unicorn/no-array-instanceof": 0
-  }
-}

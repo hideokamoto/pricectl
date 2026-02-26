@@ -79,7 +79,7 @@ export default class Diff extends Command {
 
         // Compare properties
         const desired = JSON.stringify(resource.properties, null, 2);
-        const existing = JSON.stringify(this.normalizeResource(current, resource.type), null, 2);
+        const existing = JSON.stringify(normalizeResource(current, resource.type), null, 2);
 
         if (desired !== existing) {
           this.log(chalk.yellow(`[~] ${resource.path} [${resource.type}]`));
