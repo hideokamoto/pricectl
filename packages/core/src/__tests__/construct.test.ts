@@ -1,4 +1,4 @@
-import { Construct, ConstructNode } from '../construct';
+import { Construct } from '../construct';
 
 describe('Construct', () => {
   describe('ルートConstruct（scopeなし）', () => {
