@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import chalk from 'chalk';
 import { createTwoFilesPatch } from 'diff';
 import Stripe from 'stripe';
-import { StackManifest } from '@pricectl/core';
+import { StackManifest, ResourceManifest } from '@pricectl/core';
 import { fetchCurrentResource, normalizeResource } from '../engine/stripe-utils';
 import { StateManager } from '../engine/state';
 
@@ -58,7 +58,7 @@ export default class Diff extends Command {
 
     try {
       const apiVersion = stack.apiVersion || manifest.apiVersion || '2024-12-18.acacia';
-      const stripe = new Stripe(apiKey, { apiVersion: apiVersion as any });
+      const stripe = new Stripe(apiKey, { apiVersion: apiVersion as unknown as Stripe.LatestApiVersion });
       const stateManager = new StateManager(flags['state-file']);
 
       // Fetch current state from Stripe
@@ -101,8 +101,8 @@ export default class Diff extends Command {
       if (!hasChanges) {
         this.log(chalk.gray('No changes detected'));
       }
-    } catch (error: any) {
-      this.error(`Diff failed: ${error.message}`);
+    } catch (error: unknown) {
+      this.error(`Diff failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

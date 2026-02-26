@@ -1,10 +1,10 @@
-import { Command, Flags } from '@oclif/core';
+import { Command, Flags, ux } from '@oclif/core';
 import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
 import { StateManager } from '../engine/state';
-import { StackManifest } from '@pricectl/core';
+import { StackManifest, STRIPE_API_KEY_MISSING_ERROR } from '@pricectl/core';
 
 export default class Destroy extends Command {
   static description = 'Destroy all resources in the stack';
@@ -13,6 +13,7 @@ export default class Destroy extends Command {
     '<%= config.bin %> <%= command.id %>',
     '<%= config.bin %> <%= command.id %> --app ./infra/main.ts',
     '<%= config.bin %> <%= command.id %> --force',
+    '<%= config.bin %> <%= command.id %> --dry-run',
   ];
 
   static flags = {
@@ -28,6 +29,10 @@ export default class Destroy extends Command {
     }),
     'state-file': Flags.string({
       description: 'Path to the state file directory',
+    }),
+    'dry-run': Flags.boolean({
+      description: 'Preview what would be destroyed without making any API calls',
+      default: false,
     }),
   };
 
@@ -51,6 +56,21 @@ export default class Destroy extends Command {
 
     const manifest: StackManifest = stack.synth();
 
+    if (flags['dry-run']) {
+      this.log(chalk.bold.cyan('Dry run — no changes will be made to Stripe'));
+      this.log('');
+      this.log(`Stack: ${chalk.bold(manifest.stackId)}`);
+      this.log('');
+      this.log(chalk.bold(`Resources that would be destroyed (${manifest.resources.length}):`));
+      for (const resource of manifest.resources) {
+        this.log(chalk.red(`  - ${resource.path} [${resource.type}]`));
+      }
+      this.log('');
+      this.log(chalk.bold('Summary:'));
+      this.log(`  Total: ${chalk.red(manifest.resources.length)} resource(s) would be deleted/deactivated`);
+      return;
+    }
+
     try {
 
       this.log(chalk.bold.yellow(`⚠️  You are about to destroy stack: ${manifest.stackId}`));
@@ -62,15 +82,21 @@ export default class Destroy extends Command {
       this.log('');
 
       if (!flags.force) {
+        if (!process.stdin.isTTY) {
+          this.error('Cannot prompt for confirmation in a non-interactive environment. Use --force to skip confirmation.', { exit: 1 });
+        }
         this.log(chalk.bold('This action cannot be undone!'));
-        this.log('To proceed, run with --force flag');
-        return;
+        const confirmed = await ux.confirm('Do you want to proceed? [y/n]');
+        if (!confirmed) {
+          this.log('Destruction cancelled.');
+          return;
+        }
       }
 
       // Get Stripe API key
       const apiKey = stack.apiKey || process.env.STRIPE_SECRET_KEY;
       if (!apiKey) {
-        this.error('Stripe API key not found. Set STRIPE_SECRET_KEY environment variable.');
+        this.error(STRIPE_API_KEY_MISSING_ERROR, { exit: 1 });
       }
 
       this.log('Destroying resources...');
@@ -120,8 +146,8 @@ export default class Destroy extends Command {
 
       this.log('');
       this.log(chalk.gray(`State saved to ${stateManager.getFilePath()}`));
-    } catch (error: any) {
-      this.error(`Destroy failed: ${error.message}`);
+    } catch (error: unknown) {
+      this.error(`Destroy failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

@@ -148,7 +148,7 @@ export function normalizeResource(resource: any, resourceType: string): any {
   const normalized: any = {};
 
   switch (resourceType) {
-    case 'Stripe::Product':
+    case 'Stripe::Product': {
       if (resource.name !== undefined) normalized.name = resource.name;
       if (resource.description !== undefined) normalized.description = resource.description;
       if (resource.active !== undefined) normalized.active = resource.active;
@@ -164,8 +164,9 @@ export function normalizeResource(resource: any, resourceType: string): any {
         normalized.metadata = stripInternalMetadata(resource.metadata);
       }
       break;
+    }
 
-    case 'Stripe::Price':
+    case 'Stripe::Price': {
       if (resource.product !== undefined) normalized.product = resource.product;
       if (resource.currency !== undefined) normalized.currency = resource.currency;
       if (resource.unit_amount !== undefined) normalized.unit_amount = resource.unit_amount;
@@ -213,8 +214,9 @@ export function normalizeResource(resource: any, resourceType: string): any {
         normalized.metadata = stripInternalMetadata(resource.metadata);
       }
       break;
+    }
 
-    case 'Stripe::Coupon':
+    case 'Stripe::Coupon': {
       if (resource.duration !== undefined) normalized.duration = resource.duration;
       if (resource.amount_off !== undefined) normalized.amount_off = resource.amount_off;
       if (resource.currency !== undefined) normalized.currency = resource.currency;
@@ -230,6 +232,7 @@ export function normalizeResource(resource: any, resourceType: string): any {
       if (resource.applies_to !== undefined) normalized.applies_to = resource.applies_to;
       if (resource.metadata) normalized.metadata = resource.metadata;
       break;
+    }
   }
 
   return normalized;

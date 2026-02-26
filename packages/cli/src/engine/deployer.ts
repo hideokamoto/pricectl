@@ -32,14 +32,33 @@ export interface DestroyResult {
   }>;
 }
 
+/** Check if error is a resource_missing error (works with both Stripe SDK and test mocks) */
+function isResourceNotFoundError(error: unknown): boolean {
+  // Check for plain objects with a code property (works with both Stripe errors and test mocks)
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return (error as { code?: string }).code === 'resource_missing';
+  }
+  return false;
+}
+
+/** Validate and cast object to Stripe.ProductCreateParams */
+function validateProductCreateParams(properties: unknown): Stripe.ProductCreateParams {
+  if (typeof properties !== 'object' || properties === null) {
+    throw new Error('Invalid product properties: expected an object');
+  }
+  // Trust that the properties object has the correct structure at runtime
+  // (validated by the manifests from the user's code)
+  return properties as Stripe.ProductCreateParams;
+}
+
 export class StripeDeployer {
   private stripe: Stripe;
   private logicalToPhysicalId: Map<string, string> = new Map();
   private stateManager: StateManager | undefined;
 
-  constructor(apiKey: string, apiVersion: string = '2024-12-18.acacia', stateManager?: StateManager) {
+  constructor(apiKey: string, apiVersion?: string, stateManager?: StateManager) {
     this.stripe = new Stripe(apiKey, {
-      apiVersion: apiVersion as any,
+      apiVersion: (apiVersion ?? '2024-12-18.acacia') as Stripe.LatestApiVersion,
     });
     this.stateManager = stateManager;
   }
@@ -73,11 +92,11 @@ export class StripeDeployer {
             propertiesHash: StateManager.computePropertiesHash(resource.properties),
           });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         result.errors.push({
           id: resource.id,
           type: resource.type,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
@@ -99,6 +118,7 @@ export class StripeDeployer {
   }
 
   private async deployProduct(resource: ResourceManifest, stackId: string) {
+    const props = validateProductCreateParams(resource.properties);
     const existing = await stripeFindExistingProduct(
       this.stripe,
       resource.id,
@@ -123,14 +143,14 @@ export class StripeDeployer {
 
       // Update existing product
       const updated = await this.stripe.products.update(existing.id, {
-        ...resource.properties,
+        ...props,
         metadata: {
-          ...resource.properties.metadata,
+          ...props.metadata,
           pricectl_id: resource.id,
           pricectl_path: resource.path,
           pricectl_properties_hash: desiredHash,
         },
-      });
+      } as Stripe.ProductUpdateParams);
       return {
         id: resource.id,
         type: resource.type,
@@ -141,9 +161,9 @@ export class StripeDeployer {
       // Create new product
       const desiredHash = StateManager.computePropertiesHash(resource.properties);
       const created = await this.stripe.products.create({
-        ...resource.properties,
+        ...props,
         metadata: {
-          ...resource.properties.metadata,
+          ...props.metadata,
           pricectl_id: resource.id,
           pricectl_path: resource.path,
           pricectl_properties_hash: desiredHash,
@@ -161,6 +181,7 @@ export class StripeDeployer {
   private async deployPrice(resource: ResourceManifest, stackId: string) {
     // Resolve the product dependency
     const properties = this.resolveDependencies(resource.properties);
+    const props = properties as unknown as Stripe.PriceCreateParams;
 
     const existing = await stripeFindExistingPrice(
       this.stripe,
@@ -171,7 +192,7 @@ export class StripeDeployer {
 
     if (existing) {
       // Check if properties match
-      const propsMatch = this.comparePriceProperties(existing, properties);
+      const propsMatch = this.comparePriceProperties(existing, props);
       if (propsMatch) {
         return {
           id: resource.id,
@@ -183,9 +204,9 @@ export class StripeDeployer {
         // Deactivate old price and create new one
         await this.stripe.prices.update(existing.id, { active: false });
         const created = await this.stripe.prices.create({
-          ...properties,
+          ...props,
           metadata: {
-            ...properties.metadata,
+            ...props.metadata,
             pricectl_id: resource.id,
             pricectl_path: resource.path,
           },
@@ -199,9 +220,9 @@ export class StripeDeployer {
       }
     } else {
       const created = await this.stripe.prices.create({
-        ...properties,
+        ...props,
         metadata: {
-          ...properties.metadata,
+          ...props.metadata,
           pricectl_id: resource.id,
           pricectl_path: resource.path,
         },
@@ -224,12 +245,13 @@ export class StripeDeployer {
         physicalId: existing.id,
         status: 'unchanged' as const,
       };
-    } catch (error: any) {
-      if (error.code === 'resource_missing') {
+    } catch (error: unknown) {
+      if (isResourceNotFoundError(error)) {
         // Create new coupon
+        const props = resource.properties as unknown as Stripe.CouponCreateParams;
         const created = await this.stripe.coupons.create({
           id: resource.id,
-          ...resource.properties,
+          ...props,
         });
         return {
           id: resource.id,
@@ -246,7 +268,7 @@ export class StripeDeployer {
    * Resolve logical IDs to physical IDs in resource properties.
    * This is critical for handling dependencies between resources.
    */
-  private resolveDependencies(properties: any): any {
+  private resolveDependencies(properties: Record<string, unknown>): Record<string, unknown> {
     const resolved = { ...properties };
 
     // Resolve product reference in Price
@@ -265,13 +287,14 @@ export class StripeDeployer {
    * Prices are immutable in Stripe, so any property change requires deactivating
    * the old price and creating a new one.
    */
-  private comparePriceProperties(existing: Stripe.Price, desired: any): boolean {
+  private comparePriceProperties(existing: Stripe.Price, desired: Stripe.PriceCreateParams): boolean {
     // Compare basic properties
     if (existing.currency !== desired.currency) return false;
     if (existing.unit_amount !== desired.unit_amount) return false;
     if (existing.unit_amount_decimal !== desired.unit_amount_decimal) return false;
     if (existing.active !== desired.active) return false;
     if (existing.nickname !== desired.nickname) return false;
+    if ((existing.tax_behavior ?? undefined) !== (desired.tax_behavior ?? undefined)) return false;
 
     // Compare recurring properties
     if (desired.recurring) {
@@ -279,12 +302,16 @@ export class StripeDeployer {
       if (existing.recurring.interval !== desired.recurring.interval) return false;
       if (existing.recurring.interval_count !== desired.recurring.interval_count) return false;
       if (existing.recurring.usage_type !== desired.recurring.usage_type) return false;
-      if (existing.recurring.trial_period_days !== desired.recurring.trial_period_days) return false;
+      // Treat null (API response) and undefined (request) as equivalent for trial_period_days
+      const existingTrialDays = existing.recurring.trial_period_days ?? undefined;
+      const desiredTrialDays = desired.recurring.trial_period_days ?? undefined;
+      if (existingTrialDays !== desiredTrialDays) return false;
     } else if (existing.recurring) {
       return false;
     }
 
-    // Compare tiers
+    // Compare tiers and billing scheme
+    if ((existing.billing_scheme ?? undefined) !== (desired.billing_scheme ?? undefined)) return false;
     if (desired.tiers_mode !== existing.tiers_mode) return false;
 
     if (desired.tiers) {
@@ -296,7 +323,9 @@ export class StripeDeployer {
 
         if (existingTier.up_to !== desiredTier.up_to) return false;
         if (existingTier.unit_amount !== desiredTier.unit_amount) return false;
+        if (existingTier.unit_amount_decimal !== desiredTier.unit_amount_decimal) return false;
         if (existingTier.flat_amount !== desiredTier.flat_amount) return false;
+        if (existingTier.flat_amount_decimal !== desiredTier.flat_amount_decimal) return false;
       }
     } else if (existing.tiers) {
       return false;
@@ -338,11 +367,11 @@ export class StripeDeployer {
         if (this.stateManager) {
           this.stateManager.removeResource(manifest.stackId, resource.id);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         result.errors.push({
           id: resource.id,
           type: resource.type,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
@@ -399,8 +428,8 @@ export class StripeDeployer {
             type: resource.type,
             status: 'deleted',
           };
-        } catch (error: any) {
-          if (error.code === 'resource_missing') {
+        } catch (error: unknown) {
+          if (isResourceNotFoundError(error)) {
             return null;
           }
           throw error;

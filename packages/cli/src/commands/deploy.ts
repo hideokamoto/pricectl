@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
 import { StateManager } from '../engine/state';
-import { StackManifest } from '@pricectl/core';
+import { StackManifest, STRIPE_API_KEY_MISSING_ERROR } from '@pricectl/core';
 
 export default class Deploy extends Command {
   static description = 'Deploy the stack to Stripe';
@@ -12,6 +12,7 @@ export default class Deploy extends Command {
   static examples = [
     '<%= config.bin %> <%= command.id %>',
     '<%= config.bin %> <%= command.id %> --app ./infra/main.ts',
+    '<%= config.bin %> <%= command.id %> --dry-run',
   ];
 
   static flags = {
@@ -22,6 +23,10 @@ export default class Deploy extends Command {
     }),
     'state-file': Flags.string({
       description: 'Path to the state file directory',
+    }),
+    'dry-run': Flags.boolean({
+      description: 'Preview the API calls that would be made without actually deploying',
+      default: false,
     }),
   };
 
@@ -48,10 +53,30 @@ export default class Deploy extends Command {
 
     const manifest: StackManifest = stack.synth();
 
+    if (flags['dry-run']) {
+      this.log(chalk.bold.cyan('Dry run — no changes will be made to Stripe'));
+      this.log('');
+      this.log(`Stack: ${chalk.bold(manifest.stackId)}`);
+      if (manifest.description) this.log(`Description: ${manifest.description}`);
+      this.log('');
+      this.log(chalk.bold(`Resources to deploy (${manifest.resources.length}):`));
+      for (const resource of manifest.resources) {
+        this.log(chalk.green(`  + ${resource.path} [${resource.type}]`));
+        this.log('    Properties:');
+        for (const line of JSON.stringify(resource.properties, null, 2).split('\n')) {
+          this.log(`    ${line}`);
+        }
+      }
+      this.log('');
+      this.log(chalk.bold('Summary:'));
+      this.log(`  Total: ${chalk.green(manifest.resources.length)} resource(s) would be created/updated`);
+      return;
+    }
+
     // Get Stripe API key
     const apiKey = stack.apiKey || process.env.STRIPE_SECRET_KEY;
     if (!apiKey) {
-      this.error('Stripe API key not found. Set STRIPE_SECRET_KEY environment variable.', { exit: 1 });
+      this.error(STRIPE_API_KEY_MISSING_ERROR, { exit: 1 });
     }
 
     const stateManager = new StateManager(flags['state-file']);
@@ -95,17 +120,17 @@ export default class Deploy extends Command {
       if (result.errors.length > 0) {
         this.log(`  Errors: ${chalk.red(result.errors.length)}`);
       }
-    } catch (error: any) {
-      this.error(`Deployment failed: ${error.message}`);
+    } catch (error: unknown) {
+      this.error(`Deployment failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       // Always save state, even if there were errors during deployment
       try {
         stateManager.save();
         this.log('');
         this.log(chalk.gray(`State saved to ${stateManager.getFilePath()}`));
-      } catch (saveError: any) {
+      } catch (saveError: unknown) {
         this.log('');
-        this.log(chalk.yellow(`Warning: Failed to save state: ${saveError.message}`));
+        this.log(chalk.yellow(`Warning: Failed to save state: ${saveError instanceof Error ? saveError.message : String(saveError)}`));
       }
     }
   }

@@ -64,8 +64,8 @@ export default class Synth extends Command {
       for (const resource of manifest.resources) {
         this.log(`  - ${resource.path} [${resource.type}]`);
       }
-    } catch (error: any) {
-      this.error(`Failed to synthesize: ${error.message}`);
+    } catch (error: unknown) {
+      this.error(`Failed to synthesize: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

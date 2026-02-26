@@ -1,4 +1,5 @@
 import { Construct } from './construct';
+import { STRIPE_API_KEY_MISSING_ERROR } from './errors';
 
 export interface StackProps {
   /**
@@ -42,9 +43,7 @@ export class Stack extends Construct {
     this.tags = props.tags || {};
 
     if (!this.apiKey) {
-      throw new Error(
-        'Stripe API key is required. Set it via props.apiKey or STRIPE_SECRET_KEY environment variable.'
-      );
+      throw new Error(STRIPE_API_KEY_MISSING_ERROR);
     }
   }
 
@@ -58,7 +57,7 @@ export class Stack extends Construct {
     for (const construct of constructs) {
       if (construct === this) continue;
 
-      const metadata = construct.node.getMetadata('resource');
+      const metadata = construct.node.getMetadata('resource') as StoredResourceMetadata | undefined;
       if (metadata) {
         resources.push({
           id: construct.node.id,
@@ -79,11 +78,17 @@ export class Stack extends Construct {
   }
 }
 
+/** Shape stored by Resource.registerResourceMetadata() */
+interface StoredResourceMetadata {
+  type: string;
+  properties: Record<string, unknown>;
+}
+
 export interface ResourceManifest {
   id: string;
   path: string;
   type: string;
-  properties: any;
+  properties: Record<string, unknown>;
 }
 
 export interface StackManifest {
