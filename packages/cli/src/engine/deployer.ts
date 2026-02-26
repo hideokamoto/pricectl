@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { StackManifest, ResourceManifest } from '@pricectl/core';
+import { findExistingProduct, findExistingPrice, escapeSearchQuery } from './stripe-utils';
 import { StateManager } from './state';
 
 export interface DeployResult {
@@ -98,16 +99,36 @@ export class StripeDeployer {
   }
 
   private async deployProduct(resource: ResourceManifest, stackId: string) {
-    const existing = await this.findExistingProduct(resource.id, stackId);
+    const existing = await findExistingProduct(
+      this.stripe,
+      resource.id,
+      this.stateManager,
+      stackId,
+    );
 
     if (existing) {
-      // Update existing product, injecting pricectl metadata alongside properties
+      // Check if properties have changed by comparing hash
+      const desiredHash = StateManager.computePropertiesHash(resource.properties);
+      const existingHash = existing.metadata?.pricectl_properties_hash as string | undefined;
+
+      if (existingHash === desiredHash) {
+        // Properties unchanged, return unchanged status
+        return {
+          id: resource.id,
+          type: resource.type,
+          physicalId: existing.id,
+          status: 'unchanged' as const,
+        };
+      }
+
+      // Update existing product
       const updated = await this.stripe.products.update(existing.id, {
         ...resource.properties,
         metadata: {
           ...resource.properties.metadata,
           pricectl_id: resource.id,
           pricectl_path: resource.path,
+          pricectl_properties_hash: desiredHash,
         },
       });
       return {
@@ -118,12 +139,14 @@ export class StripeDeployer {
       };
     } else {
       // Create new product
+      const desiredHash = StateManager.computePropertiesHash(resource.properties);
       const created = await this.stripe.products.create({
         ...resource.properties,
         metadata: {
           ...resource.properties.metadata,
           pricectl_id: resource.id,
           pricectl_path: resource.path,
+          pricectl_properties_hash: desiredHash,
         },
       });
       return {
@@ -139,7 +162,12 @@ export class StripeDeployer {
     // Resolve the product dependency
     const properties = this.resolveDependencies(resource.properties);
 
-    const existing = await this.findExistingPrice(resource.id, stackId);
+    const existing = await findExistingPrice(
+      this.stripe,
+      resource.id,
+      this.stateManager,
+      stackId,
+    );
 
     if (existing) {
       // Check if properties match
@@ -230,96 +258,6 @@ export class StripeDeployer {
     }
 
     return resolved;
-  }
-
-  /**
-   * Find an existing product using state-based lookup first, then falling back
-   * to the Stripe Search API. This avoids Search API latency and index delays.
-   */
-  private async findExistingProduct(logicalId: string, stackId: string): Promise<Stripe.Product | null> {
-    // Try state-based lookup first
-    if (this.stateManager) {
-      const stateEntry = this.stateManager.getResource(stackId, logicalId);
-      if (stateEntry?.physicalId) {
-        try {
-          const product = await this.stripe.products.retrieve(stateEntry.physicalId);
-          if (product && !product.deleted) {
-            return product;
-          }
-        } catch {
-          // Physical ID from state is stale — fall through to search
-        }
-      }
-    }
-
-    // Fall back to Search API
-    try {
-      // Escape backslashes first, then escape double quotes in logicalId to prevent search query injection
-      const escapedId = logicalId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      // Use search API with OR query to support both old and new metadata keys
-      const result = await this.stripe.products.search({
-        query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
-        limit: 1,
-      });
-
-      if (result.data.length > 0) {
-        return result.data[0];
-      }
-
-      return null;
-    } catch (error: any) {
-      // Only return null for resource_missing errors
-      if (error.code === 'resource_missing') {
-        return null;
-      }
-      // Re-throw other errors (auth, network, etc.)
-      throw error;
-    }
-  }
-
-  /**
-   * Find an existing price using state-based lookup first, then falling back
-   * to the Stripe Search API.
-   */
-  private async findExistingPrice(logicalId: string, stackId: string): Promise<Stripe.Price | null> {
-    // Try state-based lookup first
-    if (this.stateManager) {
-      const stateEntry = this.stateManager.getResource(stackId, logicalId);
-      if (stateEntry?.physicalId) {
-        try {
-          const price = await this.stripe.prices.retrieve(stateEntry.physicalId);
-          if (price && price.active) {
-            return price;
-          }
-        } catch {
-          // Physical ID from state is stale — fall through to search
-        }
-      }
-    }
-
-    // Fall back to Search API
-    try {
-      // Escape backslashes first, then escape double quotes in logicalId to prevent search query injection
-      const escapedId = logicalId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      // Use search API with OR query to support both old and new metadata keys
-      const result = await this.stripe.prices.search({
-        query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
-        limit: 1,
-      });
-
-      if (result.data.length > 0) {
-        return result.data[0];
-      }
-
-      return null;
-    } catch (error: any) {
-      // Only return null for resource_missing errors
-      if (error.code === 'resource_missing') {
-        return null;
-      }
-      // Re-throw other errors (auth, network, etc.)
-      throw error;
-    }
   }
 
   /**
@@ -419,7 +357,12 @@ export class StripeDeployer {
   } | null> {
     switch (resource.type) {
       case 'Stripe::Product': {
-        const existing = await this.findExistingProduct(resource.id, stackId);
+        const existing = await findExistingProduct(
+          this.stripe,
+          resource.id,
+          this.stateManager,
+          stackId,
+        );
         if (existing) {
           await this.stripe.products.del(existing.id);
           return {
@@ -431,7 +374,12 @@ export class StripeDeployer {
         return null;
       }
       case 'Stripe::Price': {
-        const existing = await this.findExistingPrice(resource.id, stackId);
+        const existing = await findExistingPrice(
+          this.stripe,
+          resource.id,
+          this.stateManager,
+          stackId,
+        );
         if (existing) {
           // Prices cannot be deleted, only deactivated
           await this.stripe.prices.update(existing.id, { active: false });

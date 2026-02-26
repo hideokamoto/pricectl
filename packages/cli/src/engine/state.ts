@@ -98,7 +98,34 @@ export class StateManager {
   }
 
   static computePropertiesHash(properties: any): string {
-    const json = JSON.stringify(properties, Object.keys(properties).sort());
+    const canonical = this.canonicalizeProperties(properties);
+    const json = JSON.stringify(canonical);
     return crypto.createHash('sha256').update(json).digest('hex').slice(0, 16);
+  }
+
+  /**
+   * Recursively canonicalize properties by sorting object keys at all levels.
+   * This ensures consistent hashing regardless of key order in nested objects.
+   */
+  private static canonicalizeProperties(value: any): any {
+    if (value === null || value === undefined) {
+      return value;
+    }
+
+    if (typeof value !== 'object') {
+      return value;
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((item) => this.canonicalizeProperties(item));
+    }
+
+    // Object: sort keys and recursively canonicalize values
+    const keys = Object.keys(value).sort();
+    const result: any = {};
+    for (const key of keys) {
+      result[key] = this.canonicalizeProperties(value[key]);
+    }
+    return result;
   }
 }

@@ -166,8 +166,17 @@ dist/
       this.log(chalk.green('✓ Created .gitignore'));
     } else if (flags.force) {
       const existing = fs.readFileSync(gitignorePath, 'utf-8');
-      if (!existing.includes('pricectl.out/')) {
-        fs.appendFileSync(gitignorePath, '\n' + gitignoreContent + '\n');
+      const linesToAdd: string[] = [];
+      if (!existing.includes('.env')) linesToAdd.push('.env');
+      if (!existing.includes('pricectl.out/')) linesToAdd.push('pricectl.out/');
+      if (!existing.includes('pricectl.state.json')) linesToAdd.push('pricectl.state.json');
+      if (!existing.includes('node_modules/')) linesToAdd.push('node_modules/');
+      if (!existing.includes('dist/')) linesToAdd.push('dist/');
+      if (!existing.includes('*.js')) linesToAdd.push('*.js');
+      if (!existing.includes('*.d.ts')) linesToAdd.push('*.d.ts');
+
+      if (linesToAdd.length > 0) {
+        fs.appendFileSync(gitignorePath, '\n' + linesToAdd.join('\n') + '\n');
         this.log(chalk.green('✓ Updated .gitignore'));
       }
     }

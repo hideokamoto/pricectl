@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import { StateManager } from './state';
 
 /**
  * Escape a logical ID for use in a Stripe Search API query.
@@ -9,10 +10,32 @@ export function escapeSearchQuery(id: string): string {
 }
 
 /**
- * Find an existing Stripe Product by logical ID using the Search API.
+ * Find an existing Stripe Product by logical ID.
+ * Uses state-based lookup first for speed, then falls back to the Search API.
  * Supports both the current `pricectl_id` metadata key and the legacy `fillet_id` key.
  */
-export async function findExistingProduct(stripe: Stripe, logicalId: string): Promise<Stripe.Product | null> {
+export async function findExistingProduct(
+  stripe: Stripe,
+  logicalId: string,
+  stateManager?: StateManager,
+  stackId?: string,
+): Promise<Stripe.Product | null> {
+  // Try state-based lookup first (if available)
+  if (stateManager && stackId) {
+    const stateEntry = stateManager.getResource(stackId, logicalId);
+    if (stateEntry?.physicalId) {
+      try {
+        const product = await stripe.products.retrieve(stateEntry.physicalId);
+        if (product && !product.deleted) {
+          return product;
+        }
+      } catch {
+        // Physical ID from state is stale — fall through to search
+      }
+    }
+  }
+
+  // Fall back to Search API
   try {
     const escapedId = escapeSearchQuery(logicalId);
     const result = await stripe.products.search({
@@ -29,10 +52,32 @@ export async function findExistingProduct(stripe: Stripe, logicalId: string): Pr
 }
 
 /**
- * Find an existing Stripe Price by logical ID using the Search API.
+ * Find an existing Stripe Price by logical ID.
+ * Uses state-based lookup first for speed, then falls back to the Search API.
  * Supports both the current `pricectl_id` metadata key and the legacy `fillet_id` key.
  */
-export async function findExistingPrice(stripe: Stripe, logicalId: string): Promise<Stripe.Price | null> {
+export async function findExistingPrice(
+  stripe: Stripe,
+  logicalId: string,
+  stateManager?: StateManager,
+  stackId?: string,
+): Promise<Stripe.Price | null> {
+  // Try state-based lookup first (if available)
+  if (stateManager && stackId) {
+    const stateEntry = stateManager.getResource(stackId, logicalId);
+    if (stateEntry?.physicalId) {
+      try {
+        const price = await stripe.prices.retrieve(stateEntry.physicalId);
+        if (price && price.active) {
+          return price;
+        }
+      } catch {
+        // Physical ID from state is stale — fall through to search
+      }
+    }
+  }
+
+  // Fall back to Search API
   try {
     const escapedId = escapeSearchQuery(logicalId);
     const result = await stripe.prices.search({
@@ -50,15 +95,21 @@ export async function findExistingPrice(stripe: Stripe, logicalId: string): Prom
 
 /**
  * Fetch the current state of any resource from Stripe.
- * Uses the Search API for Products and Prices, and direct retrieval for Coupons.
+ * Uses state-based lookup when available, then falls back to the Search API for Products and Prices,
+ * and direct retrieval for Coupons.
  */
-export async function fetchCurrentResource(stripe: Stripe, resource: any): Promise<any> {
+export async function fetchCurrentResource(
+  stripe: Stripe,
+  resource: any,
+  stateManager?: StateManager,
+  stackId?: string,
+): Promise<any> {
   try {
     switch (resource.type) {
       case 'Stripe::Product':
-        return findExistingProduct(stripe, resource.id);
+        return findExistingProduct(stripe, resource.id, stateManager, stackId);
       case 'Stripe::Price':
-        return findExistingPrice(stripe, resource.id);
+        return findExistingPrice(stripe, resource.id, stateManager, stackId);
       case 'Stripe::Coupon':
         return await stripe.coupons.retrieve(resource.id);
       default:

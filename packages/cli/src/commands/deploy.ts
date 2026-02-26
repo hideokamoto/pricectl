@@ -54,16 +54,11 @@ export default class Deploy extends Command {
       this.error('Stripe API key not found. Set STRIPE_SECRET_KEY environment variable.', { exit: 1 });
     }
 
+    const stateManager = new StateManager(flags['state-file']);
     try {
-      // Load state
-      const stateManager = new StateManager(flags['state-file']);
-
       // Deploy using the deployer
       const deployer = new StripeDeployer(apiKey, stateManager);
       const result = await deployer.deploy(manifest);
-
-      // Save state after successful deployment
-      stateManager.save();
 
       // Display results
       this.log(chalk.bold.green('✓ Deployment completed'));
@@ -99,11 +94,13 @@ export default class Deploy extends Command {
       if (result.errors.length > 0) {
         this.log(`  Errors: ${chalk.red(result.errors.length)}`);
       }
-
-      this.log('');
-      this.log(chalk.gray(`State saved to ${stateManager.getFilePath()}`));
     } catch (error: any) {
       this.error(`Deployment failed: ${error.message}`);
+    } finally {
+      // Always save state, even if there were errors during deployment
+      stateManager.save();
+      this.log('');
+      this.log(chalk.gray(`State saved to ${stateManager.getFilePath()}`));
     }
   }
 }

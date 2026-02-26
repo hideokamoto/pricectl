@@ -233,6 +233,58 @@ describe('StateManager', () => {
       const hash = StateManager.computePropertiesHash({ foo: 'bar' });
       expect(hash).toMatch(/^[0-9a-f]{16}$/);
     });
+
+    it('handles nested objects regardless of key order', () => {
+      const props1 = {
+        name: 'Product',
+        recurring: { interval: 'month', intervalCount: 1 },
+        active: true,
+      };
+      const props2 = {
+        active: true,
+        recurring: { intervalCount: 1, interval: 'month' },
+        name: 'Product',
+      };
+      expect(StateManager.computePropertiesHash(props1)).toBe(
+        StateManager.computePropertiesHash(props2),
+      );
+    });
+
+    it('handles deeply nested objects', () => {
+      const props1 = {
+        level1: {
+          level2: { z: 3, a: 1, b: 2 },
+          x: 'test',
+        },
+      };
+      const props2 = {
+        level1: {
+          x: 'test',
+          level2: { a: 1, b: 2, z: 3 },
+        },
+      };
+      expect(StateManager.computePropertiesHash(props1)).toBe(
+        StateManager.computePropertiesHash(props2),
+      );
+    });
+
+    it('handles arrays within objects', () => {
+      const props1 = {
+        tiers: [
+          { upTo: 100, unitAmount: 10 },
+          { upTo: 200, unitAmount: 20 },
+        ],
+      };
+      const props2 = {
+        tiers: [
+          { upTo: 100, unitAmount: 10 },
+          { upTo: 200, unitAmount: 20 },
+        ],
+      };
+      expect(StateManager.computePropertiesHash(props1)).toBe(
+        StateManager.computePropertiesHash(props2),
+      );
+    });
   });
 
   describe('getFilePath', () => {
