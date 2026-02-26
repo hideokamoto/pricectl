@@ -7,6 +7,12 @@ export interface StackProps {
   readonly apiKey?: string;
 
   /**
+   * Stripe API version (e.g., '2024-12-18.acacia')
+   * Defaults to the latest stable version if not specified
+   */
+  readonly apiVersion?: string;
+
+  /**
    * Stack description
    */
   readonly description?: string;
@@ -23,6 +29,7 @@ export interface StackProps {
  */
 export class Stack extends Construct {
   public readonly apiKey?: string;
+  public readonly apiVersion?: string;
   public readonly description?: string;
   public readonly tags: Record<string, string>;
 
@@ -30,6 +37,7 @@ export class Stack extends Construct {
     super(scope, id);
 
     this.apiKey = props.apiKey || process.env.STRIPE_SECRET_KEY;
+    this.apiVersion = props.apiVersion || '2024-12-18.acacia';
     this.description = props.description;
     this.tags = props.tags || {};
 
@@ -63,6 +71,7 @@ export class Stack extends Construct {
 
     return {
       stackId: this.node.id,
+      apiVersion: this.apiVersion,
       description: this.description,
       tags: this.tags,
       resources,
@@ -85,6 +94,7 @@ export interface ResourceManifest {
 
 export interface StackManifest {
   stackId: string;
+  apiVersion?: string;
   description?: string;
   tags: Record<string, string>;
   resources: ResourceManifest[];
