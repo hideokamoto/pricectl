@@ -265,7 +265,7 @@ describe('StripeDeployer', () => {
     describe('Coupon', () => {
       it('新規Couponを作成する（resource_missingエラー時）', async () => {
         const notFoundError = new Error('No such coupon');
-        (notFoundError as any).code = 'resource_missing';
+        Object.assign(notFoundError, { code: 'resource_missing' });
         mockStripeInstance.coupons.retrieve.mockRejectedValue(notFoundError);
         mockStripeInstance.coupons.create.mockResolvedValue({
           id: 'SUMMER20',
@@ -536,7 +536,7 @@ describe('StripeDeployer', () => {
 
     it('存在しないCouponの削除はスキップされる', async () => {
       const notFoundError = new Error('No such coupon');
-      (notFoundError as any).code = 'resource_missing';
+      Object.assign(notFoundError, { code: 'resource_missing' });
       mockStripeInstance.coupons.del.mockRejectedValue(notFoundError);
 
       const manifest: StackManifest = {

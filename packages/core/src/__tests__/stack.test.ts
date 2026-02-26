@@ -1,4 +1,5 @@
 import { Construct } from '../construct';
+import { STRIPE_API_KEY_MISSING_ERROR } from '../errors';
 import { Stack } from '../stack';
 import { TestResource } from './helpers';
 
@@ -58,7 +59,7 @@ describe('Stack', () => {
         delete process.env.STRIPE_SECRET_KEY;
 
         expect(() => new Stack(undefined, 'TestStack')).toThrow(
-          'Stripe API key is required'
+          STRIPE_API_KEY_MISSING_ERROR
         );
       } finally {
         if (original !== undefined) {
