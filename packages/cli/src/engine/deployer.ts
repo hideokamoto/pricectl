@@ -39,6 +39,16 @@ function isResourceNotFoundError(error: unknown): boolean {
   return false;
 }
 
+/** Validate and cast object to Stripe.ProductCreateParams */
+function validateProductCreateParams(properties: unknown): Stripe.ProductCreateParams {
+  if (typeof properties !== 'object' || properties === null) {
+    throw new Error('Invalid product properties: expected an object');
+  }
+  // Trust that the properties object has the correct structure at runtime
+  // (validated by the manifests from the user's code)
+  return properties as Stripe.ProductCreateParams;
+}
+
 export class StripeDeployer {
   private stripe: Stripe;
   private logicalToPhysicalId: Map<string, string> = new Map();
@@ -92,7 +102,7 @@ export class StripeDeployer {
   }
 
   private async deployProduct(resource: ResourceManifest) {
-    const props = resource.properties as unknown as Stripe.ProductCreateParams;
+    const props = validateProductCreateParams(resource.properties);
     const existing = await this.findExistingProduct(resource.id);
 
     if (existing) {
@@ -230,47 +240,35 @@ export class StripeDeployer {
   }
 
   private async findExistingProduct(logicalId: string): Promise<Stripe.Product | null> {
-    try {
-      // Escape backslashes first, then escape double quotes in logicalId to prevent search query injection
-      const escapedId = logicalId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      // Use search API with OR query to support both old and new metadata keys
-      const result = await this.stripe.products.search({
-        query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
-        limit: 1,
-      });
+    // Escape backslashes first, then escape double quotes in logicalId to prevent search query injection
+    const escapedId = logicalId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    // Use search API with OR query to support both old and new metadata keys
+    const result = await this.stripe.products.search({
+      query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
+      limit: 1,
+    });
 
-      if (result.data.length > 0) {
-        return result.data[0];
-      }
-
-      return null;
-    } catch (error: unknown) {
-      // Search API returns [] when no match found, not an error.
-      // This catch is defensive for actual API errors (auth, network, etc.)
-      throw error;
+    if (result.data.length > 0) {
+      return result.data[0];
     }
+
+    return null;
   }
 
   private async findExistingPrice(logicalId: string): Promise<Stripe.Price | null> {
-    try {
-      // Escape backslashes first, then escape double quotes in logicalId to prevent search query injection
-      const escapedId = logicalId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      // Use search API with OR query to support both old and new metadata keys
-      const result = await this.stripe.prices.search({
-        query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
-        limit: 1,
-      });
+    // Escape backslashes first, then escape double quotes in logicalId to prevent search query injection
+    const escapedId = logicalId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    // Use search API with OR query to support both old and new metadata keys
+    const result = await this.stripe.prices.search({
+      query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
+      limit: 1,
+    });
 
-      if (result.data.length > 0) {
-        return result.data[0];
-      }
-
-      return null;
-    } catch (error: unknown) {
-      // Search API returns [] when no match found, not an error.
-      // This catch is defensive for actual API errors (auth, network, etc.)
-      throw error;
+    if (result.data.length > 0) {
+      return result.data[0];
     }
+
+    return null;
   }
 
   /**
@@ -285,6 +283,7 @@ export class StripeDeployer {
     if (existing.unit_amount_decimal !== desired.unit_amount_decimal) return false;
     if (existing.active !== desired.active) return false;
     if (existing.nickname !== desired.nickname) return false;
+    if ((existing.tax_behavior ?? undefined) !== (desired.tax_behavior ?? undefined)) return false;
 
     // Compare recurring properties
     if (desired.recurring) {
@@ -300,7 +299,8 @@ export class StripeDeployer {
       return false;
     }
 
-    // Compare tiers
+    // Compare tiers and billing scheme
+    if ((existing.billing_scheme ?? undefined) !== (desired.billing_scheme ?? undefined)) return false;
     if (desired.tiers_mode !== existing.tiers_mode) return false;
 
     if (desired.tiers) {
