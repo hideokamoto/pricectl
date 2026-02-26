@@ -540,7 +540,7 @@ describe('StripeDeployer', () => {
     it('存在しないCouponの削除はスキップされる', async () => {
       const notFoundError = new Error('No such coupon');
       Object.assign(notFoundError, { code: 'resource_missing' });
-      mockStripeInstance.coupons.del.mockRejectedValue(notFoundError);
+      mockStripeInstance.coupons.retrieve.mockRejectedValue(notFoundError);
 
       const manifest: StackManifest = {
         stackId: 'TestStack',
@@ -559,6 +559,7 @@ describe('StripeDeployer', () => {
 
       expect(result.destroyed).toHaveLength(0);
       expect(result.errors).toHaveLength(0);
+      expect(mockStripeInstance.coupons.del).not.toHaveBeenCalled();
     });
 
     it('リソースが逆順で削除される', async () => {

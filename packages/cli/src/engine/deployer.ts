@@ -207,8 +207,8 @@ export class StripeDeployer {
       // Create new coupon
       const props = resource.properties as unknown as Stripe.CouponCreateParams;
       const created = await this.stripe.coupons.create({
-        id: resource.id,
         ...props,
+        id: resource.id,
         metadata: {
           ...props.metadata,
           pricectl_id: resource.id,
