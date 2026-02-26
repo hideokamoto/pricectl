@@ -252,7 +252,13 @@ export default class Diff extends Command {
         if (coupon.name !== undefined) normalized.name = coupon.name;
         if (coupon.redeem_by !== undefined) normalized.redeem_by = coupon.redeem_by;
         if (coupon.applies_to !== undefined) normalized.applies_to = coupon.applies_to;
-        if (coupon.metadata) normalized.metadata = coupon.metadata;
+        // Exclude pricectl and legacy fillet metadata from comparison (same as Product/Price)
+        if (coupon.metadata) {
+          const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = coupon.metadata;
+          if (Object.keys(userMetadata).length > 0) {
+            normalized.metadata = userMetadata;
+          }
+        }
         break;
       }
     }

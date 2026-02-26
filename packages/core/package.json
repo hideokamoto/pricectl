@@ -4,6 +4,9 @@
   "description": "Core IaC library for pricectl",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "clean": "rimraf dist",
@@ -15,5 +18,8 @@
   "dependencies": {
     "stripe": "^14.9.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  }
 }

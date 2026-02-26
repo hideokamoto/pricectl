@@ -1,41 +1,30 @@
----
 version: 2.1
-jobs:
-  test: &test
-    docker:
-      - image: node:18
-    working_directory: ~/pricectl
-    steps:
-      - checkout
-      - restore_cache: &restore_cache
-          keys:
-            - v1-pnpm-{{checksum ".circleci/config.yml"}}-{{checksum "pnpm-lock.yaml"}}
-            - v1-pnpm-{{checksum ".circleci/config.yml"}}
-      - run:
-          name: Install pnpm
-          command: npm install -g pnpm
-      - run:
-          name: Install dependencies
-          command: pnpm install --frozen-lockfile
-      - run:
-          name: Build
-          command: pnpm build
-      - run:
-          name: Testing
-          command: pnpm test
-      - save_cache:
-          key: v1-pnpm-{{checksum ".circleci/config.yml"}}-{{checksum "pnpm-lock.yaml"}}
-          paths:
-            - ~/pricectl/node_modules
-            - ~/.pnpm-store
-  test-node-20:
-    <<: *test
-    docker:
-      - image: node:20
+
+orbs:
+  node: circleci/node@7
 
 workflows:
-  version: 2
-  "pricectl":
+  ci:
     jobs:
-      - test
-      - test-node-20
+      - node/run:
+          name: lint
+          pkg-manager: pnpm
+          pnpm-run: lint
+      - node/test:
+          name: test-node-18
+          pkg-manager: pnpm
+          executor:
+            name: node/default
+            tag: '18.20'
+          post_install_steps:
+            - run: pnpm build
+          test-results-for: jest
+      - node/test:
+          name: test-node-20
+          pkg-manager: pnpm
+          executor:
+            name: node/default
+            tag: '20.11'
+          post_install_steps:
+            - run: pnpm build
+          test-results-for: jest

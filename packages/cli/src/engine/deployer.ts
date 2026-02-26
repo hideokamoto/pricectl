@@ -87,8 +87,15 @@ export class StripeDeployer {
     const existing = await this.findExistingProduct(resource.id);
 
     if (existing) {
-      // Update existing product
-      const updated = await this.stripe.products.update(existing.id, props as Stripe.ProductUpdateParams);
+      // Update existing product, injecting pricectl metadata alongside properties
+      const updated = await this.stripe.products.update(existing.id, {
+        ...props,
+        metadata: {
+          ...props.metadata,
+          pricectl_id: resource.id,
+          pricectl_path: resource.path,
+        },
+      } as Stripe.ProductUpdateParams);
       return {
         id: resource.id,
         type: resource.type,
