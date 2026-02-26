@@ -11,9 +11,8 @@ workflows:
           pkg-manager: pnpm
           pnpm-run: lint
           setup:
-            - run:
-                name: Install pnpm via corepack
-                command: corepack enable && corepack prepare --activate
+            - node/install-pnpm:
+                version: '10.29.3'
       - node/test:
           name: test-node-18
           pkg-manager: pnpm
@@ -21,9 +20,8 @@ workflows:
             name: node/default
             tag: '18.20'
           setup:
-            - run:
-                name: Install pnpm via corepack
-                command: corepack enable && corepack prepare --activate
+            - node/install-pnpm:
+                version: '10.29.3'
           post_install_steps:
             - run: pnpm build
           test-results-for: jest
@@ -34,9 +32,8 @@ workflows:
             name: node/default
             tag: '20.11'
           setup:
-            - run:
-                name: Install pnpm via corepack
-                command: corepack enable && corepack prepare --activate
+            - node/install-pnpm:
+                version: '10.29.3'
           post_install_steps:
             - run: pnpm build
           test-results-for: jest
