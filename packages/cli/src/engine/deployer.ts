@@ -30,6 +30,15 @@ export interface DestroyResult {
   }>;
 }
 
+/** Check if error is a resource_missing error (works with both Stripe SDK and test mocks) */
+function isResourceNotFoundError(error: unknown): boolean {
+  // Check for plain objects with a code property (works with both Stripe errors and test mocks)
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return (error as { code?: string }).code === 'resource_missing';
+  }
+  return false;
+}
+
 export class StripeDeployer {
   private stripe: Stripe;
   private logicalToPhysicalId: Map<string, string> = new Map();
@@ -184,7 +193,7 @@ export class StripeDeployer {
         status: 'unchanged' as const,
       };
     } catch (error: unknown) {
-      if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
+      if (isResourceNotFoundError(error)) {
         // Create new coupon
         const props = resource.properties as unknown as Stripe.CouponCreateParams;
         const created = await this.stripe.coupons.create({
@@ -237,7 +246,7 @@ export class StripeDeployer {
       return null;
     } catch (error: unknown) {
       // Only return null for resource_missing errors
-      if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
+      if (isResourceNotFoundError(error)) {
         return null;
       }
       // Re-throw other errors (auth, network, etc.)
@@ -262,7 +271,7 @@ export class StripeDeployer {
       return null;
     } catch (error: unknown) {
       // Only return null for resource_missing errors
-      if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
+      if (isResourceNotFoundError(error)) {
         return null;
       }
       // Re-throw other errors (auth, network, etc.)
@@ -395,7 +404,7 @@ export class StripeDeployer {
             status: 'deleted',
           };
         } catch (error: unknown) {
-          if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
+          if (isResourceNotFoundError(error)) {
             return null;
           }
           throw error;
