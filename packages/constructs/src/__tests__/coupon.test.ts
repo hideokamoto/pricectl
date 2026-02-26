@@ -1,12 +1,7 @@
-import { Stack } from '@pricectl/core';
 import { Coupon } from '../coupon';
+import { createStack } from './helpers';
 
 describe('Coupon', () => {
-  const API_KEY = 'sk_test_dummy_key_for_testing';
-
-  function createStack(id = 'TestStack'): Stack {
-    return new Stack(undefined, id, { apiKey: API_KEY });
-  }
 
   describe('バリデーション', () => {
     it('amountOffとpercentOffの両方が指定された場合はエラー', () => {

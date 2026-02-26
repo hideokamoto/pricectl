@@ -200,11 +200,16 @@ export class Price extends Resource {
     if (Array.isArray(this.tiers) && this.tiers.length > 0) {
       // When tiers are present, billing_scheme must be 'tiered'
       params.billing_scheme = 'tiered';
-      params.tiers = this.tiers.map(tier => ({
-        up_to: tier.upTo,
-        unit_amount: tier.unitAmount,
-        flat_amount: tier.flatAmount,
-      }));
+      params.tiers = this.tiers.map(tier => {
+        const tierObj: any = {
+          up_to: tier.upTo,
+          unit_amount: tier.unitAmount,
+        };
+        if (tier.flatAmount !== undefined) {
+          tierObj.flat_amount = tier.flatAmount;
+        }
+        return tierObj;
+      });
     }
 
     return params;

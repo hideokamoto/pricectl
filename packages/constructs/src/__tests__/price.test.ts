@@ -1,14 +1,8 @@
-import { Stack } from '@pricectl/core';
 import { Product } from '../product';
 import { Price } from '../price';
+import { createStack } from './helpers';
 
 describe('Price', () => {
-  const API_KEY = 'sk_test_dummy_key_for_testing';
-
-  function createStack(id = 'TestStack'): Stack {
-    return new Stack(undefined, id, { apiKey: API_KEY });
-  }
-
   describe('基本的なPrice', () => {
     it('必須プロパティのみで生成できる', () => {
       const stack = createStack();
@@ -139,8 +133,8 @@ describe('Price', () => {
       expect(props.billing_scheme).toBe('tiered');
       expect(props.tiers_mode).toBe('graduated');
       expect(props.tiers).toEqual([
-        { up_to: 10, unit_amount: 1000, flat_amount: undefined },
-        { up_to: 'inf', unit_amount: 800, flat_amount: undefined },
+        { up_to: 10, unit_amount: 1000 },
+        { up_to: 'inf', unit_amount: 800 },
       ]);
     });
 

@@ -1,24 +1,20 @@
 import { Construct } from '../construct';
 import { Stack } from '../stack';
 import { Resource } from '../resource';
+import { TestResource } from './helpers';
 
-class ConcreteResource extends Resource {
-  private readonly _type: string;
-  private readonly _properties: any;
-
-  constructor(scope: Construct, id: string, type: string, properties: any) {
-    super(scope, id);
-    this._type = type;
-    this._properties = properties;
+class ResourceWithPhysicalId extends Resource {
+  constructor(scope: Construct, id: string, physicalId: string) {
+    super(scope, id, { physicalId });
     this.registerResourceMetadata();
   }
 
   protected get resourceType(): string {
-    return this._type;
+    return 'Test';
   }
 
-  protected synthesizeProperties(): any {
-    return this._properties;
+  protected synthesizeProperties(): Record<string, unknown> {
+    return {};
   }
 }
 
@@ -28,7 +24,7 @@ describe('Resource', () => {
   describe('findStack', () => {
     it('直接の親がStackの場合に取得できる', () => {
       const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY });
-      const resource = new ConcreteResource(stack, 'Res', 'Test', {});
+      const resource = new TestResource(stack, 'Res', { type: 'Test', properties: {} });
 
       expect(resource.stack).toBe(stack);
     });
@@ -36,7 +32,7 @@ describe('Resource', () => {
     it('祖先にStackがある場合に取得できる', () => {
       const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY });
       const group = new Construct(stack, 'Group');
-      const resource = new ConcreteResource(group, 'Res', 'Test', {});
+      const resource = new TestResource(group, 'Res', { type: 'Test', properties: {} });
 
       expect(resource.stack).toBe(stack);
     });
@@ -45,7 +41,7 @@ describe('Resource', () => {
       const root = new Construct(undefined, 'Root');
 
       expect(
-        () => new ConcreteResource(root, 'Res', 'Test', {})
+        () => new TestResource(root, 'Res', { type: 'Test', properties: {} })
       ).toThrow('must be created within a Stack');
     });
   });
@@ -53,22 +49,6 @@ describe('Resource', () => {
   describe('physicalId', () => {
     it('propsで指定したphysicalIdが設定される', () => {
       const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY });
-
-      class ResourceWithPhysicalId extends Resource {
-        constructor(scope: Construct, id: string, physicalId: string) {
-          super(scope, id, { physicalId });
-          this.registerResourceMetadata();
-        }
-
-        protected get resourceType(): string {
-          return 'Test';
-        }
-
-        protected synthesizeProperties(): any {
-          return {};
-        }
-      }
-
       const resource = new ResourceWithPhysicalId(stack, 'Res', 'prod_123');
 
       expect(resource.physicalId).toBe('prod_123');
@@ -76,7 +56,7 @@ describe('Resource', () => {
 
     it('physicalId未指定の場合はundefined', () => {
       const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY });
-      const resource = new ConcreteResource(stack, 'Res', 'Test', {});
+      const resource = new TestResource(stack, 'Res', { type: 'Test', properties: {} });
 
       expect(resource.physicalId).toBeUndefined();
     });
@@ -85,8 +65,9 @@ describe('Resource', () => {
   describe('registerResourceMetadata', () => {
     it('resourceメタデータが登録される', () => {
       const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY });
-      const resource = new ConcreteResource(stack, 'Res', 'Stripe::Product', {
-        name: 'Widget',
+      const resource = new TestResource(stack, 'Res', {
+        type: 'Stripe::Product',
+        properties: { name: 'Widget' },
       });
 
       const metadata = resource.node.getMetadata('resource');

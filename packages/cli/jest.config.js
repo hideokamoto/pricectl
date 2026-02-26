@@ -9,6 +9,7 @@ module.exports = {
     '^@pricectl/constructs$': '<rootDir>/../constructs/src',
   },
   transform: {
+    ...baseConfig.transform,
     '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.test.json' }],
   },
 };
