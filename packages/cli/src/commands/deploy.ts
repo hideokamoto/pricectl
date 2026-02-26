@@ -11,6 +11,7 @@ export default class Deploy extends Command {
   static examples = [
     '<%= config.bin %> <%= command.id %>',
     '<%= config.bin %> <%= command.id %> --app ./infra/main.ts',
+    '<%= config.bin %> <%= command.id %> --dry-run',
   ];
 
   static flags = {
@@ -18,6 +19,10 @@ export default class Deploy extends Command {
       char: 'a',
       description: 'Path to the app file that defines your stack',
       default: './pricectl.ts',
+    }),
+    'dry-run': Flags.boolean({
+      description: 'Preview the API calls that would be made without actually deploying',
+      default: false,
     }),
   };
 
@@ -44,10 +49,34 @@ export default class Deploy extends Command {
 
     const manifest: StackManifest = stack.synth();
 
+    if (flags['dry-run']) {
+      this.log(chalk.bold.cyan('Dry run — no changes will be made to Stripe'));
+      this.log('');
+      this.log(`Stack: ${chalk.bold(manifest.stackId)}`);
+      if (manifest.description) this.log(`Description: ${manifest.description}`);
+      this.log('');
+      this.log(chalk.bold(`Resources to deploy (${manifest.resources.length}):`));
+      for (const resource of manifest.resources) {
+        this.log(chalk.green(`  + ${resource.path} [${resource.type}]`));
+        this.log(`    Properties: ${JSON.stringify(resource.properties, null, 2).replace(/\n/g, '\n    ')}`);
+      }
+      this.log('');
+      this.log(chalk.bold('Summary:'));
+      this.log(`  Total: ${chalk.green(manifest.resources.length)} resource(s) would be created/updated`);
+      return;
+    }
+
     // Get Stripe API key
     const apiKey = stack.apiKey || process.env.STRIPE_SECRET_KEY;
     if (!apiKey) {
-      this.error('Stripe API key not found. Set STRIPE_SECRET_KEY environment variable.', { exit: 1 });
+      this.error(
+        'Stripe API key not found.\n\n' +
+        'To fix this, choose one of:\n' +
+        '  1. Set the environment variable:  export STRIPE_SECRET_KEY=sk_...\n' +
+        '  2. Pass it in the Stack constructor: new Stack(scope, "id", { apiKey: "sk_..." })\n' +
+        '  3. Add STRIPE_SECRET_KEY=sk_... to your .env file',
+        { exit: 1 }
+      );
     }
 
     try {

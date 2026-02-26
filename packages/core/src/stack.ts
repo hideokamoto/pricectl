@@ -35,7 +35,11 @@ export class Stack extends Construct {
 
     if (!this.apiKey) {
       throw new Error(
-        'Stripe API key is required. Set it via props.apiKey or STRIPE_SECRET_KEY environment variable.'
+        'Stripe API key not found.\n\n' +
+        'To fix this, choose one of:\n' +
+        '  1. Set the environment variable:  export STRIPE_SECRET_KEY=sk_...\n' +
+        '  2. Pass it in the Stack constructor: new Stack(scope, "id", { apiKey: "sk_..." })\n' +
+        '  3. Add STRIPE_SECRET_KEY=sk_... to your .env file'
       );
     }
   }
