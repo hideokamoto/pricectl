@@ -10,12 +10,18 @@ workflows:
           name: lint
           pkg-manager: pnpm
           pnpm-run: lint
+          setup:
+            - node/install-pnpm:
+                version: '10.29.3'
       - node/test:
           name: test-node-18
           pkg-manager: pnpm
           executor:
             name: node/default
             tag: '18.20'
+          setup:
+            - node/install-pnpm:
+                version: '10.29.3'
           post_install_steps:
             - run: pnpm build
           test-results-for: jest
@@ -25,6 +31,9 @@ workflows:
           executor:
             name: node/default
             tag: '20.11'
+          setup:
+            - node/install-pnpm:
+                version: '10.29.3'
           post_install_steps:
             - run: pnpm build
           test-results-for: jest

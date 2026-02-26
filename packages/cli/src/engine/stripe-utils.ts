@@ -1,6 +1,14 @@
 import Stripe from 'stripe';
 import { StateManager } from './state';
 
+/** Check if error is a resource_missing error (works with both Stripe SDK and test mocks) */
+function isResourceMissingError(error: unknown): boolean {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return (error as { code?: string }).code === 'resource_missing';
+  }
+  return false;
+}
+
 /**
  * Escape a logical ID for use in a Stripe Search API query.
  * Prevents search query injection by escaping backslashes and double quotes.
@@ -13,7 +21,7 @@ export function escapeSearchQuery(id: string): string {
  * Strip internal metadata keys (pricectl_id, pricectl_path, fillet_id, fillet_path)
  * and return undefined if no user-defined metadata remains.
  */
-function stripInternalMetadata(metadata: Record<string, any> | undefined): Record<string, any> | undefined {
+function stripInternalMetadata(metadata: Record<string, string> | null | undefined): Record<string, string> | undefined {
   if (!metadata) return undefined;
   const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = metadata;
   return Object.keys(userMetadata).length > 0 ? userMetadata : undefined;
@@ -39,8 +47,8 @@ export async function findExistingProduct(
         if (product && !product.deleted) {
           return product;
         }
-      } catch (error: any) {
-        if (error?.code !== 'resource_missing') {
+      } catch (error: unknown) {
+        if (!isResourceMissingError(error)) {
           throw error;
         }
         // Physical ID from state is stale — fall through to search
@@ -56,8 +64,8 @@ export async function findExistingProduct(
       limit: 1,
     });
     return result.data.length > 0 ? result.data[0] : null;
-  } catch (error: any) {
-    if (error.code === 'resource_missing') {
+  } catch (error: unknown) {
+    if (isResourceMissingError(error)) {
       return null;
     }
     throw error;
@@ -84,8 +92,8 @@ export async function findExistingPrice(
         if (price) {
           return price;
         }
-      } catch (error: any) {
-        if (error?.code !== 'resource_missing') {
+      } catch (error: unknown) {
+        if (!isResourceMissingError(error)) {
           throw error;
         }
         // Physical ID from state is stale — fall through to search
@@ -101,8 +109,8 @@ export async function findExistingPrice(
       limit: 1,
     });
     return result.data.length > 0 ? result.data[0] : null;
-  } catch (error: any) {
-    if (error.code === 'resource_missing') {
+  } catch (error: unknown) {
+    if (isResourceMissingError(error)) {
       return null;
     }
     throw error;
@@ -116,10 +124,10 @@ export async function findExistingPrice(
  */
 export async function fetchCurrentResource(
   stripe: Stripe,
-  resource: any,
+  resource: { type: string; id: string },
   stateManager?: StateManager,
   stackId?: string,
-): Promise<any> {
+): Promise<Stripe.Product | Stripe.Price | Stripe.Coupon | null> {
   try {
     switch (resource.type) {
       case 'Stripe::Product':
@@ -131,8 +139,8 @@ export async function fetchCurrentResource(
       default:
         throw new Error(`Unsupported resource type: ${resource.type}`);
     }
-  } catch (error: any) {
-    if (error.code === 'resource_missing') {
+  } catch (error: unknown) {
+    if (isResourceMissingError(error)) {
       return null;
     }
     throw error;
@@ -144,93 +152,102 @@ export async function fetchCurrentResource(
  * Strips internal metadata keys and retains only user-configurable properties
  * to enable accurate comparison between desired and current state.
  */
-export function normalizeResource(resource: any, resourceType: string): any {
-  const normalized: any = {};
+export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stripe.Coupon, resourceType: string): Record<string, unknown> {
+  const normalized: Record<string, unknown> = {};
 
   switch (resourceType) {
     case 'Stripe::Product': {
-      if (resource.name !== undefined) normalized.name = resource.name;
-      if (resource.description !== undefined) normalized.description = resource.description;
-      if (resource.active !== undefined) normalized.active = resource.active;
-      if (resource.images) normalized.images = resource.images;
-      if (resource.url !== undefined) normalized.url = resource.url;
-      if (resource.unit_label !== undefined) normalized.unit_label = resource.unit_label;
-      if (resource.statement_descriptor !== undefined) {
-        normalized.statement_descriptor = resource.statement_descriptor;
+      const r = resource as Stripe.Product;
+      if (r.name !== undefined) normalized.name = r.name;
+      if (r.description !== undefined) normalized.description = r.description;
+      if (r.active !== undefined) normalized.active = r.active;
+      if (r.images) normalized.images = r.images;
+      if (r.url !== undefined) normalized.url = r.url;
+      if (r.unit_label !== undefined) normalized.unit_label = r.unit_label;
+      if (r.statement_descriptor !== undefined) {
+        normalized.statement_descriptor = r.statement_descriptor;
       }
-      if (resource.tax_code !== undefined) normalized.tax_code = resource.tax_code;
+      if (r.tax_code !== undefined) normalized.tax_code = r.tax_code;
       // Exclude pricectl and legacy fillet metadata from comparison
-      if (resource.metadata) {
-        normalized.metadata = stripInternalMetadata(resource.metadata);
+      const productMetadata = stripInternalMetadata(r.metadata);
+      if (productMetadata) {
+        normalized.metadata = productMetadata;
       }
       break;
     }
 
     case 'Stripe::Price': {
-      if (resource.product !== undefined) normalized.product = resource.product;
-      if (resource.currency !== undefined) normalized.currency = resource.currency;
-      if (resource.unit_amount !== undefined) normalized.unit_amount = resource.unit_amount;
-      if (resource.unit_amount_decimal !== undefined) {
-        normalized.unit_amount_decimal = resource.unit_amount_decimal;
+      const r = resource as Stripe.Price;
+      if (r.product !== undefined) normalized.product = r.product;
+      if (r.currency !== undefined) normalized.currency = r.currency;
+      if (r.unit_amount !== undefined) normalized.unit_amount = r.unit_amount;
+      if (r.unit_amount_decimal !== undefined) {
+        normalized.unit_amount_decimal = r.unit_amount_decimal;
       }
-      if (resource.active !== undefined) normalized.active = resource.active;
-      if (resource.nickname !== undefined) normalized.nickname = resource.nickname;
-      if (resource.lookup_key !== undefined) normalized.lookup_key = resource.lookup_key;
+      if (r.active !== undefined) normalized.active = r.active;
+      if (r.nickname !== undefined) normalized.nickname = r.nickname;
+      if (r.lookup_key !== undefined) normalized.lookup_key = r.lookup_key;
 
-      if (resource.recurring) {
-        normalized.recurring = {};
-        if (resource.recurring.interval !== undefined) {
-          normalized.recurring.interval = resource.recurring.interval;
+      if (r.recurring) {
+        const rec: Record<string, unknown> = {};
+        if (r.recurring.interval !== undefined) {
+          rec.interval = r.recurring.interval;
         }
-        if (resource.recurring.interval_count !== undefined) {
-          normalized.recurring.interval_count = resource.recurring.interval_count;
+        if (r.recurring.interval_count !== undefined) {
+          rec.interval_count = r.recurring.interval_count;
         }
-        if (resource.recurring.usage_type !== undefined) {
-          normalized.recurring.usage_type = resource.recurring.usage_type;
+        if (r.recurring.usage_type !== undefined) {
+          rec.usage_type = r.recurring.usage_type;
         }
-        if (resource.recurring.trial_period_days !== undefined) {
-          normalized.recurring.trial_period_days = resource.recurring.trial_period_days;
+        if (r.recurring.trial_period_days !== undefined) {
+          rec.trial_period_days = r.recurring.trial_period_days;
         }
+        normalized.recurring = rec;
       }
 
-      if (resource.tiers_mode !== undefined) normalized.tiers_mode = resource.tiers_mode;
-      if (resource.tiers) {
-        normalized.tiers = resource.tiers.map((tier: any) => ({
+      if (r.tiers_mode !== undefined) normalized.tiers_mode = r.tiers_mode;
+      if (r.tiers) {
+        normalized.tiers = r.tiers.map((tier) => ({
           up_to: tier.up_to,
           unit_amount: tier.unit_amount,
           flat_amount: tier.flat_amount,
         }));
       }
 
-      if (resource.transform_quantity) {
+      if (r.transform_quantity) {
         normalized.transform_quantity = {
-          divide_by: resource.transform_quantity.divide_by,
-          round: resource.transform_quantity.round,
+          divide_by: r.transform_quantity.divide_by,
+          round: r.transform_quantity.round,
         };
       }
 
       // Exclude pricectl and legacy fillet metadata from comparison
-      if (resource.metadata) {
-        normalized.metadata = stripInternalMetadata(resource.metadata);
+      const priceMetadata = stripInternalMetadata(r.metadata);
+      if (priceMetadata) {
+        normalized.metadata = priceMetadata;
       }
       break;
     }
 
     case 'Stripe::Coupon': {
-      if (resource.duration !== undefined) normalized.duration = resource.duration;
-      if (resource.amount_off !== undefined) normalized.amount_off = resource.amount_off;
-      if (resource.currency !== undefined) normalized.currency = resource.currency;
-      if (resource.percent_off !== undefined) normalized.percent_off = resource.percent_off;
-      if (resource.duration_in_months !== undefined) {
-        normalized.duration_in_months = resource.duration_in_months;
+      const r = resource as Stripe.Coupon;
+      if (r.duration !== undefined) normalized.duration = r.duration;
+      if (r.amount_off !== undefined) normalized.amount_off = r.amount_off;
+      if (r.currency !== undefined) normalized.currency = r.currency;
+      if (r.percent_off !== undefined) normalized.percent_off = r.percent_off;
+      if (r.duration_in_months !== undefined) {
+        normalized.duration_in_months = r.duration_in_months;
       }
-      if (resource.max_redemptions !== undefined) {
-        normalized.max_redemptions = resource.max_redemptions;
+      if (r.max_redemptions !== undefined) {
+        normalized.max_redemptions = r.max_redemptions;
       }
-      if (resource.name !== undefined) normalized.name = resource.name;
-      if (resource.redeem_by !== undefined) normalized.redeem_by = resource.redeem_by;
-      if (resource.applies_to !== undefined) normalized.applies_to = resource.applies_to;
-      if (resource.metadata) normalized.metadata = resource.metadata;
+      if (r.name !== undefined) normalized.name = r.name;
+      if (r.redeem_by !== undefined) normalized.redeem_by = r.redeem_by;
+      if (r.applies_to !== undefined) normalized.applies_to = r.applies_to;
+      const couponMetadata = stripInternalMetadata(r.metadata);
+      if (couponMetadata) {
+        normalized.metadata = couponMetadata;
+      }
       break;
     }
   }

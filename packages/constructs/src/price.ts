@@ -201,7 +201,7 @@ export class Price extends Resource {
       // When tiers are present, billing_scheme must be 'tiered'
       params.billing_scheme = 'tiered';
       params.tiers = this.tiers.map(tier => {
-        const tierObj: any = {
+        const tierObj: Stripe.PriceCreateParams.Tier = {
           up_to: tier.upTo,
           unit_amount: tier.unitAmount,
         };
