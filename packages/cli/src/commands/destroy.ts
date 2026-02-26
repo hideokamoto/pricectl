@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
-import { StackManifest } from '@pricectl/core';
+import { StackManifest, STRIPE_API_KEY_MISSING_ERROR } from '@pricectl/core';
 
 export default class Destroy extends Command {
   static description = 'Destroy all resources in the stack';
@@ -78,6 +78,9 @@ export default class Destroy extends Command {
       this.log('');
 
       if (!flags.force) {
+        if (!process.stdin.isTTY) {
+          this.error('Cannot prompt for confirmation in a non-interactive environment. Use --force to skip confirmation.', { exit: 1 });
+        }
         this.log(chalk.bold('This action cannot be undone!'));
         const confirmed = await ux.confirm('Do you want to proceed? [y/n]');
         if (!confirmed) {
@@ -89,13 +92,7 @@ export default class Destroy extends Command {
       // Get Stripe API key
       const apiKey = stack.apiKey || process.env.STRIPE_SECRET_KEY;
       if (!apiKey) {
-        this.error(
-          'Stripe API key not found.\n\n' +
-          'To fix this, choose one of:\n' +
-          '  1. Set the environment variable:  export STRIPE_SECRET_KEY=sk_...\n' +
-          '  2. Pass it in the Stack constructor: new Stack(scope, "id", { apiKey: "sk_..." })\n' +
-          '  3. Add STRIPE_SECRET_KEY=sk_... to your .env file'
-        );
+        this.error(STRIPE_API_KEY_MISSING_ERROR, { exit: 1 });
       }
 
       this.log('Destroying resources...');

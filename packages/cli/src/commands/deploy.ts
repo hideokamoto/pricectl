@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
-import { StackManifest } from '@pricectl/core';
+import { StackManifest, STRIPE_API_KEY_MISSING_ERROR } from '@pricectl/core';
 
 export default class Deploy extends Command {
   static description = 'Deploy the stack to Stripe';
@@ -58,7 +58,10 @@ export default class Deploy extends Command {
       this.log(chalk.bold(`Resources to deploy (${manifest.resources.length}):`));
       for (const resource of manifest.resources) {
         this.log(chalk.green(`  + ${resource.path} [${resource.type}]`));
-        this.log(`    Properties: ${JSON.stringify(resource.properties, null, 2).replace(/\n/g, '\n    ')}`);
+        this.log('    Properties:');
+        for (const line of JSON.stringify(resource.properties, null, 2).split('\n')) {
+          this.log(`    ${line}`);
+        }
       }
       this.log('');
       this.log(chalk.bold('Summary:'));
@@ -69,14 +72,7 @@ export default class Deploy extends Command {
     // Get Stripe API key
     const apiKey = stack.apiKey || process.env.STRIPE_SECRET_KEY;
     if (!apiKey) {
-      this.error(
-        'Stripe API key not found.\n\n' +
-        'To fix this, choose one of:\n' +
-        '  1. Set the environment variable:  export STRIPE_SECRET_KEY=sk_...\n' +
-        '  2. Pass it in the Stack constructor: new Stack(scope, "id", { apiKey: "sk_..." })\n' +
-        '  3. Add STRIPE_SECRET_KEY=sk_... to your .env file',
-        { exit: 1 }
-      );
+      this.error(STRIPE_API_KEY_MISSING_ERROR, { exit: 1 });
     }
 
     try {
