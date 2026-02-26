@@ -35,9 +35,9 @@ export class StripeDeployer {
   private stripe: Stripe;
   private logicalToPhysicalId: Map<string, string> = new Map();
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, apiVersion: string = '2024-12-18.acacia') {
     this.stripe = new Stripe(apiKey, {
-      apiVersion: '2023-10-16',
+      apiVersion: apiVersion as any,
     });
   }
 

@@ -52,7 +52,7 @@ export default class Deploy extends Command {
 
     try {
       // Deploy using the deployer
-      const deployer = new StripeDeployer(apiKey);
+      const deployer = new StripeDeployer(apiKey, manifest.apiVersion);
       const result = await deployer.deploy(manifest);
 
       // Display results
