@@ -43,9 +43,9 @@ export class StripeDeployer {
   private stripe: Stripe;
   private logicalToPhysicalId: Map<string, string> = new Map();
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, apiVersion?: string) {
     this.stripe = new Stripe(apiKey, {
-      apiVersion: '2023-10-16',
+      apiVersion: (apiVersion ?? '2024-12-18.acacia') as Stripe.LatestApiVersion,
     });
   }
 
@@ -245,11 +245,8 @@ export class StripeDeployer {
 
       return null;
     } catch (error: unknown) {
-      // Only return null for resource_missing errors
-      if (isResourceNotFoundError(error)) {
-        return null;
-      }
-      // Re-throw other errors (auth, network, etc.)
+      // Search API returns [] when no match found, not an error.
+      // This catch is defensive for actual API errors (auth, network, etc.)
       throw error;
     }
   }
@@ -270,11 +267,8 @@ export class StripeDeployer {
 
       return null;
     } catch (error: unknown) {
-      // Only return null for resource_missing errors
-      if (isResourceNotFoundError(error)) {
-        return null;
-      }
-      // Re-throw other errors (auth, network, etc.)
+      // Search API returns [] when no match found, not an error.
+      // This catch is defensive for actual API errors (auth, network, etc.)
       throw error;
     }
   }
@@ -298,7 +292,10 @@ export class StripeDeployer {
       if (existing.recurring.interval !== desired.recurring.interval) return false;
       if (existing.recurring.interval_count !== desired.recurring.interval_count) return false;
       if (existing.recurring.usage_type !== desired.recurring.usage_type) return false;
-      if (existing.recurring.trial_period_days !== desired.recurring.trial_period_days) return false;
+      // Treat null (API response) and undefined (request) as equivalent for trial_period_days
+      const existingTrialDays = existing.recurring.trial_period_days ?? undefined;
+      const desiredTrialDays = desired.recurring.trial_period_days ?? undefined;
+      if (existingTrialDays !== desiredTrialDays) return false;
     } else if (existing.recurring) {
       return false;
     }
@@ -315,7 +312,9 @@ export class StripeDeployer {
 
         if (existingTier.up_to !== desiredTier.up_to) return false;
         if (existingTier.unit_amount !== desiredTier.unit_amount) return false;
+        if (existingTier.unit_amount_decimal !== desiredTier.unit_amount_decimal) return false;
         if (existingTier.flat_amount !== desiredTier.flat_amount) return false;
+        if (existingTier.flat_amount_decimal !== desiredTier.flat_amount_decimal) return false;
       }
     } else if (existing.tiers) {
       return false;

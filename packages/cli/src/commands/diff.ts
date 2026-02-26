@@ -214,7 +214,9 @@ export default class Diff extends Command {
           normalized.tiers = price.tiers.map((tier: Stripe.Price.Tier) => ({
             up_to: tier.up_to,
             unit_amount: tier.unit_amount,
+            unit_amount_decimal: tier.unit_amount_decimal,
             flat_amount: tier.flat_amount,
+            flat_amount_decimal: tier.flat_amount_decimal,
           }));
         }
 
