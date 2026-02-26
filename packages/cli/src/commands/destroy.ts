@@ -72,7 +72,7 @@ export default class Destroy extends Command {
       this.log('Destroying resources...');
       this.log('');
 
-      const deployer = new StripeDeployer(apiKey);
+      const deployer = new StripeDeployer(apiKey, manifest.apiVersion);
       const result = await deployer.destroy(manifest);
 
       // Display results

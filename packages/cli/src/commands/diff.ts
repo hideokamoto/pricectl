@@ -53,8 +53,8 @@ export default class Diff extends Command {
     }
 
     try {
-
-      const stripe = new Stripe(apiKey, { apiVersion: '2023-10-16' });
+      const apiVersion = stack.apiVersion || manifest.apiVersion || '2024-12-18.acacia';
+      const stripe = new Stripe(apiKey, { apiVersion: apiVersion as any });
 
       // Fetch current state from Stripe
       this.log(chalk.bold(`Stack: ${manifest.stackId}`));
