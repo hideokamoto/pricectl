@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsc",
     "clean": "rimraf dist",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "lint": "eslint src --ext .ts"
   },
   "keywords": ["stripe", "iac", "infrastructure", "cdk"],

@@ -106,8 +106,8 @@ export default class Destroy extends Command {
         this.log(`  Errors: ${chalk.red(result.errors.length)}`);
         this.error('Some resources could not be destroyed. See errors above.');
       }
-    } catch (error: any) {
-      this.error(`Destroy failed: ${error.message}`);
+    } catch (error: unknown) {
+      this.error(`Destroy failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

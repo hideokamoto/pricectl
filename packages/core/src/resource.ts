@@ -53,7 +53,7 @@ export abstract class Resource extends Construct {
   /**
    * Synthesize the properties for this resource
    */
-  protected abstract synthesizeProperties(): any;
+  protected abstract synthesizeProperties(): Record<string, unknown>;
 
   /**
    * Find the Stack this resource belongs to
