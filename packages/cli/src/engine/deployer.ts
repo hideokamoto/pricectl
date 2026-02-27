@@ -305,6 +305,11 @@ export class StripeDeployer {
    * the old price and creating a new one.
    */
   private comparePriceProperties(existing: Stripe.Price, desired: Stripe.PriceCreateParams): boolean {
+    // Compare product linkage (critical for Prices since they're immutable)
+    const existingProduct = typeof existing.product === 'string' ? existing.product : existing.product?.id;
+    const desiredProduct = typeof desired.product === 'string' ? desired.product : (desired.product as unknown as Stripe.Product)?.id;
+    if (existingProduct !== desiredProduct) return false;
+
     // Compare basic properties
     if (existing.currency !== desired.currency) return false;
     if (existing.unit_amount !== desired.unit_amount) return false;

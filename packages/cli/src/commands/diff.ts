@@ -78,8 +78,11 @@ export default class Diff extends Command {
           continue;
         }
 
+        // Resolve logical IDs in desired properties for accurate comparison
+        const desiredProperties = this.resolveDesiredForDiff(resource, manifest.stackId, stateManager);
+
         // Compare properties
-        const desired = JSON.stringify(resource.properties, null, 2);
+        const desired = JSON.stringify(desiredProperties, null, 2);
         const existing = JSON.stringify(normalizeResource(current, resource.type), null, 2);
 
         if (desired !== existing) {
@@ -104,6 +107,29 @@ export default class Diff extends Command {
     } catch (error: unknown) {
       this.error(`Diff failed: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  /**
+   * Resolve logical IDs to physical IDs in desired properties.
+   * For Prices, replaces product logical ID with the actual physical product ID from state.
+   */
+  private resolveDesiredForDiff(
+    resource: { type: string; id: string; properties: Record<string, unknown> },
+    stackId: string,
+    stateManager?: StateManager,
+  ): Record<string, unknown> {
+    const desired = { ...resource.properties };
+
+    // For Stripe::Price resources, resolve product logical ID to physical ID
+    if (resource.type === 'Stripe::Price' && desired.product && typeof desired.product === 'string' && stateManager) {
+      const productLogicalId = desired.product;
+      const productState = stateManager.getResource(stackId, productLogicalId);
+      if (productState?.type === 'Stripe::Product' && productState.physicalId) {
+        desired.product = productState.physicalId;
+      }
+    }
+
+    return desired;
   }
 
   private colorDiff(patch: string): string {
