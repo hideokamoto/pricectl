@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import chalk from 'chalk';
 import { createTwoFilesPatch } from 'diff';
 import Stripe from 'stripe';
-import { StackManifest, ResourceManifest } from '@pricectl/core';
+import { StackManifest } from '@pricectl/core';
 import { fetchCurrentResource, normalizeResource } from '../engine/stripe-utils';
 import { StateManager } from '../engine/state';
 
