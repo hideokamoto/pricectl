@@ -167,6 +167,7 @@ describe('StripeDeployer', () => {
       it('変更なしのPriceはunchangedになる', async () => {
         const existingPrice = {
           id: 'price_existing',
+          product: 'prod_123',
           currency: 'usd',
           unit_amount: 999,
           unit_amount_decimal: undefined,
@@ -211,6 +212,7 @@ describe('StripeDeployer', () => {
       it('変更ありのPriceは旧Priceを無効化して新規作成する', async () => {
         const existingPrice = {
           id: 'price_old',
+          product: 'prod_123',
           currency: 'usd',
           unit_amount: 500,
           unit_amount_decimal: undefined,

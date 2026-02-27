@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
+import { StateManager } from '../engine/state';
 import { StackManifest, STRIPE_API_KEY_MISSING_ERROR } from '@pricectl/core';
 
 export default class Deploy extends Command {
@@ -19,6 +20,9 @@ export default class Deploy extends Command {
       char: 'a',
       description: 'Path to the app file that defines your stack',
       default: './pricectl.ts',
+    }),
+    'state-file': Flags.string({
+      description: 'Path to the state file directory',
     }),
     'dry-run': Flags.boolean({
       description: 'Preview the API calls that would be made without actually deploying',
@@ -75,9 +79,11 @@ export default class Deploy extends Command {
       this.error(STRIPE_API_KEY_MISSING_ERROR, { exit: 1 });
     }
 
+    const stateManager = new StateManager(flags['state-file']);
     try {
       // Deploy using the deployer
-      const deployer = new StripeDeployer(apiKey, manifest.apiVersion);
+      const apiVersion = manifest.apiVersion || '2024-12-18.acacia';
+      const deployer = new StripeDeployer(apiKey, apiVersion, stateManager);
       const result = await deployer.deploy(manifest);
 
       // Display results
@@ -116,6 +122,16 @@ export default class Deploy extends Command {
       }
     } catch (error: unknown) {
       this.error(`Deployment failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      // Always save state, even if there were errors during deployment
+      try {
+        stateManager.save();
+        this.log('');
+        this.log(chalk.gray(`State saved to ${stateManager.getFilePath()}`));
+      } catch (saveError: unknown) {
+        this.log('');
+        this.log(chalk.yellow(`Warning: Failed to save state: ${saveError instanceof Error ? saveError.message : String(saveError)}`));
+      }
     }
   }
 }

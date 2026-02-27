@@ -1,4 +1,13 @@
 import Stripe from 'stripe';
+import { StateManager } from './state';
+
+/** Check if error is a resource_missing error (works with both Stripe SDK and test mocks) */
+function isResourceMissingError(error: unknown): boolean {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    return (error as { code?: string }).code === 'resource_missing';
+  }
+  return false;
+}
 
 /**
  * Escape a logical ID for use in a Stripe Search API query.
@@ -19,10 +28,35 @@ function stripInternalMetadata(metadata: Record<string, string> | null | undefin
 }
 
 /**
- * Find an existing Stripe Product by logical ID using the Search API.
+ * Find an existing Stripe Product by logical ID.
+ * Uses state-based lookup first for speed, then falls back to the Search API.
  * Supports both the current `pricectl_id` metadata key and the legacy `fillet_id` key.
  */
-export async function findExistingProduct(stripe: Stripe, logicalId: string): Promise<Stripe.Product | null> {
+export async function findExistingProduct(
+  stripe: Stripe,
+  logicalId: string,
+  stateManager?: StateManager,
+  stackId?: string,
+): Promise<Stripe.Product | null> {
+  // Try state-based lookup first (if available)
+  if (stateManager && stackId) {
+    const stateEntry = stateManager.getResource(stackId, logicalId);
+    if (stateEntry?.physicalId) {
+      try {
+        const product = await stripe.products.retrieve(stateEntry.physicalId);
+        if (product && !product.deleted) {
+          return product;
+        }
+      } catch (error: unknown) {
+        if (!isResourceMissingError(error)) {
+          throw error;
+        }
+        // Physical ID from state is stale — fall through to search
+      }
+    }
+  }
+
+  // Fall back to Search API
   try {
     const escapedId = escapeSearchQuery(logicalId);
     const result = await stripe.products.search({
@@ -31,7 +65,7 @@ export async function findExistingProduct(stripe: Stripe, logicalId: string): Pr
     });
     return result.data.length > 0 ? result.data[0] : null;
   } catch (error: unknown) {
-    if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
+    if (isResourceMissingError(error)) {
       return null;
     }
     throw error;
@@ -39,10 +73,35 @@ export async function findExistingProduct(stripe: Stripe, logicalId: string): Pr
 }
 
 /**
- * Find an existing Stripe Price by logical ID using the Search API.
+ * Find an existing Stripe Price by logical ID.
+ * Uses state-based lookup first for speed, then falls back to the Search API.
  * Supports both the current `pricectl_id` metadata key and the legacy `fillet_id` key.
  */
-export async function findExistingPrice(stripe: Stripe, logicalId: string): Promise<Stripe.Price | null> {
+export async function findExistingPrice(
+  stripe: Stripe,
+  logicalId: string,
+  stateManager?: StateManager,
+  stackId?: string,
+): Promise<Stripe.Price | null> {
+  // Try state-based lookup first (if available)
+  if (stateManager && stackId) {
+    const stateEntry = stateManager.getResource(stackId, logicalId);
+    if (stateEntry?.physicalId) {
+      try {
+        const price = await stripe.prices.retrieve(stateEntry.physicalId);
+        if (price) {
+          return price;
+        }
+      } catch (error: unknown) {
+        if (!isResourceMissingError(error)) {
+          throw error;
+        }
+        // Physical ID from state is stale — fall through to search
+      }
+    }
+  }
+
+  // Fall back to Search API
   try {
     const escapedId = escapeSearchQuery(logicalId);
     const result = await stripe.prices.search({
@@ -51,7 +110,7 @@ export async function findExistingPrice(stripe: Stripe, logicalId: string): Prom
     });
     return result.data.length > 0 ? result.data[0] : null;
   } catch (error: unknown) {
-    if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
+    if (isResourceMissingError(error)) {
       return null;
     }
     throw error;
@@ -60,22 +119,28 @@ export async function findExistingPrice(stripe: Stripe, logicalId: string): Prom
 
 /**
  * Fetch the current state of any resource from Stripe.
- * Uses the Search API for Products and Prices, and direct retrieval for Coupons.
+ * Uses state-based lookup when available, then falls back to the Search API for Products and Prices,
+ * and direct retrieval for Coupons.
  */
-export async function fetchCurrentResource(stripe: Stripe, resource: { type: string; id: string }): Promise<Stripe.Product | Stripe.Price | Stripe.Coupon | null> {
+export async function fetchCurrentResource(
+  stripe: Stripe,
+  resource: { type: string; id: string },
+  stateManager?: StateManager,
+  stackId?: string,
+): Promise<Stripe.Product | Stripe.Price | Stripe.Coupon | null> {
   try {
     switch (resource.type) {
       case 'Stripe::Product':
-        return findExistingProduct(stripe, resource.id);
+        return findExistingProduct(stripe, resource.id, stateManager, stackId);
       case 'Stripe::Price':
-        return findExistingPrice(stripe, resource.id);
+        return findExistingPrice(stripe, resource.id, stateManager, stackId);
       case 'Stripe::Coupon':
         return await stripe.coupons.retrieve(resource.id);
       default:
         throw new Error(`Unsupported resource type: ${resource.type}`);
     }
   } catch (error: unknown) {
-    if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
+    if (isResourceMissingError(error)) {
       return null;
     }
     throw error;

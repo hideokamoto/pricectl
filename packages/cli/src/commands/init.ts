@@ -154,6 +154,7 @@ export default stack;
     const gitignoreContent = `
 .env
 pricectl.out/
+pricectl.state.json
 node_modules/
 dist/
 *.js
@@ -165,8 +166,15 @@ dist/
       this.log(chalk.green('✓ Created .gitignore'));
     } else if (flags.force) {
       const existing = fs.readFileSync(gitignorePath, 'utf-8');
-      if (!existing.includes('pricectl.out/')) {
-        fs.appendFileSync(gitignorePath, '\n' + gitignoreContent + '\n');
+      const existingLines = new Set(existing.split('\n').map(l => l.trim()));
+      const linesToAdd: string[] = [];
+      const requiredEntries = ['.env', 'pricectl.out/', 'pricectl.state.json', 'node_modules/', 'dist/', '*.js', '*.d.ts'];
+      for (const entry of requiredEntries) {
+        if (!existingLines.has(entry)) linesToAdd.push(entry);
+      }
+
+      if (linesToAdd.length > 0) {
+        fs.appendFileSync(gitignorePath, '\n' + linesToAdd.join('\n') + '\n');
         this.log(chalk.green('✓ Updated .gitignore'));
       }
     }

@@ -4,7 +4,9 @@ import * as fs from 'fs';
 import chalk from 'chalk';
 import { createTwoFilesPatch } from 'diff';
 import Stripe from 'stripe';
-import { StackManifest, ResourceManifest } from '@pricectl/core';
+import { StackManifest } from '@pricectl/core';
+import { fetchCurrentResource, normalizeResource } from '../engine/stripe-utils';
+import { StateManager } from '../engine/state';
 
 export default class Diff extends Command {
   static description = 'Compare the deployed stack with the local definition';
@@ -19,6 +21,9 @@ export default class Diff extends Command {
       char: 'a',
       description: 'Path to the app file that defines your stack',
       default: './pricectl.ts',
+    }),
+    'state-file': Flags.string({
+      description: 'Path to the state file directory',
     }),
   };
 
@@ -54,6 +59,7 @@ export default class Diff extends Command {
     try {
       const apiVersion = stack.apiVersion || manifest.apiVersion || '2024-12-18.acacia';
       const stripe = new Stripe(apiKey, { apiVersion: apiVersion as unknown as Stripe.LatestApiVersion });
+      const stateManager = new StateManager(flags['state-file']);
 
       // Fetch current state from Stripe
       this.log(chalk.bold(`Stack: ${manifest.stackId}`));
@@ -62,7 +68,7 @@ export default class Diff extends Command {
       let hasChanges = false;
 
       for (const resource of manifest.resources) {
-        const current = await this.fetchCurrentResource(stripe, resource);
+        const current = await fetchCurrentResource(stripe, resource, stateManager, manifest.stackId);
 
         if (!current) {
           this.log(chalk.green(`[+] ${resource.path} [${resource.type}]`));
@@ -72,9 +78,12 @@ export default class Diff extends Command {
           continue;
         }
 
+        // Resolve logical IDs in desired properties for accurate comparison
+        const desiredProperties = this.resolveDesiredForDiff(resource, manifest.stackId, stateManager);
+
         // Compare properties
-        const desired = JSON.stringify(resource.properties, null, 2);
-        const existing = JSON.stringify(this.normalizeResource(current, resource.type), null, 2);
+        const desired = JSON.stringify(desiredProperties, null, 2);
+        const existing = JSON.stringify(normalizeResource(current, resource.type), null, 2);
 
         if (desired !== existing) {
           this.log(chalk.yellow(`[~] ${resource.path} [${resource.type}]`));
@@ -101,171 +110,26 @@ export default class Diff extends Command {
   }
 
   /**
-   * Fetch the current state of a resource from Stripe.
-   * Uses the search API for efficient metadata-based lookup.
+   * Resolve logical IDs to physical IDs in desired properties.
+   * For Prices, replaces product logical ID with the actual physical product ID from state.
    */
-  private async fetchCurrentResource(
-    stripe: Stripe,
-    resource: ResourceManifest
-  ): Promise<Stripe.Product | Stripe.Price | Stripe.Coupon | null> {
-    try {
-      // Escape backslashes first, then escape double quotes in resource.id to prevent search query injection
-      const escapedId = resource.id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      switch (resource.type) {
-        case 'Stripe::Product': {
-          const result = await stripe.products.search({
-            query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
-            limit: 1,
-          });
-          return result.data.length > 0 ? result.data[0] : null;
-        }
-        case 'Stripe::Price': {
-          const result = await stripe.prices.search({
-            query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
-            limit: 1,
-          });
-          return result.data.length > 0 ? result.data[0] : null;
-        }
-        case 'Stripe::Coupon': {
-          return await stripe.coupons.retrieve(resource.id);
-        }
-        default:
-          return null;
-      }
-    } catch (error: unknown) {
-      // Only return null for resource_missing errors
-      if (error instanceof Stripe.errors.StripeError && error.code === 'resource_missing') {
-        return null;
-      }
-      // Re-throw other errors (auth, network, etc.) to surface them to the user
-      throw error;
-    }
-  }
-
-  /**
-   * Normalize a Stripe resource to match the format of our construct properties.
-   * This ensures accurate comparison by extracting all user-configurable properties.
-   */
-  private normalizeResource(
-    resource: Stripe.Product | Stripe.Price | Stripe.Coupon,
-    resourceType: string
+  private resolveDesiredForDiff(
+    resource: { type: string; id: string; properties: Record<string, unknown> },
+    stackId: string,
+    stateManager?: StateManager,
   ): Record<string, unknown> {
-    const normalized: Record<string, unknown> = {};
+    const desired = { ...resource.properties };
 
-    switch (resourceType) {
-      case 'Stripe::Product': {
-        const product = resource as Stripe.Product;
-        // Include all Product properties
-        if (product.name != null) normalized.name = product.name;
-        if (product.description != null) normalized.description = product.description;
-        if (product.active != null) normalized.active = product.active;
-        if (product.images != null) normalized.images = product.images;
-        if (product.url != null) normalized.url = product.url;
-        if (product.unit_label != null) normalized.unit_label = product.unit_label;
-        if (product.statement_descriptor != null) {
-          normalized.statement_descriptor = product.statement_descriptor;
-        }
-        if (product.tax_code != null) normalized.tax_code = product.tax_code;
-        // Exclude pricectl and legacy fillet metadata from comparison
-        if (product.metadata) {
-          const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = product.metadata;
-          if (Object.keys(userMetadata).length > 0) {
-            normalized.metadata = userMetadata;
-          }
-        }
-        break;
-      }
-
-      case 'Stripe::Price': {
-        const price = resource as Stripe.Price;
-        // Include all Price properties
-        // Note: product ID is already resolved, so we include it as-is
-        if (price.product !== undefined) normalized.product = price.product;
-        if (price.currency !== undefined) normalized.currency = price.currency;
-        if (price.unit_amount !== undefined) normalized.unit_amount = price.unit_amount;
-        if (price.unit_amount_decimal !== undefined) {
-          normalized.unit_amount_decimal = price.unit_amount_decimal;
-        }
-        if (price.active !== undefined) normalized.active = price.active;
-        if (price.nickname !== undefined) normalized.nickname = price.nickname;
-        if (price.lookup_key !== undefined) normalized.lookup_key = price.lookup_key;
-
-        // Recurring properties
-        if (price.recurring) {
-          const recurring: Record<string, unknown> = {};
-          if (price.recurring.interval !== undefined) {
-            recurring.interval = price.recurring.interval;
-          }
-          if (price.recurring.interval_count !== undefined) {
-            recurring.interval_count = price.recurring.interval_count;
-          }
-          if (price.recurring.usage_type !== undefined) {
-            recurring.usage_type = price.recurring.usage_type;
-          }
-          if (price.recurring.trial_period_days !== undefined) {
-            recurring.trial_period_days = price.recurring.trial_period_days;
-          }
-          normalized.recurring = recurring;
-        }
-
-        // Tiers
-        if (price.tiers_mode !== undefined) normalized.tiers_mode = price.tiers_mode;
-        if (price.tiers) {
-          normalized.tiers = price.tiers.map((tier: Stripe.Price.Tier) => ({
-            up_to: tier.up_to,
-            unit_amount: tier.unit_amount,
-            unit_amount_decimal: tier.unit_amount_decimal,
-            flat_amount: tier.flat_amount,
-            flat_amount_decimal: tier.flat_amount_decimal,
-          }));
-        }
-
-        // Transform quantity
-        if (price.transform_quantity) {
-          normalized.transform_quantity = {
-            divide_by: price.transform_quantity.divide_by,
-            round: price.transform_quantity.round,
-          };
-        }
-
-        // Exclude pricectl and legacy fillet metadata from comparison
-        if (price.metadata) {
-          const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = price.metadata;
-          if (Object.keys(userMetadata).length > 0) {
-            normalized.metadata = userMetadata;
-          }
-        }
-        break;
-      }
-
-      case 'Stripe::Coupon': {
-        const coupon = resource as Stripe.Coupon;
-        // Include all Coupon properties
-        if (coupon.duration !== undefined) normalized.duration = coupon.duration;
-        if (coupon.amount_off !== undefined) normalized.amount_off = coupon.amount_off;
-        if (coupon.currency !== undefined) normalized.currency = coupon.currency;
-        if (coupon.percent_off !== undefined) normalized.percent_off = coupon.percent_off;
-        if (coupon.duration_in_months !== undefined) {
-          normalized.duration_in_months = coupon.duration_in_months;
-        }
-        if (coupon.max_redemptions !== undefined) {
-          normalized.max_redemptions = coupon.max_redemptions;
-        }
-        if (coupon.name !== undefined) normalized.name = coupon.name;
-        if (coupon.redeem_by !== undefined) normalized.redeem_by = coupon.redeem_by;
-        if (coupon.applies_to !== undefined) normalized.applies_to = coupon.applies_to;
-        // Exclude pricectl and legacy fillet metadata from comparison (same as Product/Price)
-        if (coupon.metadata) {
-          const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = coupon.metadata;
-          if (Object.keys(userMetadata).length > 0) {
-            normalized.metadata = userMetadata;
-          }
-        }
-        break;
+    // For Stripe::Price resources, resolve product logical ID to physical ID
+    if (resource.type === 'Stripe::Price' && desired.product && typeof desired.product === 'string' && stateManager) {
+      const productLogicalId = desired.product;
+      const productState = stateManager.getResource(stackId, productLogicalId);
+      if (productState?.type === 'Stripe::Product' && productState.physicalId) {
+        desired.product = productState.physicalId;
       }
     }
 
-    return normalized;
+    return desired;
   }
 
   private colorDiff(patch: string): string {

@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
+import { StateManager } from '../engine/state';
 import { StackManifest, STRIPE_API_KEY_MISSING_ERROR } from '@pricectl/core';
 
 export default class Destroy extends Command {
@@ -25,6 +26,9 @@ export default class Destroy extends Command {
       char: 'f',
       description: 'Skip confirmation prompt',
       default: false,
+    }),
+    'state-file': Flags.string({
+      description: 'Path to the state file directory',
     }),
     'dry-run': Flags.boolean({
       description: 'Preview what would be destroyed without making any API calls',
@@ -98,8 +102,15 @@ export default class Destroy extends Command {
       this.log('Destroying resources...');
       this.log('');
 
-      const deployer = new StripeDeployer(apiKey, manifest.apiVersion);
+      // Load state
+      const stateManager = new StateManager(flags['state-file']);
+
+      const apiVersion = manifest.apiVersion || '2024-12-18.acacia';
+      const deployer = new StripeDeployer(apiKey, apiVersion, stateManager);
       const result = await deployer.destroy(manifest);
+
+      // Save state after destroy (resources removed from state during destroy)
+      stateManager.save();
 
       // Display results
       this.log(chalk.bold.green('✓ Destruction completed'));
@@ -132,6 +143,9 @@ export default class Destroy extends Command {
         this.log(`  Errors: ${chalk.red(result.errors.length)}`);
         this.error('Some resources could not be destroyed. See errors above.');
       }
+
+      this.log('');
+      this.log(chalk.gray(`State saved to ${stateManager.getFilePath()}`));
     } catch (error: unknown) {
       this.error(`Destroy failed: ${error instanceof Error ? error.message : String(error)}`);
     }
