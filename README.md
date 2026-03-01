@@ -12,7 +12,7 @@
 
 ## Overview
 
-pricectl is an Infrastructure as Code (IaC) tool for Stripe pricing resources. Inspired by kubectl and AWS CDK, it allows you to define your pricing infrastructure (products, prices, coupons, entitlements, meters) using TypeScript and deploy them with simple CLI commands.
+pricectl is an Infrastructure as Code (IaC) tool for Stripe pricing resources. Inspired by kubectl and AWS CDK, it allows you to define your pricing infrastructure (products, prices, coupons, entitlement features, billing meters) using TypeScript and deploy them with simple CLI commands.
 
 ### Why pricectl?
 

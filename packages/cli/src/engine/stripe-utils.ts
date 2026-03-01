@@ -137,12 +137,43 @@ export async function fetchCurrentResource(
       case 'Stripe::Coupon':
         return await stripe.coupons.retrieve(resource.id);
       case 'Stripe::EntitlementFeature': {
-        const features = await stripe.entitlements.features.list({ limit: 100 });
-        return features.data.find(f => f.metadata?.pricectl_id === resource.id) ?? null;
+        // Try state-based lookup first
+        if (stateManager && stackId) {
+          const stateEntry = stateManager.getResource(stackId, resource.id);
+          if (stateEntry?.physicalId) {
+            try {
+              return await stripe.entitlements.features.retrieve(stateEntry.physicalId);
+            } catch (error: unknown) {
+              if (!isResourceMissingError(error)) {
+                throw error;
+              }
+            }
+          }
+        }
+        // Fall back to paginated search by pricectl_id metadata
+        for await (const feature of stripe.entitlements.features.list({ limit: 100 })) {
+          if (feature.metadata?.pricectl_id === resource.id) {
+            return feature;
+          }
+        }
+        return null;
       }
       case 'Stripe::BillingMeter': {
-        const meters = await stripe.billing.meters.list({ limit: 100 });
-        return meters.data.find(m => m.event_name === resource.id) ?? null;
+        // Try state-based lookup (Billing Meters don't support metadata,
+        // so state is the only reliable way to find them by logical ID)
+        if (stateManager && stackId) {
+          const stateEntry = stateManager.getResource(stackId, resource.id);
+          if (stateEntry?.physicalId) {
+            try {
+              return await stripe.billing.meters.retrieve(stateEntry.physicalId);
+            } catch (error: unknown) {
+              if (!isResourceMissingError(error)) {
+                throw error;
+              }
+            }
+          }
+        }
+        return null;
       }
       default:
         throw new Error(`Unsupported resource type: ${resource.type}`);
