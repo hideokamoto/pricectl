@@ -36,5 +36,10 @@
     "type": "git",
     "url": "git+https://github.com/hideokamoto/pricectl.git"
   },
+  "homepage": "https://github.com/hideokamoto/pricectl#readme",
+  "bugs": {
+    "url": "https://github.com/hideokamoto/pricectl/issues"
+  },
+  "author": "hideokamoto",
   "license": "MIT"
 }
