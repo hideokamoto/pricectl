@@ -12,7 +12,7 @@
 
 ## Overview
 
-pricectl is an Infrastructure as Code (IaC) tool for Stripe pricing resources. Inspired by kubectl and AWS CDK, it allows you to define your pricing infrastructure (products, prices, coupons) using TypeScript and deploy them with simple CLI commands.
+pricectl is an Infrastructure as Code (IaC) tool for Stripe pricing resources. Inspired by kubectl and AWS CDK, it allows you to define your pricing infrastructure (products, prices, coupons, entitlements, meters) using TypeScript and deploy them with simple CLI commands.
 
 ### Why pricectl?
 
@@ -126,7 +126,9 @@ Stripe pricing resource implementations:
 - `Product`: Stripe products
 - `Price`: Pricing plans (one-time, recurring, tiered, metered)
 - `Coupon`: Discount coupons
-- Coming soon: Entitlements, Meters, PromotionCodes
+- `EntitlementFeature`: Entitlement features for access control
+- `Meter`: Billing meters for usage-based pricing
+- Coming soon: PromotionCodes
 
 ### 📦 `@pricectl/cli`
 
@@ -259,6 +261,46 @@ new Coupon(stack, 'Save10', {
 });
 ```
 
+### EntitlementFeature
+
+Define entitlement features for access control:
+
+```typescript
+new EntitlementFeature(stack, 'PremiumSupport', {
+  name: 'Premium Support',
+  lookupKey: 'premium-support',
+  metadata: { tier: 'premium' },
+});
+```
+
+### Meter
+
+Define billing meters for usage-based pricing:
+
+```typescript
+// Simple count-based meter
+new Meter(stack, 'ApiCalls', {
+  displayName: 'API Calls',
+  eventName: 'api_call',
+  defaultAggregation: {
+    formula: 'count',
+  },
+});
+
+// Sum-based meter with value settings
+new Meter(stack, 'DataTransfer', {
+  displayName: 'Data Transfer',
+  eventName: 'data_transfer',
+  defaultAggregation: {
+    formula: 'sum',
+  },
+  valueSettings: {
+    eventPayloadKey: 'bytes_used',
+  },
+  eventTimeWindow: 'hour',
+});
+```
+
 ## Examples
 
 Check out the [examples](./examples) directory for complete working examples:
@@ -322,8 +364,8 @@ pnpm test
 ## Roadmap
 
 ### v0.2.0
-- [ ] Entitlement resource
-- [ ] Meter resource
+- [x] Entitlement resource
+- [x] Meter resource
 - [ ] PromotionCode resource
 - [ ] Customer resource
 - [ ] Subscription resource

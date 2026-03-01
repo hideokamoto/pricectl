@@ -127,7 +127,7 @@ export async function fetchCurrentResource(
   resource: { type: string; id: string },
   stateManager?: StateManager,
   stackId?: string,
-): Promise<Stripe.Product | Stripe.Price | Stripe.Coupon | null> {
+): Promise<Stripe.Product | Stripe.Price | Stripe.Coupon | Stripe.Entitlements.Feature | Stripe.Billing.Meter | null> {
   try {
     switch (resource.type) {
       case 'Stripe::Product':
@@ -136,6 +136,14 @@ export async function fetchCurrentResource(
         return findExistingPrice(stripe, resource.id, stateManager, stackId);
       case 'Stripe::Coupon':
         return await stripe.coupons.retrieve(resource.id);
+      case 'Stripe::EntitlementFeature': {
+        const features = await stripe.entitlements.features.list({ limit: 100 });
+        return features.data.find(f => f.metadata?.pricectl_id === resource.id) ?? null;
+      }
+      case 'Stripe::BillingMeter': {
+        const meters = await stripe.billing.meters.list({ limit: 100 });
+        return meters.data.find(m => m.event_name === resource.id) ?? null;
+      }
       default:
         throw new Error(`Unsupported resource type: ${resource.type}`);
     }
@@ -152,7 +160,7 @@ export async function fetchCurrentResource(
  * Strips internal metadata keys and retains only user-configurable properties
  * to enable accurate comparison between desired and current state.
  */
-export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stripe.Coupon, resourceType: string): Record<string, unknown> {
+export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stripe.Coupon | Stripe.Entitlements.Feature | Stripe.Billing.Meter, resourceType: string): Record<string, unknown> {
   const normalized: Record<string, unknown> = {};
 
   switch (resourceType) {
@@ -247,6 +255,43 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
       const couponMetadata = stripInternalMetadata(r.metadata);
       if (couponMetadata) {
         normalized.metadata = couponMetadata;
+      }
+      break;
+    }
+
+    case 'Stripe::EntitlementFeature': {
+      const r = resource as Stripe.Entitlements.Feature;
+      if (r.name !== undefined) normalized.name = r.name;
+      if (r.lookup_key !== undefined) normalized.lookup_key = r.lookup_key;
+      const featureMetadata = stripInternalMetadata(r.metadata);
+      if (featureMetadata) {
+        normalized.metadata = featureMetadata;
+      }
+      break;
+    }
+
+    case 'Stripe::BillingMeter': {
+      const r = resource as Stripe.Billing.Meter;
+      if (r.display_name !== undefined) normalized.display_name = r.display_name;
+      if (r.event_name !== undefined) normalized.event_name = r.event_name;
+      if (r.default_aggregation !== undefined) {
+        normalized.default_aggregation = {
+          formula: r.default_aggregation.formula,
+        };
+      }
+      if (r.customer_mapping !== undefined) {
+        normalized.customer_mapping = {
+          event_payload_key: r.customer_mapping.event_payload_key,
+          type: r.customer_mapping.type,
+        };
+      }
+      if (r.event_time_window !== undefined) {
+        normalized.event_time_window = r.event_time_window;
+      }
+      if (r.value_settings !== undefined) {
+        normalized.value_settings = {
+          event_payload_key: r.value_settings.event_payload_key,
+        };
       }
       break;
     }
