@@ -29,22 +29,35 @@ export interface StackProps {
  * Similar to AWS CDK's Stack concept.
  */
 export class Stack extends Construct {
-  public readonly apiKey?: string;
+  private readonly _apiKey?: string;
   public readonly apiVersion?: string;
   public readonly description?: string;
   public readonly tags: Record<string, string>;
 
+  get apiKey(): string | undefined {
+    return this._apiKey;
+  }
+
   constructor(scope: Construct | undefined, id: string, props: StackProps = {}) {
     super(scope, id);
 
-    this.apiKey = props.apiKey || process.env.STRIPE_SECRET_KEY;
+    this._apiKey = props.apiKey || process.env.STRIPE_SECRET_KEY;
     this.apiVersion = props.apiVersion || '2024-12-18.acacia';
     this.description = props.description;
     this.tags = props.tags || {};
 
-    if (!this.apiKey) {
+    if (!this._apiKey) {
       throw new Error(STRIPE_API_KEY_MISSING_ERROR);
     }
+  }
+
+  toJSON(): object {
+    return {
+      id: this.node.id,
+      apiVersion: this.apiVersion,
+      description: this.description,
+      tags: this.tags,
+    };
   }
 
   /**

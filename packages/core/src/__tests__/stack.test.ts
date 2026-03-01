@@ -53,6 +53,15 @@ describe('Stack', () => {
       }
     });
 
+    it('JSON.stringifyでapiKeyが出力されない', () => {
+      const stack = new Stack(undefined, 'TestStack', { apiKey: API_KEY });
+
+      const json = JSON.parse(JSON.stringify(stack));
+
+      expect(json.apiKey).toBeUndefined();
+      expect(JSON.stringify(stack)).not.toContain(API_KEY);
+    });
+
     it('apiKeyが未指定かつ環境変数もない場合はエラー', () => {
       const original = process.env.STRIPE_SECRET_KEY;
       try {
