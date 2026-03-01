@@ -158,16 +158,16 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
   switch (resourceType) {
     case 'Stripe::Product': {
       const r = resource as Stripe.Product;
-      if (r.name !== undefined) normalized.name = r.name;
-      if (r.description !== undefined) normalized.description = r.description;
-      if (r.active !== undefined) normalized.active = r.active;
-      if (r.images) normalized.images = r.images;
-      if (r.url !== undefined) normalized.url = r.url;
-      if (r.unit_label !== undefined) normalized.unit_label = r.unit_label;
-      if (r.statement_descriptor !== undefined) {
+      if (r.name != null) normalized.name = r.name;
+      if (r.description != null) normalized.description = r.description;
+      if (r.active != null) normalized.active = r.active;
+      if (r.images != null) normalized.images = r.images;
+      if (r.url != null) normalized.url = r.url;
+      if (r.unit_label != null) normalized.unit_label = r.unit_label;
+      if (r.statement_descriptor != null) {
         normalized.statement_descriptor = r.statement_descriptor;
       }
-      if (r.tax_code !== undefined) normalized.tax_code = r.tax_code;
+      if (r.tax_code != null) normalized.tax_code = r.tax_code;
       // Exclude pricectl and legacy fillet metadata from comparison
       const productMetadata = stripInternalMetadata(r.metadata);
       if (productMetadata) {
@@ -210,7 +210,9 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
         normalized.tiers = r.tiers.map((tier) => ({
           up_to: tier.up_to,
           unit_amount: tier.unit_amount,
+          unit_amount_decimal: tier.unit_amount_decimal,
           flat_amount: tier.flat_amount,
+          flat_amount_decimal: tier.flat_amount_decimal,
         }));
       }
 
