@@ -14,6 +14,16 @@
     "lint": "eslint src --ext .ts"
   },
   "keywords": ["stripe", "iac", "infrastructure", "cdk"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hideokamoto/pricectl.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/hideokamoto/pricectl/tree/master/packages/core#readme",
+  "bugs": {
+    "url": "https://github.com/hideokamoto/pricectl/issues"
+  },
+  "author": "hideokamoto",
   "license": "MIT",
   "dependencies": {},
   "devDependencies": {
