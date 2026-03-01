@@ -78,6 +78,12 @@ export interface PriceProps extends ResourceProps {
   readonly type?: 'one_time' | 'recurring';
 
   /**
+   * Specifies whether the price is considered inclusive of taxes or exclusive of taxes.
+   * One of inclusive, exclusive, or unspecified.
+   */
+  readonly taxBehavior?: 'inclusive' | 'exclusive' | 'unspecified';
+
+  /**
    * Apply a transformation to the reported usage or set quantity before computing the billed price.
    */
   readonly transformQuantity?: {
@@ -134,6 +140,7 @@ export class Price extends Resource {
     divideBy: number;
     round: 'up' | 'down';
   };
+  public readonly taxBehavior?: 'inclusive' | 'exclusive' | 'unspecified';
   public readonly tiersMode?: 'graduated' | 'volume';
   public readonly tiers?: Array<{
     upTo: number | 'inf';
@@ -154,6 +161,7 @@ export class Price extends Resource {
     this.metadata = props.metadata;
     this.lookupKey = props.lookupKey;
     this.type = props.type;
+    this.taxBehavior = props.taxBehavior;
     this.transformQuantity = props.transformQuantity;
     this.tiersMode = props.tiersMode;
     this.tiers = props.tiers;
@@ -178,6 +186,7 @@ export class Price extends Resource {
     if (this.nickname !== undefined) params.nickname = this.nickname;
     if (this.metadata !== undefined) params.metadata = this.metadata;
     if (this.lookupKey !== undefined) params.lookup_key = this.lookupKey;
+    if (this.taxBehavior !== undefined) params.tax_behavior = this.taxBehavior;
     if (this.tiersMode !== undefined) params.tiers_mode = this.tiersMode;
 
     // Transform quantity - convert camelCase to snake_case for Stripe API
