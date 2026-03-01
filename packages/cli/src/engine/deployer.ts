@@ -112,6 +112,10 @@ export class StripeDeployer {
         return this.deployPrice(resource, stackId);
       case 'Stripe::Coupon':
         return this.deployCoupon(resource, stackId);
+      case 'Stripe::EntitlementFeature':
+        return this.deployEntitlementFeature(resource, stackId);
+      case 'Stripe::BillingMeter':
+        return this.deployBillingMeter(resource, stackId);
       default:
         throw new Error(`Unknown resource type: ${resource.type}`);
     }
@@ -264,6 +268,147 @@ export class StripeDeployer {
         physicalId: created.id,
         status: 'created' as const,
       };
+    }
+  }
+
+  private async deployEntitlementFeature(resource: ResourceManifest, stackId: string) {
+    const props = resource.properties as unknown as Stripe.Entitlements.FeatureCreateParams;
+
+    // Try to find existing feature (state-based first, then by lookup_key)
+    const existing = await this.findExistingEntitlementFeature(resource.id, props.lookup_key, stackId);
+
+    if (existing) {
+      // Update existing feature
+      const updated = await this.stripe.entitlements.features.update(existing.id, {
+        name: props.name,
+        metadata: {
+          ...props.metadata,
+          pricectl_id: resource.id,
+          pricectl_path: resource.path,
+        },
+      });
+      return {
+        id: resource.id,
+        type: resource.type,
+        physicalId: updated.id,
+        status: 'updated' as const,
+      };
+    } else {
+      const created = await this.stripe.entitlements.features.create({
+        ...props,
+        metadata: {
+          ...props.metadata,
+          pricectl_id: resource.id,
+          pricectl_path: resource.path,
+        },
+      });
+      return {
+        id: resource.id,
+        type: resource.type,
+        physicalId: created.id,
+        status: 'created' as const,
+      };
+    }
+  }
+
+  private async deployBillingMeter(resource: ResourceManifest, stackId: string) {
+    const props = resource.properties as unknown as Stripe.Billing.MeterCreateParams;
+
+    // Try to find existing meter (state-based first, then by event_name)
+    const existing = await this.findExistingBillingMeter(resource.id, props.event_name, stackId);
+
+    if (existing) {
+      // Meters can only update display_name
+      const updated = await this.stripe.billing.meters.update(existing.id, {
+        display_name: props.display_name,
+      });
+      return {
+        id: resource.id,
+        type: resource.type,
+        physicalId: updated.id,
+        status: 'updated' as const,
+      };
+    } else {
+      const created = await this.stripe.billing.meters.create(props);
+      return {
+        id: resource.id,
+        type: resource.type,
+        physicalId: created.id,
+        status: 'created' as const,
+      };
+    }
+  }
+
+  private async findExistingEntitlementFeature(
+    logicalId: string,
+    lookupKey: string,
+    stackId: string,
+  ): Promise<Stripe.Entitlements.Feature | null> {
+    // Try state-based lookup first
+    if (this.stateManager) {
+      const stateEntry = this.stateManager.getResource(stackId, logicalId);
+      if (stateEntry?.physicalId) {
+        try {
+          return await this.stripe.entitlements.features.retrieve(stateEntry.physicalId);
+        } catch (error: unknown) {
+          if (!isResourceNotFoundError(error)) {
+            throw error;
+          }
+          // Physical ID from state is stale — fall through to search
+        }
+      }
+    }
+
+    // Fall back to paginated search by lookup_key
+    try {
+      for await (const feature of this.stripe.entitlements.features.list({ limit: 100 })) {
+        if (feature.lookup_key === lookupKey) {
+          return feature;
+        }
+      }
+      return null;
+    } catch (error: unknown) {
+      if (isResourceNotFoundError(error)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  private async findExistingBillingMeter(
+    logicalId: string,
+    eventName: string,
+    stackId: string,
+  ): Promise<Stripe.Billing.Meter | null> {
+    // Try state-based lookup first
+    if (this.stateManager) {
+      const stateEntry = this.stateManager.getResource(stackId, logicalId);
+      if (stateEntry?.physicalId) {
+        try {
+          return await this.stripe.billing.meters.retrieve(stateEntry.physicalId);
+        } catch (error: unknown) {
+          if (!isResourceNotFoundError(error)) {
+            throw error;
+          }
+          // Physical ID from state is stale — fall through to search
+        }
+      }
+    }
+
+    // Fall back to paginated search by event_name
+    // (Billing Meters don't support metadata, so event_name is the natural key)
+    try {
+      for await (const meter of this.stripe.billing.meters.list({ limit: 100 })) {
+        if (meter.event_name === eventName) {
+          return meter;
+        }
+      }
+      return null;
+    } catch (error: unknown) {
+      if (isResourceNotFoundError(error)) {
+        return null;
+      }
+      throw error;
     }
   }
 
@@ -450,6 +595,34 @@ export class StripeDeployer {
             id: resource.id,
             type: resource.type,
             status: 'deleted',
+          };
+        }
+        return null;
+      }
+      case 'Stripe::EntitlementFeature': {
+        const featureProps = resource.properties as unknown as { lookup_key: string };
+        const existing = await this.findExistingEntitlementFeature(resource.id, featureProps.lookup_key, stackId);
+        if (existing) {
+          // Features are deactivated, not deleted
+          await this.stripe.entitlements.features.update(existing.id, { active: false });
+          return {
+            id: resource.id,
+            type: resource.type,
+            status: 'deactivated',
+          };
+        }
+        return null;
+      }
+      case 'Stripe::BillingMeter': {
+        const meterProps = resource.properties as unknown as { event_name: string };
+        const existing = await this.findExistingBillingMeter(resource.id, meterProps.event_name, stackId);
+        if (existing) {
+          // Meters are deactivated, not deleted
+          await this.stripe.billing.meters.deactivate(existing.id);
+          return {
+            id: resource.id,
+            type: resource.type,
+            status: 'deactivated',
           };
         }
         return null;
