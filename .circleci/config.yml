@@ -42,7 +42,7 @@ workflows:
           pkg-manager: pnpm
           executor:
             name: node/default
-            tag: '22'
+            tag: '22.13'
           setup:
             - node/install-pnpm:
                 version: '10.29.3'
