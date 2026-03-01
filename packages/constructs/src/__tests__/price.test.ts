@@ -175,10 +175,26 @@ describe('Price', () => {
       expect(props).not.toHaveProperty('recurring');
       expect(props).not.toHaveProperty('metadata');
       expect(props).not.toHaveProperty('lookup_key');
+      expect(props).not.toHaveProperty('tax_behavior');
       expect(props).not.toHaveProperty('tiers');
       expect(props).not.toHaveProperty('tiers_mode');
       expect(props).not.toHaveProperty('billing_scheme');
       expect(props).not.toHaveProperty('transform_quantity');
+    });
+
+    it('taxBehaviorがsnake_caseで含まれる', () => {
+      const stack = createStack();
+      new Price(stack, 'ExclusivePrice', {
+        product: 'prod_123',
+        currency: 'usd',
+        unitAmount: 1000,
+        taxBehavior: 'exclusive',
+      });
+
+      const manifest = stack.synth();
+      const props = manifest.resources.find(r => r.id === 'ExclusivePrice')!.properties;
+
+      expect(props.tax_behavior).toBe('exclusive');
     });
 
     it('nicknameとlookupKeyが含まれる', () => {

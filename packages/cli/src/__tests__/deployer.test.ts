@@ -209,6 +209,106 @@ describe('StripeDeployer', () => {
         expect(result.deployed[0].physicalId).toBe('price_existing');
       });
 
+      it('tax_behaviorが異なるPriceは旧Priceを無効化して新規作成する', async () => {
+        const existingPrice = {
+          id: 'price_exclusive',
+          product: 'prod_123',
+          currency: 'usd',
+          unit_amount: 999,
+          unit_amount_decimal: undefined,
+          active: true,
+          nickname: undefined,
+          tax_behavior: 'exclusive',
+          recurring: null,
+          tiers_mode: undefined,
+          tiers: null,
+          transform_quantity: null,
+          lookup_key: undefined,
+        };
+
+        mockStripeInstance.prices.search.mockResolvedValue({
+          data: [existingPrice],
+        });
+        mockStripeInstance.prices.update.mockResolvedValue({});
+        mockStripeInstance.prices.create.mockResolvedValue({
+          id: 'price_inclusive',
+        });
+
+        const manifest: StackManifest = {
+          stackId: 'TestStack',
+          tags: {},
+          resources: [
+            {
+              id: 'MyPrice',
+              path: 'TestStack/MyPrice',
+              type: 'Stripe::Price',
+              properties: {
+                product: 'prod_123',
+                currency: 'usd',
+                unit_amount: 999,
+                active: true,
+                tax_behavior: 'inclusive', // 変更
+              },
+            },
+          ],
+        };
+
+        const result = await deployer.deploy(manifest);
+
+        expect(result.deployed[0].status).toBe('created');
+        expect(result.deployed[0].physicalId).toBe('price_inclusive');
+        expect(mockStripeInstance.prices.update).toHaveBeenCalledWith(
+          'price_exclusive',
+          { active: false }
+        );
+      });
+
+      it('tax_behaviorが同じPriceはunchangedになる', async () => {
+        const existingPrice = {
+          id: 'price_existing',
+          product: 'prod_123',
+          currency: 'usd',
+          unit_amount: 999,
+          unit_amount_decimal: undefined,
+          active: true,
+          nickname: undefined,
+          tax_behavior: 'inclusive',
+          recurring: null,
+          tiers_mode: undefined,
+          tiers: null,
+          transform_quantity: null,
+          lookup_key: undefined,
+        };
+
+        mockStripeInstance.prices.search.mockResolvedValue({
+          data: [existingPrice],
+        });
+
+        const manifest: StackManifest = {
+          stackId: 'TestStack',
+          tags: {},
+          resources: [
+            {
+              id: 'MyPrice',
+              path: 'TestStack/MyPrice',
+              type: 'Stripe::Price',
+              properties: {
+                product: 'prod_123',
+                currency: 'usd',
+                unit_amount: 999,
+                active: true,
+                tax_behavior: 'inclusive',
+              },
+            },
+          ],
+        };
+
+        const result = await deployer.deploy(manifest);
+
+        expect(result.deployed[0].status).toBe('unchanged');
+        expect(result.deployed[0].physicalId).toBe('price_existing');
+      });
+
       it('変更ありのPriceは旧Priceを無効化して新規作成する', async () => {
         const existingPrice = {
           id: 'price_old',
