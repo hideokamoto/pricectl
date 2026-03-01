@@ -1,3 +1,5 @@
+import { DUPLICATE_LOGICAL_ID_ERROR, EMPTY_LOGICAL_ID_ERROR } from './errors';
+
 /**
  * Base class for all pricectl constructs.
  * Inspired by AWS CDK's Construct class.
@@ -43,6 +45,11 @@ export class ConstructNode {
   }
 
   public addChild(child: Construct): void {
+    const childId = child.node.id;
+    const existing = this._children.find((c) => c.node.id === childId);
+    if (existing) {
+      throw new Error(DUPLICATE_LOGICAL_ID_ERROR(childId, this.host.node.path));
+    }
     this._children.push(child);
   }
 
@@ -67,6 +74,10 @@ export class Construct implements IConstruct {
   public readonly node: ConstructNode;
 
   constructor(scope: Construct | undefined, id: string) {
+    if (id.trim() === '') {
+      throw new Error(EMPTY_LOGICAL_ID_ERROR);
+    }
+
     this.node = new ConstructNode(this, id, scope);
 
     if (scope) {

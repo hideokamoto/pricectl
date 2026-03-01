@@ -1,6 +1,36 @@
 import { Construct } from '../construct';
+import { DUPLICATE_LOGICAL_ID_ERROR, EMPTY_LOGICAL_ID_ERROR } from '../errors';
 
 describe('Construct', () => {
+  describe('バリデーション', () => {
+    it('空文字列のidはエラーになる', () => {
+      expect(() => new Construct(undefined, '')).toThrow(EMPTY_LOGICAL_ID_ERROR);
+    });
+
+    it('空白のみのidはエラーになる', () => {
+      expect(() => new Construct(undefined, '   ')).toThrow(EMPTY_LOGICAL_ID_ERROR);
+    });
+
+    it('同一スコープ内に同じidの子を追加するとエラーになる', () => {
+      const parent = new Construct(undefined, 'Parent');
+      new Construct(parent, 'Child');
+
+      expect(() => new Construct(parent, 'Child')).toThrow(
+        DUPLICATE_LOGICAL_ID_ERROR('Child', 'Parent')
+      );
+    });
+
+    it('異なるスコープ内では同じidを使用できる', () => {
+      const parent1 = new Construct(undefined, 'Parent1');
+      const parent2 = new Construct(undefined, 'Parent2');
+
+      expect(() => {
+        new Construct(parent1, 'Child');
+        new Construct(parent2, 'Child');
+      }).not.toThrow();
+    });
+  });
+
   describe('ルートConstruct（scopeなし）', () => {
     it('idが設定される', () => {
       const root = new Construct(undefined, 'Root');
