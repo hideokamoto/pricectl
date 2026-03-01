@@ -14,18 +14,6 @@ workflows:
             - node/install-pnpm:
                 version: '10.29.3'
       - node/test:
-          name: test-node-18
-          pkg-manager: pnpm
-          executor:
-            name: node/default
-            tag: '18.20'
-          setup:
-            - node/install-pnpm:
-                version: '10.29.3'
-          post_install_steps:
-            - run: pnpm build
-          test-results-for: jest
-      - node/test:
           name: test-node-20
           pkg-manager: pnpm
           executor:
