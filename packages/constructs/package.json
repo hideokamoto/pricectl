@@ -23,8 +23,14 @@
   "bugs": {
     "url": "https://github.com/hideokamoto/pricectl/issues"
   },
-  "author": "hideokamoto",
+  "author": {
+    "name": "Hidetaka Okamoto",
+    "url": "https://github.com/hideokamoto"
+  },
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@pricectl/core": "workspace:*",
     "stripe": "^14.9.0"
