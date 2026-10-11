@@ -19,6 +19,22 @@ describe('fetchCurrentResource', () => {
     expect(current).toMatchObject({ id: 'prod_unmanaged' });
   });
 
+  it('does not ask Stripe for attached features when the product does not set features', async () => {
+    const fake = new FakeStripe();
+    fake.seed('products', productFixture);
+    const listFeatures = jest.spyOn(fake.products, 'listFeatures');
+
+    const current = await fetchCurrentResource(fake as unknown as Stripe, {
+      type: 'Stripe::Product',
+      id: 'FxProd',
+      physicalId: productFixture.id,
+      properties: { name: 'Widget' },
+    });
+
+    expect(current).not.toHaveProperty('features');
+    expect(listFeatures).not.toHaveBeenCalled();
+  });
+
   it('includes the IDs of the entitlement features attached to a product', async () => {
     const fake = new FakeStripe();
     fake.seed('products', productFixture);
@@ -29,6 +45,7 @@ describe('fetchCurrentResource', () => {
       type: 'Stripe::Product',
       id: 'FxProd',
       physicalId: productFixture.id,
+      properties: { name: 'Widget', features: [feature.id] },
     });
 
     expect(current).toMatchObject({ features: [feature.id] });

@@ -158,14 +158,19 @@ export async function findExistingPrice(
  */
 export async function fetchCurrentResource(
   stripe: Stripe,
-  resource: { type: string; id: string; physicalId?: string },
+  resource: { type: string; id: string; physicalId?: string; properties?: Record<string, unknown> },
   stateManager?: StateManager,
   stackId?: string,
 ): Promise<Stripe.Product | Stripe.Price | Stripe.Coupon | Stripe.Entitlements.Feature | Stripe.Billing.Meter | null> {
   try {
     switch (resource.type) {
-      case 'Stripe::Product':
-        return await withAttachedFeatures(stripe, await findProductForResource(stripe, resource, stateManager, stackId));
+      case 'Stripe::Product': {
+        const product = await findProductForResource(stripe, resource, stateManager, stackId);
+        // Attachments are only compared for products that manage their features
+        return resource.properties && 'features' in resource.properties
+          ? await withAttachedFeatures(stripe, product)
+          : product;
+      }
       case 'Stripe::Price':
         return findExistingPrice(stripe, resource.id, stateManager, stackId);
       case 'Stripe::Coupon':
