@@ -618,6 +618,22 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(state.getResource('FxStack', 'Monthly')).toBeDefined();
     });
 
+    it('deactivates a feature and a meter that were removed from the definition', async () => {
+      const state = inMemoryState();
+      const v1 = createStack();
+      new EntitlementFeature(v1, 'OldFeature', { name: 'Old feature', lookupKey: 'old_feature' });
+      new Meter(v1, 'OldMeter', { displayName: 'Old meter', eventName: 'old_event', defaultAggregation: { formula: 'count' } });
+      const first = await new StripeDeployer('sk_test_dummy', undefined, state).deploy(v1.synth());
+      const [featureId, meterId] = first.deployed.map((d) => d.physicalId);
+
+      const result = await new StripeDeployer('sk_test_dummy', undefined, state).deploy(createStack().synth());
+
+      expect(result.errors).toEqual([]);
+      expect(result.removed.map((r) => r.id).sort()).toEqual(['OldFeature', 'OldMeter']);
+      expect(mockFakeStripe.featureStore.get(featureId)?.active).toBe(false);
+      expect(mockFakeStripe.meterStore.get(meterId)?.status).toBe('inactive');
+    });
+
     it('also cleans up on destroy a resource that is only left in the state file', async () => {
       const state = inMemoryState();
       const stack = createStack();
