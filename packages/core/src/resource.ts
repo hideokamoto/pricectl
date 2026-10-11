@@ -1,5 +1,6 @@
 import { Construct } from './construct';
 import { Stack } from './stack';
+import { DUPLICATE_RESOURCE_ID_ERROR } from './errors';
 
 export interface ResourceProps {
   /**
@@ -27,6 +28,7 @@ export abstract class Resource extends Construct {
 
     this.physicalId = props.physicalId;
     this.stack = this.findStack();
+    this.assertUniqueLogicalId();
 
     // Note: Resource metadata registration is deferred to subclasses
     // to ensure all properties are initialized before synthesizeProperties() is called.
@@ -54,6 +56,19 @@ export abstract class Resource extends Construct {
    * Synthesize the properties for this resource
    */
   protected abstract synthesizeProperties(): Record<string, unknown>;
+
+  /**
+   * Resources are identified in Stripe and in the state file by their id alone,
+   * so the id must be unique within the whole stack, not only within its scope.
+   */
+  private assertUniqueLogicalId(): void {
+    const clash = this.stack.node
+      .findAll()
+      .find((c) => c !== this && c instanceof Resource && c.node.id === this.node.id);
+    if (clash) {
+      throw new Error(DUPLICATE_RESOURCE_ID_ERROR(this.node.id, clash.node.path, this.node.path));
+    }
+  }
 
   /**
    * Find the Stack this resource belongs to

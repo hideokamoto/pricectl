@@ -46,6 +46,25 @@ describe('Resource', () => {
     });
   });
 
+  describe('論理IDの一意性', () => {
+    it('別のスコープに同じ論理IDのリソースがあるとエラーになる（Stripe上では論理IDで識別するため）', () => {
+      const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY });
+      new TestResource(new Construct(stack, 'TeamA'), 'Pro', { type: 'Test', properties: {} });
+
+      expect(
+        () => new TestResource(new Construct(stack, 'TeamB'), 'Pro', { type: 'Test', properties: {} })
+      ).toThrow('MyStack/TeamA/Pro');
+    });
+
+    it('別のStackであれば同じ論理IDを使える', () => {
+      const stackA = new Stack(undefined, 'StackA', { apiKey: API_KEY });
+      const stackB = new Stack(undefined, 'StackB', { apiKey: API_KEY });
+      new TestResource(stackA, 'Pro', { type: 'Test', properties: {} });
+
+      expect(() => new TestResource(stackB, 'Pro', { type: 'Test', properties: {} })).not.toThrow();
+    });
+  });
+
   describe('physicalId', () => {
     it('propsで指定したphysicalIdが設定される', () => {
       const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY });
