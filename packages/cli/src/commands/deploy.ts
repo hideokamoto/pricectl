@@ -135,6 +135,11 @@ export default class Deploy extends Command {
         this.log('');
       }
 
+      if (result.removalSkipped) {
+        this.log(chalk.yellow('Resources that are no longer defined were not removed because of the errors below.'));
+        this.log('');
+      }
+
       if (result.errors.length > 0) {
         this.log(chalk.bold.red('Errors:'));
         for (const error of result.errors) {

@@ -19,6 +19,8 @@ export interface DeployResult {
     physicalId: string;
     status: 'created' | 'updated' | 'unchanged';
   }>;
+  /** Whether removing resources that are no longer defined was skipped because of errors */
+  removalSkipped: boolean;
   /** Resources recorded in the state file that are no longer defined, removed during deploy */
   removed: Array<{
     id: string;
@@ -116,6 +118,7 @@ export class StripeDeployer {
     const result: DeployResult = {
       stackId: manifest.stackId,
       deployed: [],
+      removalSkipped: false,
       removed: [],
       errors: [],
     };
@@ -151,7 +154,13 @@ export class StripeDeployer {
       }
     }
 
-    await this.removeOrphans(manifest, result);
+    // A failed resource may be the replacement of one that is no longer defined, so nothing
+    // is removed unless every defined resource deployed successfully
+    if (result.errors.length > 0) {
+      result.removalSkipped = findOrphans(manifest, this.stateManager).length > 0;
+    } else {
+      await this.removeOrphans(manifest, result);
+    }
 
     return result;
   }

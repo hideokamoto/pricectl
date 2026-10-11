@@ -451,6 +451,24 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(state.getResource('FxStack', 'NewYearly')).toBeUndefined();
     });
 
+    it('keeps resources that are no longer defined when deploying the defined ones failed', async () => {
+      const state = inMemoryState();
+      const v1 = createStack();
+      new Price(v1, 'Monthly', { product: PRODUCT_ID, currency: 'usd', unitAmount: 1000, lookupKey: 'pro_monthly' });
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(v1.synth());
+
+      // Renaming the logical ID makes the old price an orphan, and the new one cannot take its lookup key
+      const v2 = createStack();
+      new Price(v2, 'MonthlyV2', { product: PRODUCT_ID, currency: 'usd', unitAmount: 1000, lookupKey: 'pro_monthly' });
+      const result = await new StripeDeployer('sk_test_dummy', undefined, state).deploy(v2.synth());
+
+      expect(result.errors).toEqual([expect.objectContaining({ id: 'MonthlyV2' })]);
+      expect(result.removed).toEqual([]);
+      expect(result.removalSkipped).toBe(true);
+      expect(mockFakeStripe.pricesFor('Monthly')).toEqual([expect.objectContaining({ active: true })]);
+      expect(state.getResource('FxStack', 'Monthly')).toBeDefined();
+    });
+
     it('also cleans up on destroy a resource that is only left in the state file', async () => {
       const state = inMemoryState();
       const stack = createStack();
