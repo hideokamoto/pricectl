@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
 import { StateManager } from '../engine/state';
 import { destroyOutcome } from '../engine/outcome';
+import { describeDestroyPlan } from '../engine/destroy-plan';
 import { StackManifest, STRIPE_API_KEY_MISSING_ERROR, DEFAULT_STRIPE_API_VERSION } from '@pricectl/core';
 
 export default class Destroy extends Command {
@@ -32,7 +33,7 @@ export default class Destroy extends Command {
       description: 'Path to the state file directory',
     }),
     'dry-run': Flags.boolean({
-      description: 'Preview what would be destroyed without making any API calls',
+      description: 'Preview what would be destroyed, read from Stripe, without changing anything',
       default: false,
     }),
   };
@@ -58,31 +59,52 @@ export default class Destroy extends Command {
 
     const manifest: StackManifest = stack.synth();
 
-    if (flags['dry-run']) {
-      this.log(chalk.bold.cyan('Dry run — no changes will be made to Stripe'));
-      this.log('');
-      this.log(`Stack: ${chalk.bold(manifest.stackId)}`);
-      this.log('');
-      this.log(chalk.bold(`Resources that would be destroyed (${manifest.resources.length}):`));
-      for (const resource of manifest.resources) {
-        this.log(chalk.red(`  - ${resource.path} [${resource.type}]`));
-      }
-      this.log('');
-      this.log(chalk.bold('Summary:'));
-      this.log(`  Total: ${chalk.red(manifest.resources.length)} resource(s) would be deleted/deactivated`);
-      return;
+    // Get Stripe API key
+    const apiKey = stack.apiKey || process.env.STRIPE_SECRET_KEY;
+    if (!apiKey) {
+      this.error(STRIPE_API_KEY_MISSING_ERROR, { exit: 1 });
     }
 
     let failed = false;
     try {
+      const stateManager = new StateManager(flags['state-file']);
+      const apiVersion = manifest.apiVersion || DEFAULT_STRIPE_API_VERSION;
+      const deployer = new StripeDeployer(apiKey, apiVersion, stateManager);
 
-      this.log(chalk.bold.yellow(`⚠️  You are about to destroy stack: ${manifest.stackId}`));
-      this.log('');
-      this.log('The following resources will be deleted:');
-      for (const resource of manifest.resources) {
-        this.log(chalk.red(`  - ${resource.path} [${resource.type}]`));
+      // What destroy would do, read from Stripe, so already deleted or inactive resources are not listed
+      const plan = await deployer.planDestroy(manifest);
+
+      if (flags['dry-run']) {
+        this.log(chalk.bold.cyan('Dry run — no changes will be made to Stripe'));
+        this.log('');
+        this.log(`Stack: ${chalk.bold(manifest.stackId)}`);
+        this.log('');
+        for (const line of describeDestroyPlan(plan)) this.log(line);
+        this.log('');
+        this.log(chalk.bold('Summary:'));
+        this.log(`  Total: ${chalk.red(plan.resources.length)} resource(s) would be deleted/deactivated`);
+        failed = plan.errors.length > 0;
+        return;
       }
+
+      if (plan.resources.length > 0) {
+        this.log(chalk.bold.yellow(`⚠️  You are about to destroy stack: ${manifest.stackId}`));
+        this.log('');
+      }
+      for (const line of describeDestroyPlan(plan)) this.log(line);
       this.log('');
+
+      if (plan.errors.length > 0) {
+        failed = true;
+        return;
+      }
+
+      if (plan.resources.length === 0) {
+        // Nothing changes in Stripe; this only drops state entries of resources that are already gone
+        await deployer.destroy(manifest);
+        stateManager.save();
+        return;
+      }
 
       if (!flags.force) {
         if (!process.stdin.isTTY) {
@@ -96,20 +118,9 @@ export default class Destroy extends Command {
         }
       }
 
-      // Get Stripe API key
-      const apiKey = stack.apiKey || process.env.STRIPE_SECRET_KEY;
-      if (!apiKey) {
-        this.error(STRIPE_API_KEY_MISSING_ERROR, { exit: 1 });
-      }
-
       this.log('Destroying resources...');
       this.log('');
 
-      // Load state
-      const stateManager = new StateManager(flags['state-file']);
-
-      const apiVersion = manifest.apiVersion || DEFAULT_STRIPE_API_VERSION;
-      const deployer = new StripeDeployer(apiKey, apiVersion, stateManager);
       const result = await deployer.destroy(manifest);
 
       // Save state after destroy (resources removed from state during destroy)
@@ -156,7 +167,7 @@ export default class Destroy extends Command {
 
     // Outside the try block, so that the catch above does not wrap this message
     if (failed) {
-      this.error('Some resources could not be destroyed. See errors above.', { exit: 1 });
+      this.error('Some resources could not be read or destroyed. See errors above.', { exit: 1 });
     }
   }
 }
