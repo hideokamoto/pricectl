@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { asSdkPrice } from './sdk-shapes';
 /**
  * In-memory fake of the subset of the Stripe API used by pricectl.
  *
  * Stripe is an external system, so tests replace it at the boundary. Unlike
  * hand-written mocks, this fake returns objects shaped like real Stripe
  * responses (see ../fixtures/stripe/, recorded from Stripe test mode with
- * API version 2024-12-18.acacia) and reproduces the following observed
+ * API version 2026-09-30.endive) and reproduces the following observed
  * Stripe behaviors:
  *
  * - Fields that were not set come back as null or as Stripe defaults
@@ -14,9 +15,15 @@
  * - A lookup_key can belong to only one price unless transfer_lookup_key is set.
  * - A product that has prices cannot be deleted.
  * - An inactive entitlement feature cannot be updated (not even reactivated).
+ * - An inactive meter cannot be deactivated again.
  * - List endpoints return inactive features and meters too.
+ * - stripe-node (v21+) returns price decimal_string fields as Stripe.Decimal objects.
  * - The Search API is eventually consistent: newly created objects are not
  *   searchable until indexSearch() is called.
+ * - Products reject parameters that are not product fields.
+ *
+ * Product features (products.createFeature/listFeatures/deleteFeature) return the
+ * shape recorded in ../fixtures/stripe/product-features-list.json.
  */
 
 type StripeObject = Record<string, any>;
@@ -83,6 +90,18 @@ function metadataQueryValue(query: string): string | undefined {
   return /metadata\["pricectl_id"\]:"((?:[^"\\]|\\.)*)"/.exec(query)?.[1]?.replace(/\\(.)/g, '$1');
 }
 
+const PRODUCT_PARAMS = new Set([
+  'name', 'active', 'description', 'images', 'metadata', 'url',
+  'unit_label', 'statement_descriptor', 'tax_code',
+]);
+
+function rejectUnknownProductParams(params: StripeObject): void {
+  const unknown = Object.keys(params).find((key) => !PRODUCT_PARAMS.has(key));
+  if (unknown) {
+    throw new FakeStripeError({ message: `Received unknown parameter: ${unknown}`, param: unknown });
+  }
+}
+
 function wantsTiers(expand?: string[]): boolean {
   return (expand ?? []).some((e) => e === 'tiers' || e === 'data.tiers');
 }
@@ -97,6 +116,8 @@ export class FakeStripe {
   readonly couponStore = new Map<string, StripeObject>();
   readonly featureStore = new Map<string, StripeObject>();
   readonly meterStore = new Map<string, StripeObject>();
+  /** Product ID → attached product_feature objects */
+  readonly productFeatureStore = new Map<string, StripeObject[]>();
 
   /** Make every object created so far visible to the Search API. */
   indexSearch(): void {
@@ -156,15 +177,17 @@ export class FakeStripe {
     holder.lookup_key = null;
   }
 
+  /** A stored price as the SDK hands it to callers (decimal fields as Stripe.Decimal). */
   private priceView(price: StripeObject, expand?: string[]): StripeObject {
     const view = clone(price);
     if (!wantsTiers(expand)) delete view.tiers;
-    return view;
+    return asSdkPrice(view);
   }
 
   readonly products = {
     create: async (params: StripeObject) => {
       this.checkFailure('products.create');
+      rejectUnknownProductParams(params);
       const product = {
         active: params.active ?? true,
         attributes: [],
@@ -198,6 +221,7 @@ export class FakeStripe {
     },
     update: async (id: string, params: StripeObject) => {
       this.checkFailure('products.update');
+      rejectUnknownProductParams(params);
       const product = this.productStore.get(id);
       if (!product) throw resourceMissing('product', id);
       const { metadata, ...rest } = params;
@@ -228,6 +252,27 @@ export class FakeStripe {
         .map(clone);
       return listResult(data);
     },
+    createFeature: async (productId: string, params: { entitlement_feature: string }) => {
+      this.checkFailure('products.createFeature');
+      if (!this.productStore.has(productId)) throw resourceMissing('product', productId);
+      const feature = this.featureStore.get(params.entitlement_feature);
+      if (!feature) throw resourceMissing('feature', params.entitlement_feature);
+      const attached = {
+        id: this.nextId('prodft'),
+        object: 'product_feature',
+        livemode: false,
+        entitlement_feature: clone(feature),
+      };
+      this.productFeatureStore.set(productId, [...(this.productFeatureStore.get(productId) ?? []), attached]);
+      return clone(attached);
+    },
+    listFeatures: (productId: string) => listResult((this.productFeatureStore.get(productId) ?? []).map(clone)),
+    deleteFeature: async (productId: string, productFeatureId: string) => {
+      const attached = this.productFeatureStore.get(productId) ?? [];
+      if (!attached.some((f) => f.id === productFeatureId)) throw resourceMissing('product_feature', productFeatureId);
+      this.productFeatureStore.set(productId, attached.filter((f) => f.id !== productFeatureId));
+      return { id: productFeatureId, object: 'product_feature', deleted: true };
+    },
   };
 
   readonly prices = {
@@ -239,7 +284,6 @@ export class FakeStripe {
       if (params.lookup_key) this.claimLookupKey(params.lookup_key, Boolean(params.transfer_lookup_key));
       const recurring = params.recurring
         ? {
-            aggregate_usage: null,
             interval: params.recurring.interval,
             interval_count: params.recurring.interval_count ?? 1,
             meter: params.recurring.meter ?? null,
@@ -426,6 +470,10 @@ export class FakeStripe {
       deactivate: async (id: string) => {
         const meter = this.meterStore.get(id);
         if (!meter) throw resourceMissing('billing.meter', id);
+        if (meter.status !== 'active') {
+          // Recorded in ../fixtures/stripe/error-meter-already-deactivated.json
+          throw new FakeStripeError({ message: 'meter_already_deactivated' });
+        }
         meter.status = 'inactive';
         meter.status_transitions = { deactivated_at: this.now() };
         return clone(meter);
@@ -444,6 +492,11 @@ export class FakeStripe {
   /** Prices that carry the given pricectl logical ID. */
   pricesFor(logicalId: string): StripeObject[] {
     return [...this.priceStore.values()].filter((p) => p.metadata.pricectl_id === logicalId).map(clone);
+  }
+
+  /** IDs of the entitlement features attached to a product. */
+  featuresOf(productId: string): string[] {
+    return (this.productFeatureStore.get(productId) ?? []).map((f) => f.entitlement_feature.id);
   }
 
   /** Products that carry the given pricectl logical ID. */

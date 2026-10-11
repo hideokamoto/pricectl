@@ -1,5 +1,6 @@
 import { Construct, Resource, ResourceProps } from '@pricectl/core';
 import { Product } from './product';
+import { Meter } from './meter';
 import type Stripe from 'stripe';
 
 export interface RecurringProps {
@@ -16,6 +17,7 @@ export interface RecurringProps {
 
   /**
    * Configures how the quantity per period should be determined.
+   * 'metered' requires `meter` when the stack uses API version 2025-03-31.basil or later.
    */
   readonly usageType?: 'metered' | 'licensed';
 
@@ -23,6 +25,12 @@ export interface RecurringProps {
    * Default number of trial days when subscribing a customer to this price using trial_from_plan=true.
    */
   readonly trialPeriodDays?: number;
+
+  /**
+   * The billing meter that tracks usage for this price, as a Meter construct or a Stripe meter ID.
+   * Requires usageType 'metered'.
+   */
+  readonly meter?: Meter | string;
 }
 
 export interface PriceProps extends ResourceProps {
@@ -106,6 +114,14 @@ export interface PriceProps extends ResourceProps {
   }>;
 }
 
+/** Stripe rejects metered prices without a meter since this API version. */
+const METER_REQUIRED_SINCE = '2025-03-31.basil';
+
+/** API versions are named `YYYY-MM-DD.release`, so their dates compare as strings. */
+function requiresMeterForMeteredPrices(apiVersion: string | undefined): boolean {
+  return apiVersion === undefined || apiVersion.slice(0, 10) >= METER_REQUIRED_SINCE.slice(0, 10);
+}
+
 /**
  * Represents a Stripe Price
  *
@@ -166,6 +182,20 @@ export class Price extends Resource {
     this.tiersMode = props.tiersMode;
     this.tiers = props.tiers;
 
+    if (this.recurring?.meter !== undefined && this.recurring.usageType !== 'metered') {
+      throw new Error('A price with a meter must set recurring.usageType "metered"');
+    }
+    if (
+      this.recurring?.usageType === 'metered' &&
+      this.recurring.meter === undefined &&
+      requiresMeterForMeteredPrices(this.stack.apiVersion)
+    ) {
+      throw new Error(
+        'A metered price must set recurring.meter to the Meter that tracks its usage ' +
+          `(required since Stripe API version ${METER_REQUIRED_SINCE}; the stack uses ${this.stack.apiVersion})`,
+      );
+    }
+
     // Register resource metadata after all properties are initialized
     this.registerResourceMetadata();
   }
@@ -182,7 +212,10 @@ export class Price extends Resource {
     };
 
     if (this.unitAmount !== undefined) params.unit_amount = this.unitAmount;
-    if (this.unitAmountDecimal !== undefined) params.unit_amount_decimal = this.unitAmountDecimal;
+    // Kept as a string so that the manifest stays plain JSON; Stripe receives decimals as strings
+    if (this.unitAmountDecimal !== undefined) {
+      params.unit_amount_decimal = this.unitAmountDecimal as unknown as Stripe.Decimal;
+    }
     if (this.nickname !== undefined) params.nickname = this.nickname;
     if (this.metadata !== undefined) params.metadata = this.metadata;
     if (this.lookupKey !== undefined) params.lookup_key = this.lookupKey;
@@ -204,6 +237,11 @@ export class Price extends Resource {
         usage_type: this.recurring.usageType,
         trial_period_days: this.recurring.trialPeriodDays,
       };
+      if (this.recurring.meter !== undefined) {
+        // A Meter construct is referenced by logical ID and resolved to its Stripe ID on deploy
+        const meter = this.recurring.meter;
+        params.recurring.meter = meter instanceof Meter ? meter.physicalId || meter.node.id : meter;
+      }
     }
 
     if (Array.isArray(this.tiers) && this.tiers.length > 0) {

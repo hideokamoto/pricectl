@@ -1,0 +1,6 @@
+{
+  "error": {
+    "message": "meter_already_deactivated",
+    "type": "invalid_request_error"
+  }
+}

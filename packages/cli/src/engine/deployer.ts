@@ -1,11 +1,14 @@
 import Stripe from 'stripe';
-import { StackManifest, ResourceManifest } from '@pricectl/core';
+import { StackManifest, ResourceManifest, DEFAULT_STRIPE_API_VERSION } from '@pricectl/core';
 import {
   findExistingProduct as stripeFindExistingProduct,
   findExistingPrice as stripeFindExistingPrice,
+  findProductForResource,
+  listAttachedFeatures,
   stripInternalMetadata,
 } from './stripe-utils';
 import { StateManager } from './state';
+import { findOrphans, findReleased } from './orphans';
 import { isPriceEquivalent } from './price-comparison';
 
 export interface DeployResult {
@@ -15,6 +18,14 @@ export interface DeployResult {
     type: string;
     physicalId: string;
     status: 'created' | 'updated' | 'unchanged';
+  }>;
+  /** Whether removing resources that are no longer defined was skipped because of errors */
+  removalSkipped: boolean;
+  /** Resources recorded in the state file that are no longer defined, removed during deploy */
+  removed: Array<{
+    id: string;
+    type: string;
+    status: 'deleted' | 'deactivated';
   }>;
   errors: Array<{
     id: string;
@@ -98,7 +109,7 @@ export class StripeDeployer {
 
   constructor(apiKey: string, apiVersion?: string, stateManager?: StateManager) {
     this.stripe = new Stripe(apiKey, {
-      apiVersion: (apiVersion ?? '2024-12-18.acacia') as Stripe.LatestApiVersion,
+      apiVersion: (apiVersion ?? DEFAULT_STRIPE_API_VERSION) as Stripe.LatestApiVersion,
     });
     this.stateManager = stateManager;
   }
@@ -107,6 +118,8 @@ export class StripeDeployer {
     const result: DeployResult = {
       stackId: manifest.stackId,
       deployed: [],
+      removalSkipped: false,
+      removed: [],
       errors: [],
     };
 
@@ -141,7 +154,37 @@ export class StripeDeployer {
       }
     }
 
+    // A failed resource may be the replacement of one that is no longer defined, so nothing
+    // is removed unless every defined resource deployed successfully
+    if (result.errors.length > 0) {
+      result.removalSkipped = findOrphans(manifest, this.stateManager).length > 0;
+    } else {
+      await this.removeOrphans(manifest, result);
+    }
+
     return result;
+  }
+
+  /** Remove resources that were deleted from the definition since the last deploy. */
+  private async removeOrphans(manifest: StackManifest, result: DeployResult): Promise<void> {
+    // Still referred to by Stripe ID: no longer part of the stack, but must stay in Stripe
+    for (const released of findReleased(manifest, this.stateManager)) {
+      this.stateManager?.removeResource(manifest.stackId, released.logicalId);
+    }
+
+    for (const orphan of findOrphans(manifest, this.stateManager)) {
+      try {
+        const removed = await this.destroyResource(orphan, manifest.stackId);
+        if (removed) result.removed.push(removed);
+        this.stateManager?.removeResource(manifest.stackId, orphan.id);
+      } catch (error: unknown) {
+        result.errors.push({
+          id: orphan.id,
+          type: orphan.type,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
   }
 
   private async deployResource(resource: ResourceManifest, stackId: string) {
@@ -162,13 +205,12 @@ export class StripeDeployer {
   }
 
   private async deployProduct(resource: ResourceManifest, stackId: string) {
-    const props = validateProductCreateParams(resource.properties);
-    const existing = await stripeFindExistingProduct(
-      this.stripe,
-      resource.id,
-      this.stateManager,
-      stackId,
-    );
+    // `features` is not a product field; it is applied through the product features API
+    const { features, ...productProperties } = resource.properties;
+    const props = validateProductCreateParams(productProperties);
+    // undefined means the product does not manage its features: leave attachments as they are
+    const desiredFeatureIds = (features as string[] | undefined)?.map((id) => this.logicalToPhysicalId.get(id) ?? id);
+    const existing = await findProductForResource(this.stripe, resource, this.stateManager, stackId);
 
     if (existing) {
       // Check if properties have changed by comparing hash
@@ -179,12 +221,16 @@ export class StripeDeployer {
       // but still needs to be brought back to its desired active state.
       const activeMatches = existing.active === (props.active ?? true);
       if (existingHash === desiredHash && activeMatches) {
-        // Properties unchanged, return unchanged status
+        // The hash covers the definition, not what is attached in Stripe: attachments can be
+        // missing after a failed deploy or changed outside pricectl, so they are always checked
+        const featuresChanged = desiredFeatureIds
+          ? await this.syncProductFeatures(existing.id, desiredFeatureIds)
+          : false;
         return {
           id: resource.id,
           type: resource.type,
           physicalId: existing.id,
-          status: 'unchanged' as const,
+          status: featuresChanged ? ('updated' as const) : ('unchanged' as const),
         };
       }
 
@@ -198,6 +244,9 @@ export class StripeDeployer {
           pricectl_properties_hash: desiredHash,
         },
       } as Stripe.ProductUpdateParams);
+      if (desiredFeatureIds) {
+        await this.syncProductFeatures(updated.id, desiredFeatureIds);
+      }
       return {
         id: resource.id,
         type: resource.type,
@@ -216,6 +265,10 @@ export class StripeDeployer {
           pricectl_properties_hash: desiredHash,
         },
       });
+      // A new product has no features attached yet
+      for (const featureId of desiredFeatureIds ?? []) {
+        await this.stripe.products.createFeature(created.id, { entitlement_feature: featureId });
+      }
       return {
         id: resource.id,
         type: resource.type,
@@ -223,6 +276,28 @@ export class StripeDeployer {
         status: 'created' as const,
       };
     }
+  }
+
+  /**
+   * Attach the desired entitlement features to a product and detach all others.
+   * Returns whether anything was attached or detached.
+   */
+  private async syncProductFeatures(productId: string, desiredFeatureIds: string[]): Promise<boolean> {
+    const attached = await listAttachedFeatures(this.stripe, productId);
+    let changed = false;
+    for (const featureId of desiredFeatureIds) {
+      if (!attached.has(featureId)) {
+        await this.stripe.products.createFeature(productId, { entitlement_feature: featureId });
+        changed = true;
+      }
+    }
+    for (const [featureId, productFeatureId] of attached) {
+      if (!desiredFeatureIds.includes(featureId)) {
+        await this.stripe.products.deleteFeature(productId, productFeatureId);
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   private async deployPrice(resource: ResourceManifest, stackId: string) {
@@ -241,11 +316,22 @@ export class StripeDeployer {
       // Check if properties match
       const propsMatch = isPriceEquivalent(existing, props);
       if (propsMatch) {
+        // Metadata is mutable, so it is updated in place rather than by recreating the price
+        const metadataUpdate = metadataChanges(stripInternalMetadata(existing.metadata) ?? {}, props.metadata || {});
+        if (metadataUpdate === null) {
+          return {
+            id: resource.id,
+            type: resource.type,
+            physicalId: existing.id,
+            status: 'unchanged' as const,
+          };
+        }
+        await this.stripe.prices.update(existing.id, { metadata: metadataUpdate });
         return {
           id: resource.id,
           type: resource.type,
           physicalId: existing.id,
-          status: 'unchanged' as const,
+          status: 'updated' as const,
         };
       } else {
         // Create the replacement first so that a failure leaves the old price usable,
@@ -371,7 +457,11 @@ export class StripeDeployer {
 
     // Only an active feature can be reused: Stripe rejects every update, including
     // reactivation, on an inactive feature, but allows a new one with the same lookup_key.
-    const existing = await this.findActiveEntitlementFeature(resource.id, props.lookup_key, stackId);
+    const existing = await this.featureForResource(resource, props.lookup_key, stackId);
+    if (existing && !existing.active) {
+      // Only reachable through physicalId: other lookups return active features only
+      throw new Error(`Feature ${existing.id} is inactive, and Stripe does not allow updating inactive features.`);
+    }
 
     if (!existing) {
       const created = await this.stripe.entitlements.features.create({
@@ -417,7 +507,7 @@ export class StripeDeployer {
     const props = resource.properties as unknown as Stripe.Billing.MeterCreateParams;
 
     // Try to find existing meter (state-based first, then by event_name)
-    const existing = await this.findExistingBillingMeter(resource.id, props.event_name, stackId);
+    const existing = await this.meterForResource(resource, props.event_name, stackId);
 
     if (!existing) {
       const created = await this.stripe.billing.meters.create(props);
@@ -453,6 +543,52 @@ export class StripeDeployer {
       physicalId: existing.id,
       status: 'updated' as const,
     };
+  }
+
+  /**
+   * The feature a manifest resource manages: the one named by its physicalId when given
+   * (its lookup_key cannot be changed, so it must match), otherwise the active one found
+   * by logical ID or lookup_key.
+   */
+  private async featureForResource(
+    resource: ResourceManifest,
+    lookupKey: string,
+    stackId: string,
+  ): Promise<Stripe.Entitlements.Feature | null> {
+    if (!resource.physicalId) {
+      return this.findActiveEntitlementFeature(resource.id, lookupKey, stackId);
+    }
+    const feature = await this.stripe.entitlements.features.retrieve(resource.physicalId);
+    if (lookupKey !== undefined && feature.lookup_key !== lookupKey) {
+      throw new Error(
+        `Feature ${feature.id} has lookup_key "${feature.lookup_key}", but "${resource.id}" defines "${lookupKey}"; ` +
+          'Stripe does not allow changing lookup_key.',
+      );
+    }
+    return feature;
+  }
+
+  /**
+   * The meter a manifest resource manages: the one named by its physicalId when given
+   * (its event_name cannot be changed, so it must match), otherwise the one found by
+   * logical ID or event_name.
+   */
+  private async meterForResource(
+    resource: ResourceManifest,
+    eventName: string,
+    stackId: string,
+  ): Promise<Stripe.Billing.Meter | null> {
+    if (!resource.physicalId) {
+      return this.findExistingBillingMeter(resource.id, eventName, stackId);
+    }
+    const meter = await this.stripe.billing.meters.retrieve(resource.physicalId);
+    if (eventName !== undefined && meter.event_name !== eventName) {
+      throw new Error(
+        `Meter ${meter.id} has event_name "${meter.event_name}", but "${resource.id}" defines "${eventName}"; ` +
+          'Stripe does not allow changing event_name.',
+      );
+    }
+    return meter;
   }
 
   private async findActiveEntitlementFeature(
@@ -534,6 +670,15 @@ export class StripeDeployer {
       }
     }
 
+    // Resolve meter reference in a metered Price
+    const recurring = resolved.recurring as Record<string, unknown> | undefined;
+    if (recurring && typeof recurring.meter === 'string') {
+      const physicalId = this.logicalToPhysicalId.get(recurring.meter);
+      if (physicalId) {
+        resolved.recurring = { ...recurring, meter: physicalId };
+      }
+    }
+
     return resolved;
   }
 
@@ -565,8 +710,9 @@ export class StripeDeployer {
       errors: [],
     };
 
-    // Delete resources in reverse order to handle dependencies
-    const resources = [...manifest.resources].reverse();
+    // Delete resources in reverse order to handle dependencies, and also clean up
+    // resources that are only left in the state file because they were removed from the code
+    const resources = [...findOrphans(manifest, this.stateManager), ...[...manifest.resources].reverse()];
 
     for (const resource of resources) {
       try {
@@ -656,8 +802,8 @@ export class StripeDeployer {
       }
       case 'Stripe::EntitlementFeature': {
         const featureProps = resource.properties as unknown as { lookup_key: string };
-        const existing = await this.findActiveEntitlementFeature(resource.id, featureProps.lookup_key, stackId);
-        if (existing) {
+        const existing = await this.featureForResource(resource, featureProps.lookup_key, stackId);
+        if (existing?.active) {
           // Features are deactivated, not deleted
           await this.stripe.entitlements.features.update(existing.id, { active: false });
           return {
@@ -670,8 +816,9 @@ export class StripeDeployer {
       }
       case 'Stripe::BillingMeter': {
         const meterProps = resource.properties as unknown as { event_name: string };
-        const existing = await this.findExistingBillingMeter(resource.id, meterProps.event_name, stackId);
-        if (existing) {
+        const existing = await this.meterForResource(resource, meterProps.event_name, stackId);
+        // Stripe rejects deactivating a meter twice (meter_already_deactivated)
+        if (existing?.status === 'active') {
           // Meters are deactivated, not deleted
           await this.stripe.billing.meters.deactivate(existing.id);
           return {

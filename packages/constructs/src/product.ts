@@ -1,5 +1,6 @@
 import { Construct, Resource, ResourceProps } from '@pricectl/core';
 import type Stripe from 'stripe';
+import { EntitlementFeature } from './entitlement';
 
 export interface ProductProps extends ResourceProps {
   /**
@@ -47,6 +48,12 @@ export interface ProductProps extends ResourceProps {
    * A tax code ID.
    */
   readonly taxCode?: string;
+
+  /**
+   * Entitlement features granted by this product, as EntitlementFeature constructs or
+   * Stripe feature IDs. Features not listed here are detached from the product on deploy.
+   */
+  readonly features?: Array<EntitlementFeature | string>;
 }
 
 /**
@@ -71,6 +78,7 @@ export class Product extends Resource {
   public readonly unitLabel?: string;
   public readonly statementDescriptor?: string;
   public readonly taxCode?: string;
+  public readonly features?: Array<EntitlementFeature | string>;
 
   constructor(scope: Construct, id: string, props: ProductProps) {
     super(scope, id, props);
@@ -84,6 +92,7 @@ export class Product extends Resource {
     this.unitLabel = props.unitLabel;
     this.statementDescriptor = props.statementDescriptor;
     this.taxCode = props.taxCode;
+    this.features = props.features;
 
     // Register resource metadata after all properties are initialized
     this.registerResourceMetadata();
@@ -107,6 +116,14 @@ export class Product extends Resource {
     if (this.statementDescriptor !== undefined) params.statement_descriptor = this.statementDescriptor;
     if (this.taxCode !== undefined) params.tax_code = this.taxCode;
 
-    return params as unknown as Record<string, unknown>;
+    const properties = params as unknown as Record<string, unknown>;
+    if (this.features !== undefined) {
+      // Not a product create param: the deployer attaches these through the product features API.
+      // EntitlementFeature constructs are referenced by logical ID and resolved on deploy.
+      properties.features = this.features.map((feature) =>
+        feature instanceof EntitlementFeature ? feature.physicalId || feature.node.id : feature,
+      );
+    }
+    return properties;
   }
 }

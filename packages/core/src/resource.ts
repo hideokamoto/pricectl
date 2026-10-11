@@ -27,6 +27,7 @@ export abstract class Resource extends Construct {
 
     this.physicalId = props.physicalId;
     this.stack = this.findStack();
+    this.assertUniqueLogicalId();
 
     // Note: Resource metadata registration is deferred to subclasses
     // to ensure all properties are initialized before synthesizeProperties() is called.
@@ -41,8 +42,25 @@ export abstract class Resource extends Construct {
   protected registerResourceMetadata(): void {
     this.node.addMetadata('resource', {
       type: this.resourceType,
-      properties: this.synthesizeProperties(),
+      properties: this.withStackTags(this.synthesizeProperties()),
     });
+  }
+
+  /**
+   * Whether the Stripe object supports metadata. Stack tags are applied as metadata,
+   * so resources without metadata (e.g. billing meters) override this to return false.
+   */
+  protected get supportsMetadata(): boolean {
+    return true;
+  }
+
+  /** Apply the stack's tags as metadata; the resource's own metadata wins on conflicts. */
+  private withStackTags(properties: Record<string, unknown>): Record<string, unknown> {
+    if (!this.supportsMetadata || Object.keys(this.stack.tags).length === 0) {
+      return properties;
+    }
+    const own = (properties.metadata ?? {}) as Record<string, string>;
+    return { ...properties, metadata: { ...this.stack.tags, ...own } };
   }
 
   /**
@@ -54,6 +72,14 @@ export abstract class Resource extends Construct {
    * Synthesize the properties for this resource
    */
   protected abstract synthesizeProperties(): Record<string, unknown>;
+
+  /**
+   * Resources are identified in Stripe and in the state file by their id alone,
+   * so the id must be unique within the whole stack, not only within its scope.
+   */
+  private assertUniqueLogicalId(): void {
+    this.stack.registerResourceId(this.node.id, this.node.path);
+  }
 
   /**
    * Find the Stack this resource belongs to

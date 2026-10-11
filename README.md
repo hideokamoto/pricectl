@@ -117,7 +117,7 @@ pricectl is a monorepo containing three main packages:
 
 Core IaC framework providing:
 - `Construct`: Base class for all resources
-- `Stack`: Container for resources
+- `Stack`: Container for resources (its `tags` are added to every resource's Stripe metadata)
 - `Resource`: Base class for Stripe resources
 
 ### 📦 `@pricectl/constructs`
@@ -176,6 +176,16 @@ pricectl deploy
 pricectl deploy --app ./custom-stack.ts
 ```
 
+Resources that were deployed before but are no longer defined in your stack are
+removed: prices are deactivated, products are deleted (or archived when they have
+prices), coupons are deleted, and entitlement features and meters are deactivated.
+This relies on the state file (`pricectl.state.json`); without it, nothing is removed.
+
+Before removing anything, deploy lists the resources and asks for confirmation.
+Use `--force` (`-f`) to skip the prompt; in a non-interactive environment such as CI,
+deploy stops without changes unless `--force` is given. `pricectl deploy --dry-run`
+shows the resources that would be removed.
+
 ### `pricectl destroy`
 
 Remove all resources defined in your stack from Stripe.
@@ -223,13 +233,20 @@ new Price(stack, 'Monthly', {
   },
 });
 
-// Tiered pricing
+// Tiered, usage-based pricing (metered prices must bill through a Meter)
+const apiCalls = new Meter(stack, 'ApiCalls', {
+  displayName: 'API Calls',
+  eventName: 'api_call',
+  defaultAggregation: { formula: 'count' },
+});
+
 new Price(stack, 'Graduated', {
   product: myProduct,
   currency: 'usd',
   recurring: {
     interval: 'month',
     usageType: 'metered',
+    meter: apiCalls,
   },
   tiersMode: 'graduated',
   tiers: [
@@ -266,10 +283,17 @@ new Coupon(stack, 'Save10', {
 Define entitlement features for access control:
 
 ```typescript
-new EntitlementFeature(stack, 'PremiumSupport', {
+const premiumSupport = new EntitlementFeature(stack, 'PremiumSupport', {
   name: 'Premium Support',
   lookupKey: 'premium-support',
   metadata: { tier: 'premium' },
+});
+
+// Grant the feature through a product. Features not listed are detached on deploy;
+// a product without `features` leaves its attached features untouched.
+new Product(stack, 'Premium', {
+  name: 'Premium Plan',
+  features: [premiumSupport],
 });
 ```
 
@@ -370,7 +394,7 @@ pnpm test
 - [ ] Customer resource
 - [ ] Subscription resource
 - [ ] PaymentLink resource
-- [ ] State management (track deployed resources)
+- [x] State management (track deployed resources)
 
 ### v0.3.0
 - [ ] Webhook configuration

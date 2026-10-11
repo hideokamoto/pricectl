@@ -1,0 +1,23 @@
+{
+  "data": [
+    {
+      "entitlement_feature": {
+        "active": true,
+        "id": "feat_test_61VYlTGj0COFsKODQ41TESTACCT001I0",
+        "livemode": false,
+        "lookup_key": "pricectl_fx2_feature",
+        "metadata": {
+          "pricectl_id": "FxFeature"
+        },
+        "name": "Fx feature",
+        "object": "entitlements.feature"
+      },
+      "id": "prodft_1UPNVwTESTACCT00r69z5gqx",
+      "livemode": false,
+      "object": "product_feature"
+    }
+  ],
+  "has_more": false,
+  "object": "list",
+  "url": "/v1/products/prod_VQDxAwlJKLYobj/features"
+}

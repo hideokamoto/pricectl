@@ -79,6 +79,42 @@ export async function findExistingProduct(
 }
 
 /**
+ * Find the Stripe Product a manifest resource manages: the product named by its
+ * physicalId when one is given, otherwise the product found by its logical ID.
+ */
+export async function findProductForResource(
+  stripe: Stripe,
+  resource: { id: string; physicalId?: string },
+  stateManager?: StateManager,
+  stackId?: string,
+): Promise<Stripe.Product | null> {
+  return resource.physicalId
+    ? stripe.products.retrieve(resource.physicalId)
+    : findExistingProduct(stripe, resource.id, stateManager, stackId);
+}
+
+/** A product together with the IDs of the entitlement features attached to it. */
+export type ProductWithFeatures = Stripe.Product & { features: string[] };
+
+/**
+ * The entitlement features attached to a product, as a map from the entitlement
+ * feature ID to the ID of the product_feature that attaches it.
+ */
+export async function listAttachedFeatures(stripe: Stripe, productId: string): Promise<Map<string, string>> {
+  const attached = new Map<string, string>();
+  for await (const productFeature of stripe.products.listFeatures(productId, { limit: 100 })) {
+    attached.set(productFeature.entitlement_feature.id, productFeature.id);
+  }
+  return attached;
+}
+
+async function withAttachedFeatures(stripe: Stripe, product: Stripe.Product | null): Promise<ProductWithFeatures | null> {
+  if (!product) return null;
+  const attached = await listAttachedFeatures(stripe, product.id);
+  return { ...product, features: [...attached.keys()] };
+}
+
+/**
  * Find an existing Stripe Price by logical ID.
  * Uses state-based lookup first, then falls back to listing all objects.
  * Supports both the current `pricectl_id` metadata key and the legacy `fillet_id` key.
@@ -122,19 +158,28 @@ export async function findExistingPrice(
  */
 export async function fetchCurrentResource(
   stripe: Stripe,
-  resource: { type: string; id: string },
+  resource: { type: string; id: string; physicalId?: string; properties?: Record<string, unknown> },
   stateManager?: StateManager,
   stackId?: string,
 ): Promise<Stripe.Product | Stripe.Price | Stripe.Coupon | Stripe.Entitlements.Feature | Stripe.Billing.Meter | null> {
   try {
     switch (resource.type) {
-      case 'Stripe::Product':
-        return findExistingProduct(stripe, resource.id, stateManager, stackId);
+      case 'Stripe::Product': {
+        const product = await findProductForResource(stripe, resource, stateManager, stackId);
+        // Attachments are only compared for products that manage their features
+        return resource.properties && 'features' in resource.properties
+          ? await withAttachedFeatures(stripe, product)
+          : product;
+      }
       case 'Stripe::Price':
         return findExistingPrice(stripe, resource.id, stateManager, stackId);
       case 'Stripe::Coupon':
         return await stripe.coupons.retrieve(resource.id);
       case 'Stripe::EntitlementFeature': {
+        // Same lookup as deploy: a physicalId in the construct props names the feature directly
+        if (resource.physicalId) {
+          return await stripe.entitlements.features.retrieve(resource.physicalId);
+        }
         // Try state-based lookup first
         if (stateManager && stackId) {
           const stateEntry = stateManager.getResource(stackId, resource.id);
@@ -157,6 +202,9 @@ export async function fetchCurrentResource(
         return null;
       }
       case 'Stripe::BillingMeter': {
+        if (resource.physicalId) {
+          return await stripe.billing.meters.retrieve(resource.physicalId);
+        }
         // Try state-based lookup (Billing Meters don't support metadata,
         // so state is the only reliable way to find them by logical ID)
         if (stateManager && stackId) {
@@ -185,6 +233,14 @@ export async function fetchCurrentResource(
 }
 
 /**
+ * stripe-node (v21+) returns decimal_string fields as Stripe.Decimal objects;
+ * normalized resources carry them as plain strings, like the construct properties.
+ */
+function decimalString(value: Stripe.Decimal | string | null | undefined): string | null | undefined {
+  return value === null || value === undefined ? value : String(value);
+}
+
+/**
  * Normalize a Stripe resource to match the format of our construct properties.
  * Strips internal metadata keys and retains only user-configurable properties
  * to enable accurate comparison between desired and current state.
@@ -205,6 +261,8 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
         normalized.statement_descriptor = r.statement_descriptor;
       }
       if (r.tax_code != null) normalized.tax_code = r.tax_code;
+      const attached = (resource as Partial<ProductWithFeatures>).features;
+      if (attached) normalized.features = [...attached].sort();
       // Exclude pricectl and legacy fillet metadata from comparison
       const productMetadata = stripInternalMetadata(r.metadata);
       if (productMetadata) {
@@ -219,7 +277,7 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
       if (r.currency !== undefined) normalized.currency = r.currency;
       if (r.unit_amount !== undefined) normalized.unit_amount = r.unit_amount;
       if (r.unit_amount_decimal !== undefined) {
-        normalized.unit_amount_decimal = r.unit_amount_decimal;
+        normalized.unit_amount_decimal = decimalString(r.unit_amount_decimal);
       }
       if (r.active !== undefined) normalized.active = r.active;
       if (r.nickname !== undefined) normalized.nickname = r.nickname;
@@ -241,6 +299,8 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
         if (r.recurring.trial_period_days !== undefined) {
           rec.trial_period_days = r.recurring.trial_period_days;
         }
+        const meter = (r.recurring as { meter?: string | null }).meter;
+        if (meter !== undefined) rec.meter = meter;
         normalized.recurring = rec;
       }
 
@@ -249,9 +309,9 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
         normalized.tiers = r.tiers.map((tier) => ({
           up_to: tier.up_to,
           unit_amount: tier.unit_amount,
-          unit_amount_decimal: tier.unit_amount_decimal,
+          unit_amount_decimal: decimalString(tier.unit_amount_decimal),
           flat_amount: tier.flat_amount,
-          flat_amount_decimal: tier.flat_amount_decimal,
+          flat_amount_decimal: decimalString(tier.flat_amount_decimal),
         }));
       }
 

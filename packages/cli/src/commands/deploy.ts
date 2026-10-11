@@ -1,11 +1,14 @@
-import { Command, Flags } from '@oclif/core';
+import { Command, Flags, ux } from '@oclif/core';
 import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
 import { StateManager } from '../engine/state';
 import { deployOutcome } from '../engine/outcome';
-import { StackManifest, STRIPE_API_KEY_MISSING_ERROR } from '@pricectl/core';
+import { findOrphans } from '../engine/orphans';
+import { decideRemovalApproval } from '../engine/removal-approval';
+import { describeDeployPlan } from '../engine/deploy-plan';
+import { StackManifest, STRIPE_API_KEY_MISSING_ERROR, DEFAULT_STRIPE_API_VERSION } from '@pricectl/core';
 
 export default class Deploy extends Command {
   static description = 'Deploy the stack to Stripe';
@@ -14,6 +17,7 @@ export default class Deploy extends Command {
     '<%= config.bin %> <%= command.id %>',
     '<%= config.bin %> <%= command.id %> --app ./infra/main.ts',
     '<%= config.bin %> <%= command.id %> --dry-run',
+    '<%= config.bin %> <%= command.id %> --force',
   ];
 
   static flags = {
@@ -27,6 +31,11 @@ export default class Deploy extends Command {
     }),
     'dry-run': Flags.boolean({
       description: 'Preview the API calls that would be made without actually deploying',
+      default: false,
+    }),
+    force: Flags.boolean({
+      char: 'f',
+      description: 'Remove resources that are no longer defined without asking for confirmation',
       default: false,
     }),
   };
@@ -55,22 +64,10 @@ export default class Deploy extends Command {
     const manifest: StackManifest = stack.synth();
 
     if (flags['dry-run']) {
-      this.log(chalk.bold.cyan('Dry run — no changes will be made to Stripe'));
-      this.log('');
-      this.log(`Stack: ${chalk.bold(manifest.stackId)}`);
-      if (manifest.description) this.log(`Description: ${manifest.description}`);
-      this.log('');
-      this.log(chalk.bold(`Resources to deploy (${manifest.resources.length}):`));
-      for (const resource of manifest.resources) {
-        this.log(chalk.green(`  + ${resource.path} [${resource.type}]`));
-        this.log('    Properties:');
-        for (const line of JSON.stringify(resource.properties, null, 2).split('\n')) {
-          this.log(`    ${line}`);
-        }
+      const removals = findOrphans(manifest, new StateManager(flags['state-file']));
+      for (const line of describeDeployPlan(manifest, removals)) {
+        this.log(line);
       }
-      this.log('');
-      this.log(chalk.bold('Summary:'));
-      this.log(`  Total: ${chalk.green(manifest.resources.length)} resource(s) would be created/updated`);
       return;
     }
 
@@ -81,10 +78,35 @@ export default class Deploy extends Command {
     }
 
     const stateManager = new StateManager(flags['state-file']);
+
+    // Removing resources is destructive, so it needs approval before anything is changed
+    const removals = findOrphans(manifest, stateManager);
+    const approval = decideRemovalApproval({
+      removalCount: removals.length,
+      force: flags.force,
+      interactive: Boolean(process.stdin.isTTY),
+    });
+    if (approval === 'confirm' || approval === 'refuse') {
+      this.log(chalk.bold.yellow('The following resources are no longer defined and will be removed from Stripe:'));
+      for (const resource of removals) {
+        this.log(chalk.red(`  - ${resource.path} [${resource.type}]`));
+      }
+      this.log('');
+    }
+    if (approval === 'refuse') {
+      this.error('Cannot ask for confirmation in a non-interactive environment. Use --force to remove these resources.', {
+        exit: 1,
+      });
+    }
+    if (approval === 'confirm' && !(await ux.confirm('Remove these resources? [y/n]'))) {
+      this.log('Deployment cancelled. No changes were made.');
+      return;
+    }
+
     let failed = false;
     try {
       // Deploy using the deployer
-      const apiVersion = manifest.apiVersion || '2024-12-18.acacia';
+      const apiVersion = manifest.apiVersion || DEFAULT_STRIPE_API_VERSION;
       const deployer = new StripeDeployer(apiKey, apiVersion, stateManager);
       const result = await deployer.deploy(manifest);
 
@@ -105,6 +127,19 @@ export default class Deploy extends Command {
         this.log('');
       }
 
+      if (result.removed.length > 0) {
+        this.log(chalk.bold('Removed resources (no longer defined):'));
+        for (const item of result.removed) {
+          this.log(`  ${chalk.red(item.status)} ${item.id} [${item.type}]`);
+        }
+        this.log('');
+      }
+
+      if (result.removalSkipped) {
+        this.log(chalk.yellow('Resources that are no longer defined were not removed because of the errors below.'));
+        this.log('');
+      }
+
       if (result.errors.length > 0) {
         this.log(chalk.bold.red('Errors:'));
         for (const error of result.errors) {
@@ -121,6 +156,9 @@ export default class Deploy extends Command {
       this.log(`  Created: ${chalk.green(created)}`);
       this.log(`  Updated: ${chalk.yellow(updated)}`);
       this.log(`  Unchanged: ${chalk.gray(unchanged)}`);
+      if (result.removed.length > 0) {
+        this.log(`  Removed: ${chalk.red(result.removed.length)}`);
+      }
       if (result.errors.length > 0) {
         this.log(`  Errors: ${chalk.red(result.errors.length)}`);
       }

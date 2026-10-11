@@ -4,9 +4,10 @@ import * as fs from 'fs';
 import chalk from 'chalk';
 import { createTwoFilesPatch } from 'diff';
 import Stripe from 'stripe';
-import { StackManifest } from '@pricectl/core';
+import { StackManifest, DEFAULT_STRIPE_API_VERSION } from '@pricectl/core';
 import { fetchCurrentResource } from '../engine/stripe-utils';
-import { diffResource } from '../engine/diff';
+import { diffResource, resolveReferencesFromState } from '../engine/diff';
+import { findOrphans } from '../engine/orphans';
 import { StateManager } from '../engine/state';
 
 export default class Diff extends Command {
@@ -58,7 +59,7 @@ export default class Diff extends Command {
     }
 
     try {
-      const apiVersion = stack.apiVersion || manifest.apiVersion || '2024-12-18.acacia';
+      const apiVersion = stack.apiVersion || manifest.apiVersion || DEFAULT_STRIPE_API_VERSION;
       const stripe = new Stripe(apiKey, { apiVersion: apiVersion as unknown as Stripe.LatestApiVersion });
       const stateManager = new StateManager(flags['state-file']);
 
@@ -80,7 +81,7 @@ export default class Diff extends Command {
         }
 
         // Resolve logical IDs in desired properties for accurate comparison
-        const desiredProperties = this.resolveDesiredForDiff(resource, manifest.stackId, stateManager);
+        const desiredProperties = resolveReferencesFromState(resource, manifest.stackId, stateManager);
 
         const diff = diffResource(resource.type, desiredProperties, current);
 
@@ -100,35 +101,19 @@ export default class Diff extends Command {
         }
       }
 
+      for (const orphan of findOrphans(manifest, stateManager)) {
+        this.log(chalk.red(`[-] ${orphan.path} [${orphan.type}]`));
+        this.log(chalk.gray('    No longer defined; will be removed on deploy'));
+        this.log('');
+        hasChanges = true;
+      }
+
       if (!hasChanges) {
         this.log(chalk.gray('No changes detected'));
       }
     } catch (error: unknown) {
       this.error(`Diff failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }
-
-  /**
-   * Resolve logical IDs to physical IDs in desired properties.
-   * For Prices, replaces product logical ID with the actual physical product ID from state.
-   */
-  private resolveDesiredForDiff(
-    resource: { type: string; id: string; properties: Record<string, unknown> },
-    stackId: string,
-    stateManager?: StateManager,
-  ): Record<string, unknown> {
-    const desired = { ...resource.properties };
-
-    // For Stripe::Price resources, resolve product logical ID to physical ID
-    if (resource.type === 'Stripe::Price' && desired.product && typeof desired.product === 'string' && stateManager) {
-      const productLogicalId = desired.product;
-      const productState = stateManager.getResource(stackId, productLogicalId);
-      if (productState?.type === 'Stripe::Product' && productState.physicalId) {
-        desired.product = productState.physicalId;
-      }
-    }
-
-    return desired;
   }
 
   private colorDiff(patch: string): string {

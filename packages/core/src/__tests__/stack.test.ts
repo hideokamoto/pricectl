@@ -31,6 +31,18 @@ describe('Stack', () => {
       expect(stack.tags).toEqual({ env: 'test' });
     });
 
+    it('apiVersionのデフォルトはstripe-nodeが前提とする2026-09-30.endive', () => {
+      const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY });
+
+      expect(stack.apiVersion).toBe('2026-09-30.endive');
+    });
+
+    it('apiVersionを指定できる', () => {
+      const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY, apiVersion: '2025-03-31.basil' });
+
+      expect(stack.apiVersion).toBe('2025-03-31.basil');
+    });
+
     it('tagsのデフォルトは空オブジェクト', () => {
       const stack = new Stack(undefined, 'TestStack', { apiKey: API_KEY });
 
@@ -149,6 +161,19 @@ describe('Stack', () => {
 
       expect(manifest.resources).toHaveLength(1);
       expect(manifest.resources[0].id).toBe('Prod');
+    });
+
+    it('physicalIdを指定したリソースはmanifestにphysicalIdが含まれる', () => {
+      const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY });
+      new TestResource(stack, 'Existing', {
+        type: 'Stripe::Product',
+        properties: { name: 'Widget' },
+        physicalId: 'prod_existing',
+      });
+
+      const manifest = stack.synth();
+
+      expect(manifest.resources[0].physicalId).toBe('prod_existing');
     });
 
     it('ネストしたリソースもmanifestに含まれる', () => {

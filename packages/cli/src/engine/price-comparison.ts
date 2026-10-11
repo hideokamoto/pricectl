@@ -34,8 +34,9 @@ interface ComparablePrice {
   transformQuantity: { divideBy: number; round: string } | null;
 }
 
-function toNumber(decimal: string | number | null | undefined): number | null {
-  return decimal === null || decimal === undefined ? null : Number(decimal);
+/** Decimal amounts arrive as strings, numbers or (since stripe-node v21) Stripe.Decimal objects. */
+function toNumber(decimal: string | number | Stripe.Decimal | null | undefined): number | null {
+  return decimal === null || decimal === undefined ? null : Number(String(decimal));
 }
 
 function productId(product: string | { id: string } | null | undefined): string | null {

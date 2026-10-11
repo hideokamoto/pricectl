@@ -13,6 +13,7 @@ const mockStripeInstance = {
     update: jest.fn(),
     del: jest.fn(),
     list: jest.fn(),
+    listFeatures: jest.fn(),
   },
   prices: {
     create: jest.fn(),
@@ -59,10 +60,22 @@ function resetMocks() {
 }
 
 describe('StripeDeployer', () => {
+  it('Stripeクライアントをデフォルトで2026-09-30.endiveのAPIバージョンで作る', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const StripeConstructor = require('stripe') as jest.Mock;
+    StripeConstructor.mockClear();
+
+    new StripeDeployer('sk_test_dummy');
+
+    expect(StripeConstructor).toHaveBeenCalledWith('sk_test_dummy', { apiVersion: '2026-09-30.endive' });
+  });
+
   let deployer: StripeDeployer;
 
   beforeEach(() => {
     resetMocks();
+    // No entitlement features are attached to products unless a test says otherwise
+    mockStripeInstance.products.listFeatures.mockReturnValue(listOf([]));
     deployer = new StripeDeployer('sk_test_dummy');
   });
 

@@ -1,5 +1,11 @@
 import { Construct } from './construct';
-import { STRIPE_API_KEY_MISSING_ERROR } from './errors';
+import { DUPLICATE_RESOURCE_ID_ERROR, STRIPE_API_KEY_MISSING_ERROR } from './errors';
+
+/**
+ * The Stripe API version pricectl uses unless a stack sets one: the version that the
+ * stripe-node release pricectl depends on is built for.
+ */
+export const DEFAULT_STRIPE_API_VERSION = '2026-09-30.endive';
 
 export interface StackProps {
   /**
@@ -8,8 +14,8 @@ export interface StackProps {
   readonly apiKey?: string;
 
   /**
-   * Stripe API version (e.g., '2024-12-18.acacia')
-   * Defaults to the latest stable version if not specified
+   * Stripe API version (e.g., '2026-09-30.endive').
+   * Defaults to DEFAULT_STRIPE_API_VERSION.
    */
   readonly apiVersion?: string;
 
@@ -19,7 +25,9 @@ export interface StackProps {
   readonly description?: string;
 
   /**
-   * Tags to apply to all resources in this stack
+   * Tags to apply to all resources in this stack, as Stripe metadata.
+   * A resource's own metadata takes precedence over a tag with the same key.
+   * Resources without metadata support (billing meters) are not tagged.
    */
   readonly tags?: Record<string, string>;
 }
@@ -33,6 +41,8 @@ export class Stack extends Construct {
   public readonly apiVersion?: string;
   public readonly description?: string;
   public readonly tags: Record<string, string>;
+  /** Path of each resource in this stack, by resource id */
+  private readonly resourcePaths = new Map<string, string>();
 
   get apiKey(): string | undefined {
     return this._apiKey;
@@ -42,13 +52,26 @@ export class Stack extends Construct {
     super(scope, id);
 
     this._apiKey = props.apiKey || process.env.STRIPE_SECRET_KEY;
-    this.apiVersion = props.apiVersion || '2024-12-18.acacia';
+    this.apiVersion = props.apiVersion || DEFAULT_STRIPE_API_VERSION;
     this.description = props.description;
     this.tags = props.tags || {};
 
     if (!this._apiKey) {
       throw new Error(STRIPE_API_KEY_MISSING_ERROR);
     }
+  }
+
+  /**
+   * Record a resource id, which must be unique within the stack because resources are
+   * identified in Stripe and in the state file by id alone. Called by Resource.
+   * @internal
+   */
+  public registerResourceId(id: string, path: string): void {
+    const existingPath = this.resourcePaths.get(id);
+    if (existingPath !== undefined) {
+      throw new Error(DUPLICATE_RESOURCE_ID_ERROR(id, existingPath, path));
+    }
+    this.resourcePaths.set(id, path);
   }
 
   toJSON(): object {
@@ -72,11 +95,14 @@ export class Stack extends Construct {
 
       const metadata = construct.node.getMetadata('resource') as StoredResourceMetadata | undefined;
       if (metadata) {
+        // Read physicalId structurally: importing Resource here would create an import cycle
+        const physicalId = (construct as { physicalId?: string }).physicalId;
         resources.push({
           id: construct.node.id,
           path: construct.node.path,
           type: metadata.type,
           properties: metadata.properties,
+          ...(physicalId ? { physicalId } : {}),
         });
       }
     }
@@ -102,6 +128,8 @@ export interface ResourceManifest {
   path: string;
   type: string;
   properties: Record<string, unknown>;
+  /** ID of an existing Stripe object this resource manages, when given in the construct props */
+  physicalId?: string;
 }
 
 export interface StackManifest {

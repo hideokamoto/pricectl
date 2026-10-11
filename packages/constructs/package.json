@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@pricectl/core": "workspace:*",
-    "stripe": "^14.9.0"
+    "stripe": "^23.0.0"
   },
   "devDependencies": {}
 }

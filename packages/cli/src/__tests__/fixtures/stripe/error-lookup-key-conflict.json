@@ -1,6 +1,6 @@
 {
   "error": {
-    "message": "Price price_1UPMdXTESTACCT00HyWNtUaw already uses this `lookup_key`. Use a unique key or transfer the key from that price.",
+    "message": "Price price_1UPNVrTESTACCT00o1vg1XxU already uses this `lookup_key`. Use a unique key or transfer the key from that price.",
     "param": "lookup_key",
     "type": "invalid_request_error"
   }
