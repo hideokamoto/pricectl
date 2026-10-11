@@ -516,6 +516,15 @@ export class StripeDeployer {
       }
     }
 
+    // Resolve meter reference in a metered Price
+    const recurring = resolved.recurring as Record<string, unknown> | undefined;
+    if (recurring && typeof recurring.meter === 'string') {
+      const physicalId = this.logicalToPhysicalId.get(recurring.meter);
+      if (physicalId) {
+        resolved.recurring = { ...recurring, meter: physicalId };
+      }
+    }
+
     return resolved;
   }
 

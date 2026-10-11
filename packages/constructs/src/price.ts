@@ -1,5 +1,6 @@
 import { Construct, Resource, ResourceProps } from '@pricectl/core';
 import { Product } from './product';
+import { Meter } from './meter';
 import type Stripe from 'stripe';
 
 export interface RecurringProps {
@@ -23,6 +24,12 @@ export interface RecurringProps {
    * Default number of trial days when subscribing a customer to this price using trial_from_plan=true.
    */
   readonly trialPeriodDays?: number;
+
+  /**
+   * The billing meter that tracks usage for this price, as a Meter construct or a Stripe meter ID.
+   * Requires usageType 'metered'.
+   */
+  readonly meter?: Meter | string;
 }
 
 export interface PriceProps extends ResourceProps {
@@ -166,6 +173,10 @@ export class Price extends Resource {
     this.tiersMode = props.tiersMode;
     this.tiers = props.tiers;
 
+    if (this.recurring?.meter !== undefined && this.recurring.usageType !== 'metered') {
+      throw new Error('A price with a meter must set recurring.usageType "metered"');
+    }
+
     // Register resource metadata after all properties are initialized
     this.registerResourceMetadata();
   }
@@ -204,6 +215,11 @@ export class Price extends Resource {
         usage_type: this.recurring.usageType,
         trial_period_days: this.recurring.trialPeriodDays,
       };
+      if (this.recurring.meter !== undefined) {
+        // A Meter construct is referenced by logical ID and resolved to its Stripe ID on deploy
+        const meter = this.recurring.meter;
+        params.recurring.meter = meter instanceof Meter ? meter.physicalId || meter.node.id : meter;
+      }
     }
 
     if (Array.isArray(this.tiers) && this.tiers.length > 0) {

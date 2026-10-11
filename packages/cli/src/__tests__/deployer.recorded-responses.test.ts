@@ -178,6 +178,43 @@ describe('StripeDeployer against recorded Stripe responses', () => {
     });
   });
 
+  describe('Price that bills through a Meter', () => {
+    function createMeteredStack(): Stack {
+      const stack = createStack();
+      const meter = new Meter(stack, 'NewMeter', {
+        displayName: 'New meter',
+        eventName: 'new_event',
+        defaultAggregation: { formula: 'count' },
+      });
+      new Price(stack, 'NewUsage', {
+        product: PRODUCT_ID,
+        currency: 'usd',
+        unitAmount: 5,
+        recurring: { interval: 'month', usageType: 'metered', meter },
+      });
+      return stack;
+    }
+
+    it('creates the price with the Stripe ID of the meter', async () => {
+      const result = await new StripeDeployer('sk_test_dummy').deploy(createMeteredStack().synth());
+
+      expect(result.errors).toEqual([]);
+      const meterId = result.deployed.find((d) => d.id === 'NewMeter')?.physicalId;
+      expect(mockFakeStripe.pricesFor('NewUsage')).toEqual([
+        expect.objectContaining({ recurring: expect.objectContaining({ meter: meterId }) }),
+      ]);
+    });
+
+    it('keeps the metered price unchanged on the next deploy', async () => {
+      await new StripeDeployer('sk_test_dummy').deploy(createMeteredStack().synth());
+
+      const second = await new StripeDeployer('sk_test_dummy').deploy(createMeteredStack().synth());
+
+      expect(second.errors).toEqual([]);
+      expect(second.deployed.map((d) => d.status)).toEqual(['unchanged', 'unchanged']);
+    });
+  });
+
   describe('Product with a physicalId', () => {
     it('adopts the given existing product instead of creating a new one', async () => {
       mockFakeStripe.seed('products', { ...productFixture, id: 'prod_unmanaged', metadata: {} });

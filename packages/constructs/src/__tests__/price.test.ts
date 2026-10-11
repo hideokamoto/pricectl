@@ -1,5 +1,6 @@
 import { Product } from '../product';
 import { Price } from '../price';
+import { Meter } from '../meter';
 import { createStack } from './helpers';
 
 describe('Price', () => {
@@ -230,4 +231,60 @@ describe('Price', () => {
       expect(manifest.resources[0].type).toBe('Stripe::Price');
     });
   });
+
+  describe('Meterとの紐づけ', () => {
+    function createMeter(stack: ReturnType<typeof createStack>): Meter {
+      return new Meter(stack, 'ApiCalls', {
+        displayName: 'API calls',
+        eventName: 'api_call',
+        defaultAggregation: { formula: 'count' },
+      });
+    }
+
+    it('Meterを参照するとrecurring.meterにMeterの論理IDが入る（deploy時に物理IDへ解決される）', () => {
+      const stack = createStack();
+      const product = new Product(stack, 'Prod', { name: 'Widget' });
+      const meter = createMeter(stack);
+      new Price(stack, 'Usage', {
+        product,
+        currency: 'usd',
+        unitAmount: 5,
+        recurring: { interval: 'month', usageType: 'metered', meter },
+      });
+
+      const price = stack.synth().resources.find((r) => r.id === 'Usage');
+
+      expect(price?.properties.recurring).toMatchObject({ usage_type: 'metered', meter: 'ApiCalls' });
+    });
+
+    it('文字列でMeterのIDを指定するとそのまま使われる', () => {
+      const stack = createStack();
+      new Price(stack, 'Usage', {
+        product: 'prod_1',
+        currency: 'usd',
+        unitAmount: 5,
+        recurring: { interval: 'month', usageType: 'metered', meter: 'mtr_existing' },
+      });
+
+      const price = stack.synth().resources.find((r) => r.id === 'Usage');
+
+      expect(price?.properties.recurring).toMatchObject({ meter: 'mtr_existing' });
+    });
+
+    it('usageTypeがmeteredでないのにMeterを指定するとエラー（Stripeが受け付けないため）', () => {
+      const stack = createStack();
+      const meter = createMeter(stack);
+
+      expect(
+        () =>
+          new Price(stack, 'Usage', {
+            product: 'prod_1',
+            currency: 'usd',
+            unitAmount: 5,
+            recurring: { interval: 'month', meter },
+          })
+      ).toThrow('usageType "metered"');
+    });
+  });
 });
+
