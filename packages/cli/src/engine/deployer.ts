@@ -1,6 +1,10 @@
 import Stripe from 'stripe';
 import { StackManifest, ResourceManifest } from '@pricectl/core';
-import { findExistingProduct as stripeFindExistingProduct, findExistingPrice as stripeFindExistingPrice } from './stripe-utils';
+import {
+  findExistingProduct as stripeFindExistingProduct,
+  findExistingPrice as stripeFindExistingPrice,
+  stripInternalMetadata,
+} from './stripe-utils';
 import { StateManager } from './state';
 import { isPriceEquivalent } from './price-comparison';
 
@@ -40,6 +44,41 @@ function isResourceNotFoundError(error: unknown): boolean {
     return (error as { code?: string }).code === 'resource_missing';
   }
   return false;
+}
+
+/** Coupon fields that Stripe does not allow to change after creation. */
+const IMMUTABLE_COUPON_FIELDS = [
+  'duration',
+  'amount_off',
+  'currency',
+  'percent_off',
+  'duration_in_months',
+  'max_redemptions',
+  'redeem_by',
+] as const;
+
+/** Compare a coupon field from Stripe (null when unset) with the desired value (undefined when unset). */
+function isSameCouponValue(existing: unknown, desired: unknown): boolean {
+  return (existing ?? null) === (desired ?? null);
+}
+
+/**
+ * Metadata update that turns `current` into `desired`: changed keys get their new value and
+ * removed keys are unset with an empty string. Returns null when nothing changes.
+ */
+function metadataChanges(
+  current: Record<string, string>,
+  desired: Record<string | number, string | number | null>,
+): Record<string, string> | null {
+  const update: Record<string, string> = {};
+  for (const [key, value] of Object.entries(desired)) {
+    const next = value === null ? '' : String(value);
+    if (current[key] !== next) update[key] = next;
+  }
+  for (const key of Object.keys(current)) {
+    if (!(key in desired)) update[key] = '';
+  }
+  return Object.keys(update).length > 0 ? update : null;
 }
 
 /** Validate and cast object to Stripe.ProductCreateParams */
@@ -244,18 +283,10 @@ export class StripeDeployer {
   }
 
   private async deployCoupon(resource: ResourceManifest, _stackId: string) {
+    const props = resource.properties as unknown as Stripe.CouponCreateParams;
     const existing = await this.findExistingCoupon(resource.id);
 
-    if (existing) {
-      return {
-        id: resource.id,
-        type: resource.type,
-        physicalId: existing.id,
-        status: 'unchanged' as const,
-      };
-    } else {
-      // Create new coupon
-      const props = resource.properties as unknown as Stripe.CouponCreateParams;
+    if (!existing) {
       const created = await this.stripe.coupons.create({
         ...props,
         id: resource.id,
@@ -272,6 +303,39 @@ export class StripeDeployer {
         status: 'created' as const,
       };
     }
+
+    // Stripe can only update a coupon's name and metadata; refuse to silently drop other changes.
+    const immutableChanges = IMMUTABLE_COUPON_FIELDS.filter(
+      (field) => !isSameCouponValue(existing[field], props[field]),
+    );
+    if (immutableChanges.length > 0) {
+      throw new Error(
+        `Coupon "${resource.id}" cannot be updated: Stripe does not allow changing ${immutableChanges.join(', ')}. ` +
+          'Give the coupon a new id to create a replacement.',
+      );
+    }
+
+    const nameChanged = props.name !== undefined && props.name !== existing.name;
+    const metadataUpdate = metadataChanges(stripInternalMetadata(existing.metadata) ?? {}, props.metadata || {});
+    if (!nameChanged && metadataUpdate === null) {
+      return {
+        id: resource.id,
+        type: resource.type,
+        physicalId: existing.id,
+        status: 'unchanged' as const,
+      };
+    }
+
+    const updated = await this.stripe.coupons.update(existing.id, {
+      ...(nameChanged ? { name: props.name } : {}),
+      ...(metadataUpdate ? { metadata: metadataUpdate } : {}),
+    });
+    return {
+      id: resource.id,
+      type: resource.type,
+      physicalId: updated.id,
+      status: 'updated' as const,
+    };
   }
 
   private async deployEntitlementFeature(resource: ResourceManifest, stackId: string) {

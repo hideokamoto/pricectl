@@ -1,11 +1,12 @@
 import { Stack } from '@pricectl/core';
-import { Price, Product } from '@pricectl/constructs';
+import { Coupon, Price, Product } from '@pricectl/constructs';
 import { StripeDeployer } from '../engine/deployer';
 import { FakeStripe } from './helpers/fake-stripe';
 import productFixture from './fixtures/stripe/product.json';
 import recurringPriceFixture from './fixtures/stripe/price-recurring.json';
 import lookupPriceFixture from './fixtures/stripe/price-one-time-lookup.json';
 import tieredPriceFixture from './fixtures/stripe/price-tiered-expanded.json';
+import couponFixture from './fixtures/stripe/coupon.json';
 
 let mockFakeStripe: FakeStripe;
 jest.mock('stripe', () => jest.fn().mockImplementation(() => mockFakeStripe));
@@ -192,6 +193,44 @@ describe('StripeDeployer against recorded Stripe responses', () => {
 
       expect(result.deployed[0]).toMatchObject({ status: 'unchanged', physicalId: recurringPriceFixture.id });
       expect(mockFakeStripe.pricesFor('FxMonthly')).toHaveLength(2);
+    });
+  });
+
+  describe('Coupon', () => {
+    beforeEach(() => {
+      mockFakeStripe.seed('coupons', couponFixture);
+    });
+
+    it('reports a coupon with the same definition as unchanged', async () => {
+      const stack = createStack();
+      new Coupon(stack, 'PricectlFxCoupon', { percentOff: 10, duration: 'once', name: 'Fx coupon' });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.errors).toEqual([]);
+      expect(result.deployed[0].status).toBe('unchanged');
+    });
+
+    it('updates the name of an existing coupon', async () => {
+      const stack = createStack();
+      new Coupon(stack, 'PricectlFxCoupon', { percentOff: 10, duration: 'once', name: 'Fx coupon B' });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.errors).toEqual([]);
+      expect(result.deployed[0].status).toBe('updated');
+      expect(mockFakeStripe.couponStore.get('PricectlFxCoupon')?.name).toBe('Fx coupon B');
+    });
+
+    it('reports an error instead of silently ignoring a change Stripe cannot apply to a coupon', async () => {
+      const stack = createStack();
+      new Coupon(stack, 'PricectlFxCoupon', { percentOff: 20, duration: 'once', name: 'Fx coupon' });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.deployed).toEqual([]);
+      expect(result.errors[0].error).toContain('percent_off');
+      expect(mockFakeStripe.couponStore.get('PricectlFxCoupon')?.percent_off).toBe(10);
     });
   });
 });

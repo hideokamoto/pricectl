@@ -27,7 +27,7 @@ function pickCurrent<T extends { active: boolean; created: number }>(candidates:
  * Strip internal metadata keys (pricectl_id, pricectl_path, fillet_id, fillet_path)
  * and return undefined if no user-defined metadata remains.
  */
-function stripInternalMetadata(metadata: Record<string, string> | null | undefined): Record<string, string> | undefined {
+export function stripInternalMetadata(metadata: Record<string, string> | null | undefined): Record<string, string> | undefined {
   if (!metadata) return undefined;
   const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = metadata;
   return Object.keys(userMetadata).length > 0 ? userMetadata : undefined;

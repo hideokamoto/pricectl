@@ -422,6 +422,15 @@ describe('StripeDeployer', () => {
       it('既存Couponが見つかった場合はunchanged', async () => {
         mockStripeInstance.coupons.retrieve.mockResolvedValue({
           id: 'EXISTING',
+          duration: 'once',
+          percent_off: 10,
+          amount_off: null,
+          currency: null,
+          duration_in_months: null,
+          max_redemptions: null,
+          redeem_by: null,
+          name: null,
+          metadata: { pricectl_id: 'EXISTING' },
         });
 
         const manifest: StackManifest = {
