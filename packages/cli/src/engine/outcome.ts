@@ -6,12 +6,16 @@ export interface RunOutcome {
   failed: boolean;
 }
 
-/** Decide how a deploy run ends. */
-export function deployOutcome(_result: DeployResult): RunOutcome {
-  return { headline: '✓ Deployment completed', failed: false };
+/** Decide how a deploy run ends. Any resource error fails the run. */
+export function deployOutcome(result: DeployResult): RunOutcome {
+  return result.errors.length > 0
+    ? { headline: '✗ Deployment finished with errors', failed: true }
+    : { headline: '✓ Deployment completed', failed: false };
 }
 
-/** Decide how a destroy run ends. */
+/** Decide how a destroy run ends. Any resource error fails the run. */
 export function destroyOutcome(result: DestroyResult): RunOutcome {
-  return { headline: '✓ Destruction completed', failed: result.errors.length > 0 };
+  return result.errors.length > 0
+    ? { headline: '✗ Destruction finished with errors', failed: true }
+    : { headline: '✓ Destruction completed', failed: false };
 }

@@ -10,6 +10,16 @@ describe('deployOutcome', () => {
 
     expect(outcome).toEqual({ headline: '✓ Deployment completed', failed: false });
   });
+
+  it('fails a deploy that had errors and does not report it as completed', () => {
+    const outcome = deployOutcome({
+      stackId: 'S',
+      deployed: [{ id: 'P', type: 'Stripe::Product', physicalId: 'prod_1', status: 'created' }],
+      errors: [{ id: 'Q', type: 'Stripe::Price', error: 'boom' }],
+    });
+
+    expect(outcome).toEqual({ headline: '✗ Deployment finished with errors', failed: true });
+  });
 });
 
 describe('destroyOutcome', () => {
@@ -30,6 +40,6 @@ describe('destroyOutcome', () => {
       errors: [{ id: 'P', type: 'Stripe::Product', error: 'boom' }],
     });
 
-    expect(outcome.failed).toBe(true);
+    expect(outcome).toEqual({ headline: '✗ Destruction finished with errors', failed: true });
   });
 });
