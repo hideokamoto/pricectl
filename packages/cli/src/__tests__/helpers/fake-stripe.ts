@@ -5,7 +5,7 @@
  * Stripe is an external system, so tests replace it at the boundary. Unlike
  * hand-written mocks, this fake returns objects shaped like real Stripe
  * responses (see ../fixtures/stripe/, recorded from Stripe test mode with
- * API version 2024-12-18.acacia) and reproduces the following observed
+ * API version 2026-09-30.endive) and reproduces the following observed
  * Stripe behaviors:
  *
  * - Fields that were not set come back as null or as Stripe defaults
@@ -272,7 +272,6 @@ export class FakeStripe {
       }
       const recurring = params.recurring
         ? {
-            aggregate_usage: null,
             interval: params.recurring.interval,
             interval_count: params.recurring.interval_count ?? 1,
             meter: params.recurring.meter ?? null,
