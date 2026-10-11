@@ -745,11 +745,7 @@ export class StripeDeployer {
       errors: [],
     };
 
-    // Delete resources in reverse order to handle dependencies, and also clean up
-    // resources that are only left in the state file because they were removed from the code
-    const resources = [...findOrphans(manifest, this.stateManager), ...[...manifest.resources].reverse()];
-
-    for (const resource of resources) {
+    for (const resource of this.destroyOrder(manifest)) {
       try {
         const destroyed = await this.destroyResource(resource, manifest.stackId);
         if (destroyed) {
@@ -778,9 +774,7 @@ export class StripeDeployer {
    */
   async planDestroy(manifest: StackManifest): Promise<DestroyPlan> {
     const plan: DestroyPlan = { stackId: manifest.stackId, resources: [], errors: [] };
-    // Same order as destroy
-    const resources = [...findOrphans(manifest, this.stateManager), ...[...manifest.resources].reverse()];
-    for (const resource of resources) {
+    for (const resource of this.destroyOrder(manifest)) {
       try {
         const pending = await this.pendingDestruction(resource, manifest.stackId);
         if (pending) {
@@ -795,6 +789,15 @@ export class StripeDeployer {
       }
     }
     return plan;
+  }
+
+  /**
+   * The resources destroy goes through, in order: the ones only left in the state file because
+   * they were removed from the code first, then the defined ones in reverse, so that references
+   * are removed before their targets.
+   */
+  private destroyOrder(manifest: StackManifest): ResourceManifest[] {
+    return [...findOrphans(manifest, this.stateManager), ...[...manifest.resources].reverse()];
   }
 
   /** Delete or deactivate one resource. Returns null when there is nothing to do. */
