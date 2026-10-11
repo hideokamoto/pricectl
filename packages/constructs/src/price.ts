@@ -193,7 +193,10 @@ export class Price extends Resource {
     };
 
     if (this.unitAmount !== undefined) params.unit_amount = this.unitAmount;
-    if (this.unitAmountDecimal !== undefined) params.unit_amount_decimal = this.unitAmountDecimal;
+    // Kept as a string so that the manifest stays plain JSON; Stripe receives decimals as strings
+    if (this.unitAmountDecimal !== undefined) {
+      params.unit_amount_decimal = this.unitAmountDecimal as unknown as Stripe.Decimal;
+    }
     if (this.nickname !== undefined) params.nickname = this.nickname;
     if (this.metadata !== undefined) params.metadata = this.metadata;
     if (this.lookupKey !== undefined) params.lookup_key = this.lookupKey;
