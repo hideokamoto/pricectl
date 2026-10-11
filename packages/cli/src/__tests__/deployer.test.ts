@@ -13,6 +13,7 @@ const mockStripeInstance = {
     update: jest.fn(),
     del: jest.fn(),
     list: jest.fn(),
+    listFeatures: jest.fn(),
   },
   prices: {
     create: jest.fn(),
@@ -63,6 +64,8 @@ describe('StripeDeployer', () => {
 
   beforeEach(() => {
     resetMocks();
+    // No entitlement features are attached to products unless a test says otherwise
+    mockStripeInstance.products.listFeatures.mockReturnValue(listOf([]));
     deployer = new StripeDeployer('sk_test_dummy');
   });
 

@@ -163,7 +163,12 @@ export class StripeDeployer {
   }
 
   private async deployProduct(resource: ResourceManifest, stackId: string) {
-    const props = validateProductCreateParams(resource.properties);
+    // `features` is not a product field; it is applied through the product features API
+    const { features, ...productProperties } = resource.properties;
+    const props = validateProductCreateParams(productProperties);
+    const desiredFeatureIds = ((features as string[] | undefined) ?? []).map(
+      (id) => this.logicalToPhysicalId.get(id) ?? id,
+    );
     const existing = await findProductForResource(this.stripe, resource, this.stateManager, stackId);
 
     if (existing) {
@@ -194,6 +199,7 @@ export class StripeDeployer {
           pricectl_properties_hash: desiredHash,
         },
       } as Stripe.ProductUpdateParams);
+      await this.syncProductFeatures(updated.id, desiredFeatureIds);
       return {
         id: resource.id,
         type: resource.type,
@@ -212,12 +218,34 @@ export class StripeDeployer {
           pricectl_properties_hash: desiredHash,
         },
       });
+      // A new product has no features attached yet
+      for (const featureId of desiredFeatureIds) {
+        await this.stripe.products.createFeature(created.id, { entitlement_feature: featureId });
+      }
       return {
         id: resource.id,
         type: resource.type,
         physicalId: created.id,
         status: 'created' as const,
       };
+    }
+  }
+
+  /** Attach the desired entitlement features to a product and detach all others. */
+  private async syncProductFeatures(productId: string, desiredFeatureIds: string[]): Promise<void> {
+    const attached = new Map<string, string>(); // entitlement feature ID → product feature ID
+    for await (const productFeature of this.stripe.products.listFeatures(productId, { limit: 100 })) {
+      attached.set(productFeature.entitlement_feature.id, productFeature.id);
+    }
+    for (const featureId of desiredFeatureIds) {
+      if (!attached.has(featureId)) {
+        await this.stripe.products.createFeature(productId, { entitlement_feature: featureId });
+      }
+    }
+    for (const [featureId, productFeatureId] of attached) {
+      if (!desiredFeatureIds.includes(featureId)) {
+        await this.stripe.products.deleteFeature(productId, productFeatureId);
+      }
     }
   }
 

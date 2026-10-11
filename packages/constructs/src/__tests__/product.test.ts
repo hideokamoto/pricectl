@@ -1,3 +1,4 @@
+import { EntitlementFeature } from '../entitlement';
 import { Product } from '../product';
 import { createStack } from './helpers';
 
@@ -123,4 +124,26 @@ describe('Product', () => {
       expect(product.node.path).toBe('TestStack/MyProduct');
     });
   });
+
+  describe('EntitlementFeatureとの紐づけ', () => {
+    it('featuresに指定したEntitlementFeatureの論理IDと文字列のIDがpropertiesに入る（deploy時に物理IDへ解決される）', () => {
+      const stack = createStack();
+      const feature = new EntitlementFeature(stack, 'Support', { name: 'Support', lookupKey: 'support' });
+      new Product(stack, 'Prod', { name: 'Widget', features: [feature, 'feat_existing'] });
+
+      const product = stack.synth().resources.find((r) => r.id === 'Prod');
+
+      expect(product?.properties.features).toEqual(['Support', 'feat_existing']);
+    });
+
+    it('featuresを指定しない場合はpropertiesに含まれない', () => {
+      const stack = createStack();
+      new Product(stack, 'Prod', { name: 'Widget' });
+
+      const product = stack.synth().resources.find((r) => r.id === 'Prod');
+
+      expect(product?.properties).not.toHaveProperty('features');
+    });
+  });
 });
+

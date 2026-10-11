@@ -215,6 +215,39 @@ describe('StripeDeployer against recorded Stripe responses', () => {
     });
   });
 
+  describe('Product that grants entitlement features', () => {
+    function createStackWithFeatures(featureIds: string[]): Stack {
+      const stack = createStack();
+      const features = featureIds.map((id) => new EntitlementFeature(stack, id, { name: id, lookupKey: id.toLowerCase() }));
+      new Product(stack, 'NewProd', { name: 'New product', features });
+      return stack;
+    }
+
+    function attachedLookupKeys(): string[] {
+      const productId = mockFakeStripe.productsFor('NewProd')[0].id;
+      return mockFakeStripe
+        .featuresOf(productId)
+        .map((id) => mockFakeStripe.featureStore.get(id)?.lookup_key)
+        .sort();
+    }
+
+    it('attaches the features to the product', async () => {
+      const result = await new StripeDeployer('sk_test_dummy').deploy(createStackWithFeatures(['Support', 'Sso']).synth());
+
+      expect(result.errors).toEqual([]);
+      expect(attachedLookupKeys()).toEqual(['sso', 'support']);
+    });
+
+    it('detaches a feature that was removed from the definition', async () => {
+      await new StripeDeployer('sk_test_dummy').deploy(createStackWithFeatures(['Support', 'Sso']).synth());
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(createStackWithFeatures(['Support']).synth());
+
+      expect(result.errors).toEqual([]);
+      expect(attachedLookupKeys()).toEqual(['support']);
+    });
+  });
+
   describe('Product with a physicalId', () => {
     it('adopts the given existing product instead of creating a new one', async () => {
       mockFakeStripe.seed('products', { ...productFixture, id: 'prod_unmanaged', metadata: {} });
