@@ -3,6 +3,7 @@ import { StackManifest, ResourceManifest } from '@pricectl/core';
 import {
   findExistingProduct as stripeFindExistingProduct,
   findExistingPrice as stripeFindExistingPrice,
+  findProductForResource,
   stripInternalMetadata,
 } from './stripe-utils';
 import { StateManager } from './state';
@@ -163,10 +164,7 @@ export class StripeDeployer {
 
   private async deployProduct(resource: ResourceManifest, stackId: string) {
     const props = validateProductCreateParams(resource.properties);
-    // A physicalId in the construct props adopts that existing product
-    const existing = resource.physicalId
-      ? await this.stripe.products.retrieve(resource.physicalId)
-      : await stripeFindExistingProduct(this.stripe, resource.id, this.stateManager, stackId);
+    const existing = await findProductForResource(this.stripe, resource, this.stateManager, stackId);
 
     if (existing) {
       // Check if properties have changed by comparing hash

@@ -79,6 +79,21 @@ export async function findExistingProduct(
 }
 
 /**
+ * Find the Stripe Product a manifest resource manages: the product named by its
+ * physicalId when one is given, otherwise the product found by its logical ID.
+ */
+export async function findProductForResource(
+  stripe: Stripe,
+  resource: { id: string; physicalId?: string },
+  stateManager?: StateManager,
+  stackId?: string,
+): Promise<Stripe.Product | null> {
+  return resource.physicalId
+    ? stripe.products.retrieve(resource.physicalId)
+    : findExistingProduct(stripe, resource.id, stateManager, stackId);
+}
+
+/**
  * Find an existing Stripe Price by logical ID.
  * Uses state-based lookup first, then falls back to listing all objects.
  * Supports both the current `pricectl_id` metadata key and the legacy `fillet_id` key.
@@ -129,10 +144,7 @@ export async function fetchCurrentResource(
   try {
     switch (resource.type) {
       case 'Stripe::Product':
-        // Same lookup as deploy: a physicalId in the construct props names the product directly
-        return resource.physicalId
-          ? await stripe.products.retrieve(resource.physicalId)
-          : await findExistingProduct(stripe, resource.id, stateManager, stackId);
+        return await findProductForResource(stripe, resource, stateManager, stackId);
       case 'Stripe::Price':
         return findExistingPrice(stripe, resource.id, stateManager, stackId);
       case 'Stripe::Coupon':
