@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
 import { StateManager } from '../engine/state';
+import { destroyOutcome } from '../engine/outcome';
 import { StackManifest, STRIPE_API_KEY_MISSING_ERROR } from '@pricectl/core';
 
 export default class Destroy extends Command {
@@ -113,7 +114,8 @@ export default class Destroy extends Command {
       stateManager.save();
 
       // Display results
-      this.log(chalk.bold.green('✓ Destruction completed'));
+      const outcome = destroyOutcome(result);
+      this.log(outcome.failed ? chalk.bold.red(outcome.headline) : chalk.bold.green(outcome.headline));
       this.log('');
 
       if (result.destroyed.length > 0) {
@@ -141,6 +143,8 @@ export default class Destroy extends Command {
       this.log(`  Deactivated: ${chalk.yellow(deactivated)}`);
       if (result.errors.length > 0) {
         this.log(`  Errors: ${chalk.red(result.errors.length)}`);
+      }
+      if (outcome.failed) {
         this.error('Some resources could not be destroyed. See errors above.');
       }
 
