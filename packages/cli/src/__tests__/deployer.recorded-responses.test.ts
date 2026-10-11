@@ -238,6 +238,18 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(attachedLookupKeys()).toEqual(['sso', 'support']);
     });
 
+    it('leaves features attached outside pricectl alone when the product does not set features', async () => {
+      const outside = await mockFakeStripe.entitlements.features.create({ name: 'Outside', lookup_key: 'outside' });
+      await mockFakeStripe.products.createFeature(PRODUCT_ID, { entitlement_feature: outside.id });
+      const stack = createStack();
+      new Product(stack, 'FxProd', { name: 'Renamed fixture product', physicalId: PRODUCT_ID });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.deployed[0].status).toBe('updated');
+      expect(mockFakeStripe.featuresOf(PRODUCT_ID)).toEqual([outside.id]);
+    });
+
     it('detaches a feature that was removed from the definition', async () => {
       await new StripeDeployer('sk_test_dummy').deploy(createStackWithFeatures(['Support', 'Sso']).synth());
 

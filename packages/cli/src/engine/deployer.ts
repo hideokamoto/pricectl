@@ -166,9 +166,8 @@ export class StripeDeployer {
     // `features` is not a product field; it is applied through the product features API
     const { features, ...productProperties } = resource.properties;
     const props = validateProductCreateParams(productProperties);
-    const desiredFeatureIds = ((features as string[] | undefined) ?? []).map(
-      (id) => this.logicalToPhysicalId.get(id) ?? id,
-    );
+    // undefined means the product does not manage its features: leave attachments as they are
+    const desiredFeatureIds = (features as string[] | undefined)?.map((id) => this.logicalToPhysicalId.get(id) ?? id);
     const existing = await findProductForResource(this.stripe, resource, this.stateManager, stackId);
 
     if (existing) {
@@ -199,7 +198,9 @@ export class StripeDeployer {
           pricectl_properties_hash: desiredHash,
         },
       } as Stripe.ProductUpdateParams);
-      await this.syncProductFeatures(updated.id, desiredFeatureIds);
+      if (desiredFeatureIds) {
+        await this.syncProductFeatures(updated.id, desiredFeatureIds);
+      }
       return {
         id: resource.id,
         type: resource.type,
@@ -219,7 +220,7 @@ export class StripeDeployer {
         },
       });
       // A new product has no features attached yet
-      for (const featureId of desiredFeatureIds) {
+      for (const featureId of desiredFeatureIds ?? []) {
         await this.stripe.products.createFeature(created.id, { entitlement_feature: featureId });
       }
       return {

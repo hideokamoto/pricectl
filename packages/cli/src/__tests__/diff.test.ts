@@ -117,6 +117,38 @@ describe('diffResource', () => {
     });
   });
 
+  describe('product features', () => {
+    it('reports no change when the same features are attached, in any order', () => {
+      const diff = diffResource(
+        'Stripe::Product',
+        { name: 'pricectl fixture product', description: 'fixture', active: true, features: ['feat_b', 'feat_a'] },
+        { ...deployedProductFixture, features: ['feat_a', 'feat_b'] } as never,
+      );
+
+      expect(diff.changed).toBe(false);
+    });
+
+    it('ignores attached features when the product does not set features', () => {
+      const diff = diffResource(
+        'Stripe::Product',
+        { name: 'pricectl fixture product', description: 'fixture', active: true },
+        { ...deployedProductFixture, features: ['feat_attached_elsewhere'] } as never,
+      );
+
+      expect(diff.changed).toBe(false);
+    });
+
+    it('reports a feature that is not attached yet as a change', () => {
+      const diff = diffResource(
+        'Stripe::Product',
+        { name: 'pricectl fixture product', description: 'fixture', active: true, features: ['feat_a'] },
+        { ...deployedProductFixture, features: [] } as never,
+      );
+
+      expect(diff.changed).toBe(true);
+    });
+  });
+
   describe('resources whose definition differs from Stripe', () => {
     it('reports a changed product name as a change', () => {
       const stack = createStack();
@@ -190,6 +222,18 @@ describe('resolveReferencesFromState', () => {
     );
 
     expect(resolved).toMatchObject({ product: 'prod_123', recurring: { meter: 'mtr_456' } });
+  });
+
+  it('resolves the entitlement features of a product to their Stripe IDs', () => {
+    const state = stateWith({ logicalId: 'Support', physicalId: 'feat_123', type: 'Stripe::EntitlementFeature' });
+
+    const resolved = resolveReferencesFromState(
+      { type: 'Stripe::Product', properties: { name: 'Widget', features: ['Support', 'feat_existing'] } },
+      'FxStack',
+      state,
+    );
+
+    expect(resolved.features).toEqual(['feat_123', 'feat_existing']);
   });
 });
 

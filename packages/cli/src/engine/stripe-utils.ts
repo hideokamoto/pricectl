@@ -93,6 +93,18 @@ export async function findProductForResource(
     : findExistingProduct(stripe, resource.id, stateManager, stackId);
 }
 
+/** A product together with the IDs of the entitlement features attached to it. */
+export type ProductWithFeatures = Stripe.Product & { features: string[] };
+
+async function withAttachedFeatures(stripe: Stripe, product: Stripe.Product | null): Promise<ProductWithFeatures | null> {
+  if (!product) return null;
+  const features: string[] = [];
+  for await (const productFeature of stripe.products.listFeatures(product.id, { limit: 100 })) {
+    features.push(productFeature.entitlement_feature.id);
+  }
+  return { ...product, features };
+}
+
 /**
  * Find an existing Stripe Price by logical ID.
  * Uses state-based lookup first, then falls back to listing all objects.
@@ -144,7 +156,7 @@ export async function fetchCurrentResource(
   try {
     switch (resource.type) {
       case 'Stripe::Product':
-        return await findProductForResource(stripe, resource, stateManager, stackId);
+        return await withAttachedFeatures(stripe, await findProductForResource(stripe, resource, stateManager, stackId));
       case 'Stripe::Price':
         return findExistingPrice(stripe, resource.id, stateManager, stackId);
       case 'Stripe::Coupon':
@@ -220,6 +232,8 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
         normalized.statement_descriptor = r.statement_descriptor;
       }
       if (r.tax_code != null) normalized.tax_code = r.tax_code;
+      const attached = (resource as Partial<ProductWithFeatures>).features;
+      if (attached) normalized.features = [...attached].sort();
       // Exclude pricectl and legacy fillet metadata from comparison
       const productMetadata = stripInternalMetadata(r.metadata);
       if (productMetadata) {
