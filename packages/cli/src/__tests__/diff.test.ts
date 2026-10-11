@@ -2,6 +2,7 @@ import { Stack } from '@pricectl/core';
 import { Coupon, EntitlementFeature, Meter, Price, Product } from '@pricectl/constructs';
 import { diffResource, resolveReferencesFromState } from '../engine/diff';
 import { StateManager } from '../engine/state';
+import { asSdkPrice } from './helpers/sdk-shapes';
 import productFixture from './fixtures/stripe/product.json';
 import recurringPriceFixture from './fixtures/stripe/price-recurring.json';
 import lookupPriceFixture from './fixtures/stripe/price-one-time-lookup.json';
@@ -50,7 +51,7 @@ describe('diffResource', () => {
             unitAmount: 1000,
             recurring: { interval: 'month' },
           }),
-        recurringPriceFixture,
+        asSdkPrice(recurringPriceFixture),
       ],
       [
         'one-time price with a lookup key',
@@ -63,7 +64,7 @@ describe('diffResource', () => {
             unitAmount: 500,
             lookupKey: lookupPriceFixture.lookup_key,
           }),
-        lookupPriceFixture,
+        asSdkPrice(lookupPriceFixture),
       ],
       [
         'tiered price',
@@ -80,7 +81,7 @@ describe('diffResource', () => {
               { upTo: 'inf', unitAmount: 2, flatAmount: 100 },
             ],
           }),
-        tieredPriceFixture,
+        asSdkPrice(tieredPriceFixture),
       ],
       [
         'coupon',
@@ -130,7 +131,7 @@ describe('diffResource', () => {
           metadata: { team: 'billing' },
           recurring: { interval: 'month', usage_type: 'metered', meter: meteredPriceFixture.recurring.meter },
         },
-        meteredPriceFixture as never,
+        asSdkPrice(meteredPriceFixture) as never,
       );
 
       expect(diff.changed).toBe(false);
@@ -194,7 +195,7 @@ describe('diffResource', () => {
         ],
       });
 
-      const diff = diffResource('Stripe::Price', synthesizedProperties(stack, 'FxTiered'), tieredPriceFixture as never);
+      const diff = diffResource('Stripe::Price', synthesizedProperties(stack, 'FxTiered'), asSdkPrice(tieredPriceFixture) as never);
 
       expect(diff.changed).toBe(true);
     });
@@ -209,7 +210,7 @@ describe('diffResource', () => {
         taxBehavior: 'inclusive',
       });
 
-      const diff = diffResource('Stripe::Price', synthesizedProperties(stack, 'FxLookup'), lookupPriceFixture as never);
+      const diff = diffResource('Stripe::Price', synthesizedProperties(stack, 'FxLookup'), asSdkPrice(lookupPriceFixture) as never);
 
       expect(diff.changed).toBe(true);
     });

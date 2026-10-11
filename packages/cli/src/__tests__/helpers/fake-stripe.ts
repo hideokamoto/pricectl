@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { asSdkPrice } from './sdk-shapes';
 /**
  * In-memory fake of the subset of the Stripe API used by pricectl.
  *
@@ -15,6 +16,7 @@
  * - A product that has prices cannot be deleted.
  * - An inactive entitlement feature cannot be updated (not even reactivated).
  * - List endpoints return inactive features and meters too.
+ * - stripe-node (v21+) returns price decimal_string fields as Stripe.Decimal objects.
  * - The Search API is eventually consistent: newly created objects are not
  *   searchable until indexSearch() is called.
  * - Products reject parameters that are not product fields.
@@ -158,10 +160,11 @@ export class FakeStripe {
     return 1791724000 + this.seq;
   }
 
+  /** A stored price as the SDK hands it to callers (decimal fields as Stripe.Decimal). */
   private priceView(price: StripeObject, expand?: string[]): StripeObject {
     const view = clone(price);
     if (!wantsTiers(expand)) delete view.tiers;
-    return view;
+    return asSdkPrice(view);
   }
 
   readonly products = {

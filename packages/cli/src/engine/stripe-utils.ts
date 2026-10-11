@@ -212,6 +212,14 @@ export async function fetchCurrentResource(
 }
 
 /**
+ * stripe-node (v21+) returns decimal_string fields as Stripe.Decimal objects;
+ * normalized resources carry them as plain strings, like the construct properties.
+ */
+function decimalString(value: Stripe.Decimal | string | null | undefined): string | null | undefined {
+  return value === null || value === undefined ? value : String(value);
+}
+
+/**
  * Normalize a Stripe resource to match the format of our construct properties.
  * Strips internal metadata keys and retains only user-configurable properties
  * to enable accurate comparison between desired and current state.
@@ -248,7 +256,7 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
       if (r.currency !== undefined) normalized.currency = r.currency;
       if (r.unit_amount !== undefined) normalized.unit_amount = r.unit_amount;
       if (r.unit_amount_decimal !== undefined) {
-        normalized.unit_amount_decimal = r.unit_amount_decimal;
+        normalized.unit_amount_decimal = decimalString(r.unit_amount_decimal);
       }
       if (r.active !== undefined) normalized.active = r.active;
       if (r.nickname !== undefined) normalized.nickname = r.nickname;
@@ -280,9 +288,9 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
         normalized.tiers = r.tiers.map((tier) => ({
           up_to: tier.up_to,
           unit_amount: tier.unit_amount,
-          unit_amount_decimal: tier.unit_amount_decimal,
+          unit_amount_decimal: decimalString(tier.unit_amount_decimal),
           flat_amount: tier.flat_amount,
-          flat_amount_decimal: tier.flat_amount_decimal,
+          flat_amount_decimal: decimalString(tier.flat_amount_decimal),
         }));
       }
 
