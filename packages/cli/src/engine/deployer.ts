@@ -345,7 +345,12 @@ export class StripeDeployer {
             pricectl_path: resource.path,
           },
         });
-        await this.stripe.prices.update(existing.id, { active: false });
+        try {
+          await this.stripe.prices.update(existing.id, { active: false });
+        } catch (error: unknown) {
+          await this.undoPriceReplacement(existing.id, created.id, props.lookup_key);
+          throw error;
+        }
         return {
           id: resource.id,
           type: resource.type,
@@ -368,6 +373,26 @@ export class StripeDeployer {
         physicalId: created.id,
         status: 'created' as const,
       };
+    }
+  }
+
+  /**
+   * Undo a price replacement whose old price could not be deactivated, so that the old
+   * price stays the only active one: give its lookup key back, then deactivate the
+   * replacement. Each step is best effort; this is not an atomic rollback.
+   */
+  private async undoPriceReplacement(oldPriceId: string, newPriceId: string, lookupKey?: string): Promise<void> {
+    if (lookupKey) {
+      try {
+        await this.stripe.prices.update(oldPriceId, { lookup_key: lookupKey, transfer_lookup_key: true });
+      } catch {
+        // The caller reports the original error
+      }
+    }
+    try {
+      await this.stripe.prices.update(newPriceId, { active: false });
+    } catch {
+      // The caller reports the original error
     }
   }
 

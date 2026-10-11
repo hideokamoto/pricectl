@@ -72,6 +72,7 @@ export default class Destroy extends Command {
       return;
     }
 
+    let failed = false;
     try {
 
       this.log(chalk.bold.yellow(`⚠️  You are about to destroy stack: ${manifest.stackId}`));
@@ -144,14 +145,17 @@ export default class Destroy extends Command {
       if (result.errors.length > 0) {
         this.log(`  Errors: ${chalk.red(result.errors.length)}`);
       }
-      if (outcome.failed) {
-        this.error('Some resources could not be destroyed. See errors above.');
-      }
+      failed = outcome.failed;
 
       this.log('');
       this.log(chalk.gray(`State saved to ${stateManager.getFilePath()}`));
     } catch (error: unknown) {
       this.error(`Destroy failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // Outside the try block, so that the catch above does not wrap this message
+    if (failed) {
+      this.error('Some resources could not be destroyed. See errors above.', { exit: 1 });
     }
   }
 }

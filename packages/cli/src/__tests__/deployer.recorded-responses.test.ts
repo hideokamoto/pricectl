@@ -162,6 +162,27 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(original).toMatchObject({ active: false, lookup_key: null });
     });
 
+    it('restores the old price when deactivating it fails after the replacement was created', async () => {
+      mockFakeStripe.seed('prices', lookupPriceFixture);
+      // The first prices.update is the deactivation of the old price
+      mockFakeStripe.failNext('prices.update', { message: 'Stripe is unavailable' });
+      const stack = createStack();
+      new Price(stack, 'FxLookup', {
+        product: PRODUCT_ID,
+        currency: 'usd',
+        unitAmount: 600,
+        lookupKey: lookupPriceFixture.lookup_key,
+      });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.errors).toEqual([expect.objectContaining({ id: 'FxLookup', error: 'Stripe is unavailable' })]);
+      const prices = mockFakeStripe.pricesFor('FxLookup');
+      expect(prices.filter((p) => p.active)).toEqual([
+        expect.objectContaining({ id: lookupPriceFixture.id, lookup_key: lookupPriceFixture.lookup_key }),
+      ]);
+    });
+
     it('leaves the old price active when creating the replacement fails', async () => {
       mockFakeStripe.seed('prices', recurringPriceFixture);
       mockFakeStripe.failNext('prices.create', { message: 'Stripe is unavailable' });
