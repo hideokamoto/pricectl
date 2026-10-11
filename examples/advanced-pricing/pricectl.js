@@ -17,6 +17,12 @@ const stack = new core_1.Stack(undefined, 'AdvancedPricingStack', {
 // ============================================================================
 // TIERED PRICING - API Calls
 // ============================================================================
+// Usage-based prices bill through meters that aggregate the usage events you report
+const apiCallsMeter = new constructs_1.Meter(stack, 'APICallsMeter', {
+    displayName: 'API calls',
+    eventName: 'api_call',
+    defaultAggregation: { formula: 'count' },
+});
 const apiProduct = new constructs_1.Product(stack, 'APIProduct', {
     name: 'API Access',
     description: 'Pay-as-you-go API access with volume discounts',
@@ -30,6 +36,7 @@ new constructs_1.Price(stack, 'APIGraduatedPrice', {
     recurring: {
         interval: 'month',
         usageType: 'metered',
+        meter: apiCallsMeter,
     },
     tiersMode: 'graduated',
     tiers: [
@@ -55,6 +62,7 @@ new constructs_1.Price(stack, 'APIVolumePrice', {
     recurring: {
         interval: 'month',
         usageType: 'metered',
+        meter: apiCallsMeter,
     },
     tiersMode: 'volume',
     tiers: [
@@ -107,6 +115,12 @@ new constructs_1.Price(stack, 'PerSeatYearly', {
 // ============================================================================
 // METERED BILLING - Storage
 // ============================================================================
+const storageMeter = new constructs_1.Meter(stack, 'StorageMeter', {
+    displayName: 'Storage used (GB)',
+    eventName: 'storage_used',
+    defaultAggregation: { formula: 'sum' },
+    valueSettings: { eventPayloadKey: 'gigabytes' },
+});
 const storageProduct = new constructs_1.Product(stack, 'StorageProduct', {
     name: 'Cloud Storage',
     description: 'Scalable cloud storage with usage-based billing',
@@ -121,6 +135,7 @@ new constructs_1.Price(stack, 'StorageMetered', {
     recurring: {
         interval: 'month',
         usageType: 'metered',
+        meter: storageMeter,
     },
     nickname: 'Storage - Metered',
 });
@@ -131,6 +146,7 @@ new constructs_1.Price(stack, 'StorageGraduated', {
     recurring: {
         interval: 'month',
         usageType: 'metered',
+        meter: storageMeter,
     },
     tiersMode: 'graduated',
     tiers: [
@@ -169,6 +185,11 @@ new constructs_1.Price(stack, 'HybridBase', {
     nickname: 'Base Subscription',
 });
 // Usage component (charged in addition to base)
+const additionalUsageMeter = new constructs_1.Meter(stack, 'AdditionalUsageMeter', {
+    displayName: 'Additional usage',
+    eventName: 'additional_usage',
+    defaultAggregation: { formula: 'count' },
+});
 const usageProduct = new constructs_1.Product(stack, 'UsageProduct', {
     name: 'Additional Usage',
     description: 'Usage beyond included quota',
@@ -182,12 +203,18 @@ new constructs_1.Price(stack, 'AdditionalUsage', {
     recurring: {
         interval: 'month',
         usageType: 'metered',
+        meter: additionalUsageMeter,
     },
     nickname: 'Overage Charges',
 });
 // ============================================================================
 // TRANSFORM QUANTITY - Charge per 100 units
 // ============================================================================
+const processedItemsMeter = new constructs_1.Meter(stack, 'ProcessedItemsMeter', {
+    displayName: 'Processed items',
+    eventName: 'item_processed',
+    defaultAggregation: { formula: 'count' },
+});
 const bulkProduct = new constructs_1.Product(stack, 'BulkProduct', {
     name: 'Bulk Processing',
     description: 'Charged per 100 processed items',
@@ -201,6 +228,7 @@ new constructs_1.Price(stack, 'BulkPrice', {
     recurring: {
         interval: 'month',
         usageType: 'metered',
+        meter: processedItemsMeter,
     },
     transformQuantity: {
         divideBy: 100,

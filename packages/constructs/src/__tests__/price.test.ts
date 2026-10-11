@@ -271,6 +271,20 @@ describe('Price', () => {
       expect(price?.properties.recurring).toMatchObject({ meter: 'mtr_existing' });
     });
 
+    it('usageTypeがmeteredなのにMeterを指定しないとエラー（API 2025-03-31.basil以降のStripeが受け付けないため）', () => {
+      const stack = createStack();
+
+      expect(
+        () =>
+          new Price(stack, 'Usage', {
+            product: 'prod_1',
+            currency: 'usd',
+            unitAmount: 5,
+            recurring: { interval: 'month', usageType: 'metered' },
+          })
+      ).toThrow('recurring.meter');
+    });
+
     it('usageTypeがmeteredでないのにMeterを指定するとエラー（Stripeが受け付けないため）', () => {
       const stack = createStack();
       const meter = createMeter(stack);

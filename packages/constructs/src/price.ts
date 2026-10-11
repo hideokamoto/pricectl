@@ -17,6 +17,7 @@ export interface RecurringProps {
 
   /**
    * Configures how the quantity per period should be determined.
+   * 'metered' requires `meter`.
    */
   readonly usageType?: 'metered' | 'licensed';
 
@@ -175,6 +176,10 @@ export class Price extends Resource {
 
     if (this.recurring?.meter !== undefined && this.recurring.usageType !== 'metered') {
       throw new Error('A price with a meter must set recurring.usageType "metered"');
+    }
+    if (this.recurring?.usageType === 'metered' && this.recurring.meter === undefined) {
+      // Stripe rejects metered prices without a meter since API version 2025-03-31.basil
+      throw new Error('A metered price must set recurring.meter to the Meter that tracks its usage');
     }
 
     // Register resource metadata after all properties are initialized
