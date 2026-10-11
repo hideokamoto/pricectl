@@ -5,7 +5,8 @@ import chalk from 'chalk';
 import { createTwoFilesPatch } from 'diff';
 import Stripe from 'stripe';
 import { StackManifest } from '@pricectl/core';
-import { fetchCurrentResource, normalizeResource } from '../engine/stripe-utils';
+import { fetchCurrentResource } from '../engine/stripe-utils';
+import { diffResource } from '../engine/diff';
 import { StateManager } from '../engine/state';
 
 export default class Diff extends Command {
@@ -81,17 +82,15 @@ export default class Diff extends Command {
         // Resolve logical IDs in desired properties for accurate comparison
         const desiredProperties = this.resolveDesiredForDiff(resource, manifest.stackId, stateManager);
 
-        // Compare properties
-        const desired = JSON.stringify(desiredProperties, null, 2);
-        const existing = JSON.stringify(normalizeResource(current, resource.type), null, 2);
+        const diff = diffResource(resource.type, desiredProperties, current);
 
-        if (desired !== existing) {
+        if (diff.changed) {
           this.log(chalk.yellow(`[~] ${resource.path} [${resource.type}]`));
           const patch = createTwoFilesPatch(
             'current',
             'desired',
-            existing,
-            desired,
+            diff.current,
+            diff.desired,
             '',
             ''
           );
