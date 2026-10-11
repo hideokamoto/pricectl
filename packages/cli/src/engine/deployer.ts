@@ -817,7 +817,8 @@ export class StripeDeployer {
       case 'Stripe::BillingMeter': {
         const meterProps = resource.properties as unknown as { event_name: string };
         const existing = await this.meterForResource(resource, meterProps.event_name, stackId);
-        if (existing) {
+        // Stripe rejects deactivating a meter twice (meter_already_deactivated)
+        if (existing?.status === 'active') {
           // Meters are deactivated, not deleted
           await this.stripe.billing.meters.deactivate(existing.id);
           return {

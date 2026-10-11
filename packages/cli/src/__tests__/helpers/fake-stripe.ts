@@ -15,6 +15,7 @@ import { asSdkPrice } from './sdk-shapes';
  * - A lookup_key can belong to only one price unless transfer_lookup_key is set.
  * - A product that has prices cannot be deleted.
  * - An inactive entitlement feature cannot be updated (not even reactivated).
+ * - An inactive meter cannot be deactivated again.
  * - List endpoints return inactive features and meters too.
  * - stripe-node (v21+) returns price decimal_string fields as Stripe.Decimal objects.
  * - The Search API is eventually consistent: newly created objects are not
@@ -469,6 +470,10 @@ export class FakeStripe {
       deactivate: async (id: string) => {
         const meter = this.meterStore.get(id);
         if (!meter) throw resourceMissing('billing.meter', id);
+        if (meter.status !== 'active') {
+          // Recorded in ../fixtures/stripe/error-meter-already-deactivated.json
+          throw new FakeStripeError({ message: 'meter_already_deactivated' });
+        }
         meter.status = 'inactive';
         meter.status_transitions = { deactivated_at: this.now() };
         return clone(meter);

@@ -488,6 +488,19 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(mockFakeStripe.productsFor('NewProd')).toEqual([expect.objectContaining({ active: false })]);
     });
 
+    it('can be run again after everything was destroyed', async () => {
+      const stack = createStack();
+      new Meter(stack, 'NewMeter', { displayName: 'New meter', eventName: 'new_event', defaultAggregation: { formula: 'count' } });
+      const deployer = new StripeDeployer('sk_test_dummy');
+      await deployer.deploy(stack.synth());
+      await deployer.destroy(stack.synth());
+
+      const second = await new StripeDeployer('sk_test_dummy').destroy(stack.synth());
+
+      expect(second.errors).toEqual([]);
+      expect(second.destroyed).toEqual([]);
+    });
+
     it('reactivates a product archived by destroy on the next deploy', async () => {
       const stack = createStack();
       const product = new Product(stack, 'NewProd', { name: 'New product' });
