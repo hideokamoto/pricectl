@@ -760,6 +760,20 @@ export class StripeDeployer {
     type: string;
     status: 'deleted' | 'deactivated';
   } | null> {
+    const pending = await this.pendingDestruction(resource, stackId);
+    if (!pending) return null;
+    await pending.apply();
+    return { id: resource.id, type: resource.type, status: pending.status };
+  }
+
+  /**
+   * What destroying one resource would do to Stripe, without doing it yet: whether it would be
+   * deleted or deactivated, and the call that does it. Null when it is already gone or inactive.
+   */
+  private async pendingDestruction(resource: ResourceManifest, stackId: string): Promise<{
+    status: 'deleted' | 'deactivated';
+    apply: () => Promise<unknown>;
+  } | null> {
     switch (resource.type) {
       case 'Stripe::Product': {
         const existing = await stripeFindExistingProduct(
@@ -768,27 +782,15 @@ export class StripeDeployer {
           this.stateManager,
           stackId,
         );
-        if (existing) {
-          // Stripe refuses to delete a product that has prices, and prices cannot be deleted,
-          // so such a product is archived instead.
-          if (await this.hasPrices(existing.id)) {
-            // Already archived by an earlier destroy: nothing to do
-            if (!existing.active) return null;
-            await this.stripe.products.update(existing.id, { active: false });
-            return {
-              id: resource.id,
-              type: resource.type,
-              status: 'deactivated',
-            };
-          }
-          await this.stripe.products.del(existing.id);
-          return {
-            id: resource.id,
-            type: resource.type,
-            status: 'deleted',
-          };
+        if (!existing) return null;
+        // Stripe refuses to delete a product that has prices, and prices cannot be deleted,
+        // so such a product is archived instead.
+        if (await this.hasPrices(existing.id)) {
+          // Already archived by an earlier destroy: nothing to do
+          if (!existing.active) return null;
+          return { status: 'deactivated', apply: () => this.stripe.products.update(existing.id, { active: false }) };
         }
-        return null;
+        return { status: 'deleted', apply: () => this.stripe.products.del(existing.id) };
       }
       case 'Stripe::Price': {
         const existing = await stripeFindExistingPrice(
@@ -798,56 +800,31 @@ export class StripeDeployer {
           stackId,
         );
         // Prices cannot be deleted, only deactivated; an inactive price needs nothing
-        if (existing?.active) {
-          await this.stripe.prices.update(existing.id, { active: false });
-          return {
-            id: resource.id,
-            type: resource.type,
-            status: 'deactivated',
-          };
-        }
-        return null;
+        if (!existing?.active) return null;
+        return { status: 'deactivated', apply: () => this.stripe.prices.update(existing.id, { active: false }) };
       }
       case 'Stripe::Coupon': {
         const existing = await this.findExistingCoupon(resource.id);
-        if (existing) {
-          await this.stripe.coupons.del(existing.id);
-          return {
-            id: resource.id,
-            type: resource.type,
-            status: 'deleted',
-          };
-        }
-        return null;
+        if (!existing) return null;
+        return { status: 'deleted', apply: () => this.stripe.coupons.del(existing.id) };
       }
       case 'Stripe::EntitlementFeature': {
         const featureProps = resource.properties as unknown as { lookup_key: string };
         const existing = await this.featureForResource(resource, featureProps.lookup_key, stackId);
-        if (existing?.active) {
-          // Features are deactivated, not deleted
-          await this.stripe.entitlements.features.update(existing.id, { active: false });
-          return {
-            id: resource.id,
-            type: resource.type,
-            status: 'deactivated',
-          };
-        }
-        return null;
+        // Features are deactivated, not deleted
+        if (!existing?.active) return null;
+        return {
+          status: 'deactivated',
+          apply: () => this.stripe.entitlements.features.update(existing.id, { active: false }),
+        };
       }
       case 'Stripe::BillingMeter': {
         const meterProps = resource.properties as unknown as { event_name: string };
         const existing = await this.meterForResource(resource, meterProps.event_name, stackId);
-        // Stripe rejects deactivating a meter twice (meter_already_deactivated)
-        if (existing?.status === 'active') {
-          // Meters are deactivated, not deleted
-          await this.stripe.billing.meters.deactivate(existing.id);
-          return {
-            id: resource.id,
-            type: resource.type,
-            status: 'deactivated',
-          };
-        }
-        return null;
+        // Meters are deactivated, not deleted. Stripe rejects deactivating a meter twice
+        // (meter_already_deactivated)
+        if (existing?.status !== 'active') return null;
+        return { status: 'deactivated', apply: () => this.stripe.billing.meters.deactivate(existing.id) };
       }
       default:
         throw new Error(`Unknown resource type: ${resource.type}`);
