@@ -9,9 +9,9 @@ function isResourceMissingError(error: unknown): boolean {
   return false;
 }
 
-/** Whether Stripe metadata carries the given logical ID (current or legacy key). */
+/** Whether Stripe metadata carries the given logical ID. */
 function hasLogicalId(metadata: Record<string, string> | null | undefined, logicalId: string): boolean {
-  return metadata?.pricectl_id === logicalId || metadata?.fillet_id === logicalId;
+  return metadata?.pricectl_id === logicalId;
 }
 
 /**
@@ -24,7 +24,7 @@ function pickCurrent<T extends { active: boolean; created: number }>(candidates:
 }
 
 /**
- * Strip internal metadata keys (pricectl_id, pricectl_path, pricectl_properties_hash, fillet_id, fillet_path)
+ * Strip internal metadata keys (pricectl_id, pricectl_path, pricectl_properties_hash)
  * and return undefined if no user-defined metadata remains.
  */
 export function stripInternalMetadata(metadata: Record<string, string> | null | undefined): Record<string, string> | undefined {
@@ -33,8 +33,6 @@ export function stripInternalMetadata(metadata: Record<string, string> | null | 
     pricectl_id: _pid,
     pricectl_path: _ppath,
     pricectl_properties_hash: _phash,
-    fillet_id: _fid,
-    fillet_path: _fpath,
     ...userMetadata
   } = metadata;
   return Object.keys(userMetadata).length > 0 ? userMetadata : undefined;
@@ -43,7 +41,6 @@ export function stripInternalMetadata(metadata: Record<string, string> | null | 
 /**
  * Find an existing Stripe Product by logical ID.
  * Uses state-based lookup first, then falls back to listing all objects.
- * Supports both the current `pricectl_id` metadata key and the legacy `fillet_id` key.
  */
 export async function findExistingProduct(
   stripe: Stripe,
@@ -117,7 +114,6 @@ async function withAttachedFeatures(stripe: Stripe, product: Stripe.Product | nu
 /**
  * Find an existing Stripe Price by logical ID.
  * Uses state-based lookup first, then falls back to listing all objects.
- * Supports both the current `pricectl_id` metadata key and the legacy `fillet_id` key.
  */
 export async function findExistingPrice(
   stripe: Stripe,
@@ -263,7 +259,7 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
       if (r.tax_code != null) normalized.tax_code = r.tax_code;
       const attached = (resource as Partial<ProductWithFeatures>).features;
       if (attached) normalized.features = [...attached].sort();
-      // Exclude pricectl and legacy fillet metadata from comparison
+      // Exclude pricectl's own metadata from comparison
       const productMetadata = stripInternalMetadata(r.metadata);
       if (productMetadata) {
         normalized.metadata = productMetadata;
@@ -322,7 +318,7 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
         };
       }
 
-      // Exclude pricectl and legacy fillet metadata from comparison
+      // Exclude pricectl's own metadata from comparison
       const priceMetadata = stripInternalMetadata(r.metadata);
       if (priceMetadata) {
         normalized.metadata = priceMetadata;

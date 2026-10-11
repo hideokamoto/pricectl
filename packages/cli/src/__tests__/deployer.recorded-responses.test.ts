@@ -396,6 +396,19 @@ describe('StripeDeployer against recorded Stripe responses', () => {
     });
   });
 
+  describe('metadata from before the pricectl rename', () => {
+    it('does not treat an object tagged only with the old fillet_id key as managed', async () => {
+      mockFakeStripe.seed('products', { ...productFixture, id: 'prod_legacy', metadata: { fillet_id: 'Legacy' } });
+      const stack = createStack();
+      new Product(stack, 'Legacy', { name: 'Legacy product' });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.deployed[0].status).toBe('created');
+      expect(mockFakeStripe.productStore.get('prod_legacy')?.name).toBe(productFixture.name);
+    });
+  });
+
   describe('deploying without a state file', () => {
     it('does not duplicate resources that Stripe search has not indexed yet', async () => {
       const stack = createStack();
