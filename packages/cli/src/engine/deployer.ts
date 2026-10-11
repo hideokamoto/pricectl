@@ -48,6 +48,24 @@ export interface DestroyResult {
   }>;
 }
 
+/** What `destroy` would do to Stripe, worked out before anything is changed. */
+export interface DestroyPlan {
+  stackId: string;
+  /** Resources that destroy would delete or deactivate, in the order it would do so */
+  resources: Array<{
+    id: string;
+    path: string;
+    type: string;
+    status: 'deleted' | 'deactivated';
+  }>;
+  /** Resources whose current state in Stripe could not be read */
+  errors: Array<{
+    id: string;
+    type: string;
+    error: string;
+  }>;
+}
+
 /** Check if error is a resource_missing error (works with both Stripe SDK and test mocks) */
 function isResourceNotFoundError(error: unknown): boolean {
   // Check for plain objects with a code property (works with both Stripe errors and test mocks)
@@ -752,6 +770,31 @@ export class StripeDeployer {
     }
 
     return result;
+  }
+
+  /**
+   * What destroy would do to each resource, read from Stripe without changing anything.
+   * Resources that are already gone or inactive are left out.
+   */
+  async planDestroy(manifest: StackManifest): Promise<DestroyPlan> {
+    const plan: DestroyPlan = { stackId: manifest.stackId, resources: [], errors: [] };
+    // Same order as destroy
+    const resources = [...findOrphans(manifest, this.stateManager), ...[...manifest.resources].reverse()];
+    for (const resource of resources) {
+      try {
+        const pending = await this.pendingDestruction(resource, manifest.stackId);
+        if (pending) {
+          plan.resources.push({ id: resource.id, path: resource.path, type: resource.type, status: pending.status });
+        }
+      } catch (error: unknown) {
+        plan.errors.push({
+          id: resource.id,
+          type: resource.type,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return plan;
   }
 
   /** Delete or deactivate one resource. Returns null when there is nothing to do. */
