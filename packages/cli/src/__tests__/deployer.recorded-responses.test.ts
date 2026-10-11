@@ -473,6 +473,24 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(state.getResource('FxStack', 'NewYearly')).toBeUndefined();
     });
 
+    it('keeps a resource that is no longer defined but still referred to by its Stripe ID, and stops tracking it', async () => {
+      const state = inMemoryState();
+      const v1 = createStack();
+      const meter = new Meter(v1, 'ApiCalls', { displayName: 'API calls', eventName: 'api_call', defaultAggregation: { formula: 'count' } });
+      new Price(v1, 'Usage', { product: PRODUCT_ID, currency: 'usd', unitAmount: 5, recurring: { interval: 'month', usageType: 'metered', meter } });
+      const first = await new StripeDeployer('sk_test_dummy', undefined, state).deploy(v1.synth());
+      const meterId = first.deployed.find((d) => d.id === 'ApiCalls')?.physicalId as string;
+
+      const v2 = createStack();
+      new Price(v2, 'Usage', { product: PRODUCT_ID, currency: 'usd', unitAmount: 5, recurring: { interval: 'month', usageType: 'metered', meter: meterId } });
+      const result = await new StripeDeployer('sk_test_dummy', undefined, state).deploy(v2.synth());
+
+      expect(result.errors).toEqual([]);
+      expect(result.removed).toEqual([]);
+      expect(mockFakeStripe.meterStore.get(meterId)?.status).toBe('active');
+      expect(state.getResource('FxStack', 'ApiCalls')).toBeUndefined();
+    });
+
     it('keeps resources that are no longer defined when deploying the defined ones failed', async () => {
       const state = inMemoryState();
       const v1 = createStack();

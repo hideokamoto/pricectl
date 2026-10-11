@@ -8,7 +8,7 @@ import {
   stripInternalMetadata,
 } from './stripe-utils';
 import { StateManager } from './state';
-import { findOrphans } from './orphans';
+import { findOrphans, findReleased } from './orphans';
 import { isPriceEquivalent } from './price-comparison';
 
 export interface DeployResult {
@@ -167,6 +167,11 @@ export class StripeDeployer {
 
   /** Remove resources that were deleted from the definition since the last deploy. */
   private async removeOrphans(manifest: StackManifest, result: DeployResult): Promise<void> {
+    // Still referred to by Stripe ID: no longer part of the stack, but must stay in Stripe
+    for (const released of findReleased(manifest, this.stateManager)) {
+      this.stateManager?.removeResource(manifest.stackId, released.logicalId);
+    }
+
     for (const orphan of findOrphans(manifest, this.stateManager)) {
       try {
         const removed = await this.destroyResource(orphan, manifest.stackId);
