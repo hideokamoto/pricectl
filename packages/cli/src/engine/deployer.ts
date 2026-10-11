@@ -175,7 +175,10 @@ export class StripeDeployer {
       const desiredHash = StateManager.computePropertiesHash(resource.properties);
       const existingHash = existing.metadata?.pricectl_properties_hash as string | undefined;
 
-      if (existingHash === desiredHash) {
+      // The hash covers the definition only; a product archived by destroy has the same hash
+      // but still needs to be brought back to its desired active state.
+      const activeMatches = existing.active === (props.active ?? true);
+      if (existingHash === desiredHash && activeMatches) {
         // Properties unchanged, return unchanged status
         return {
           id: resource.id,

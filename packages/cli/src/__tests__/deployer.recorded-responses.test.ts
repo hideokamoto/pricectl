@@ -248,6 +248,20 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(result.destroyed).toContainEqual({ id: 'NewProd', type: 'Stripe::Product', status: 'deactivated' });
       expect(mockFakeStripe.productsFor('NewProd')).toEqual([expect.objectContaining({ active: false })]);
     });
+
+    it('reactivates a product archived by destroy on the next deploy', async () => {
+      const stack = createStack();
+      const product = new Product(stack, 'NewProd', { name: 'New product' });
+      new Price(stack, 'NewMonthly', { product, currency: 'usd', unitAmount: 1000, recurring: { interval: 'month' } });
+      const deployer = new StripeDeployer('sk_test_dummy');
+      await deployer.deploy(stack.synth());
+      await deployer.destroy(stack.synth());
+
+      const redeploy = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(redeploy.errors).toEqual([]);
+      expect(mockFakeStripe.productsFor('NewProd')).toEqual([expect.objectContaining({ active: true })]);
+    });
   });
 
   describe('EntitlementFeature and Meter', () => {
