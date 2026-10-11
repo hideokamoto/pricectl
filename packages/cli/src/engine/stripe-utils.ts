@@ -96,13 +96,22 @@ export async function findProductForResource(
 /** A product together with the IDs of the entitlement features attached to it. */
 export type ProductWithFeatures = Stripe.Product & { features: string[] };
 
+/**
+ * The entitlement features attached to a product, as a map from the entitlement
+ * feature ID to the ID of the product_feature that attaches it.
+ */
+export async function listAttachedFeatures(stripe: Stripe, productId: string): Promise<Map<string, string>> {
+  const attached = new Map<string, string>();
+  for await (const productFeature of stripe.products.listFeatures(productId, { limit: 100 })) {
+    attached.set(productFeature.entitlement_feature.id, productFeature.id);
+  }
+  return attached;
+}
+
 async function withAttachedFeatures(stripe: Stripe, product: Stripe.Product | null): Promise<ProductWithFeatures | null> {
   if (!product) return null;
-  const features: string[] = [];
-  for await (const productFeature of stripe.products.listFeatures(product.id, { limit: 100 })) {
-    features.push(productFeature.entitlement_feature.id);
-  }
-  return { ...product, features };
+  const attached = await listAttachedFeatures(stripe, product.id);
+  return { ...product, features: [...attached.keys()] };
 }
 
 /**

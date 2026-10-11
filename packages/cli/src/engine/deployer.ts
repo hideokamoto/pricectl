@@ -4,6 +4,7 @@ import {
   findExistingProduct as stripeFindExistingProduct,
   findExistingPrice as stripeFindExistingPrice,
   findProductForResource,
+  listAttachedFeatures,
   stripInternalMetadata,
 } from './stripe-utils';
 import { StateManager } from './state';
@@ -261,10 +262,7 @@ export class StripeDeployer {
 
   /** Attach the desired entitlement features to a product and detach all others. */
   private async syncProductFeatures(productId: string, desiredFeatureIds: string[]): Promise<void> {
-    const attached = new Map<string, string>(); // entitlement feature ID → product feature ID
-    for await (const productFeature of this.stripe.products.listFeatures(productId, { limit: 100 })) {
-      attached.set(productFeature.entitlement_feature.id, productFeature.id);
-    }
+    const attached = await listAttachedFeatures(this.stripe, productId);
     for (const featureId of desiredFeatureIds) {
       if (!attached.has(featureId)) {
         await this.stripe.products.createFeature(productId, { entitlement_feature: featureId });
