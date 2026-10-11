@@ -111,13 +111,22 @@ export function resolveReferencesFromState(
 ): Record<string, unknown> {
   const desired = { ...resource.properties };
 
-  // For Stripe::Price resources, resolve product logical ID to physical ID
-  if (resource.type === 'Stripe::Price' && desired.product && typeof desired.product === 'string' && stateManager) {
-    const productState = stateManager.getResource(stackId, desired.product);
-    if (productState?.type === 'Stripe::Product' && productState.physicalId) {
-      desired.product = productState.physicalId;
-    }
+  if (resource.type !== 'Stripe::Price' || !stateManager) {
+    return desired;
   }
+
+  const physicalIdOf = (logicalId: unknown, type: string): string | undefined => {
+    if (typeof logicalId !== 'string') return undefined;
+    const entry = stateManager.getResource(stackId, logicalId);
+    return entry?.type === type ? entry.physicalId : undefined;
+  };
+
+  const productId = physicalIdOf(desired.product, 'Stripe::Product');
+  if (productId) desired.product = productId;
+
+  const recurring = desired.recurring as Record<string, unknown> | undefined;
+  const meterId = physicalIdOf(recurring?.meter, 'Stripe::BillingMeter');
+  if (recurring && meterId) desired.recurring = { ...recurring, meter: meterId };
 
   return desired;
 }

@@ -1,6 +1,7 @@
 import { Stack } from '@pricectl/core';
 import { Coupon, EntitlementFeature, Meter, Price, Product } from '@pricectl/constructs';
-import { diffResource } from '../engine/diff';
+import { diffResource, resolveReferencesFromState } from '../engine/diff';
+import { StateManager } from '../engine/state';
 import productFixture from './fixtures/stripe/product.json';
 import recurringPriceFixture from './fixtures/stripe/price-recurring.json';
 import lookupPriceFixture from './fixtures/stripe/price-one-time-lookup.json';
@@ -162,3 +163,33 @@ describe('diffResource', () => {
     });
   });
 });
+
+describe('resolveReferencesFromState', () => {
+  /** In-memory state: the directory does not exist and save() is never called. */
+  function stateWith(...entries: Array<{ logicalId: string; physicalId: string; type: string }>): StateManager {
+    const state = new StateManager('/nonexistent/pricectl-test-state');
+    for (const entry of entries) {
+      state.setResource('FxStack', { ...entry, path: `FxStack/${entry.logicalId}`, lastDeployedAt: '', propertiesHash: '' });
+    }
+    return state;
+  }
+
+  it('resolves the product and the meter of a metered price to their Stripe IDs', () => {
+    const state = stateWith(
+      { logicalId: 'NewProd', physicalId: 'prod_123', type: 'Stripe::Product' },
+      { logicalId: 'NewMeter', physicalId: 'mtr_456', type: 'Stripe::BillingMeter' },
+    );
+
+    const resolved = resolveReferencesFromState(
+      {
+        type: 'Stripe::Price',
+        properties: { product: 'NewProd', recurring: { interval: 'month', usage_type: 'metered', meter: 'NewMeter' } },
+      },
+      'FxStack',
+      state,
+    );
+
+    expect(resolved).toMatchObject({ product: 'prod_123', recurring: { meter: 'mtr_456' } });
+  });
+});
+
