@@ -754,6 +754,8 @@ export class StripeDeployer {
           // Stripe refuses to delete a product that has prices, and prices cannot be deleted,
           // so such a product is archived instead.
           if (await this.hasPrices(existing.id)) {
+            // Already archived by an earlier destroy: nothing to do
+            if (!existing.active) return null;
             await this.stripe.products.update(existing.id, { active: false });
             return {
               id: resource.id,
@@ -777,8 +779,8 @@ export class StripeDeployer {
           this.stateManager,
           stackId,
         );
-        if (existing) {
-          // Prices cannot be deleted, only deactivated
+        // Prices cannot be deleted, only deactivated; an inactive price needs nothing
+        if (existing?.active) {
           await this.stripe.prices.update(existing.id, { active: false });
           return {
             id: resource.id,
