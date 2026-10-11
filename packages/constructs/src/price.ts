@@ -17,7 +17,7 @@ export interface RecurringProps {
 
   /**
    * Configures how the quantity per period should be determined.
-   * 'metered' requires `meter`.
+   * 'metered' requires `meter` when the stack uses API version 2025-03-31.basil or later.
    */
   readonly usageType?: 'metered' | 'licensed';
 
@@ -114,6 +114,14 @@ export interface PriceProps extends ResourceProps {
   }>;
 }
 
+/** Stripe rejects metered prices without a meter since this API version. */
+const METER_REQUIRED_SINCE = '2025-03-31.basil';
+
+/** API versions are named `YYYY-MM-DD.release`, so their dates compare as strings. */
+function requiresMeterForMeteredPrices(apiVersion: string | undefined): boolean {
+  return apiVersion === undefined || apiVersion.slice(0, 10) >= METER_REQUIRED_SINCE.slice(0, 10);
+}
+
 /**
  * Represents a Stripe Price
  *
@@ -177,9 +185,15 @@ export class Price extends Resource {
     if (this.recurring?.meter !== undefined && this.recurring.usageType !== 'metered') {
       throw new Error('A price with a meter must set recurring.usageType "metered"');
     }
-    if (this.recurring?.usageType === 'metered' && this.recurring.meter === undefined) {
-      // Stripe rejects metered prices without a meter since API version 2025-03-31.basil
-      throw new Error('A metered price must set recurring.meter to the Meter that tracks its usage');
+    if (
+      this.recurring?.usageType === 'metered' &&
+      this.recurring.meter === undefined &&
+      requiresMeterForMeteredPrices(this.stack.apiVersion)
+    ) {
+      throw new Error(
+        'A metered price must set recurring.meter to the Meter that tracks its usage ' +
+          `(required since Stripe API version ${METER_REQUIRED_SINCE}; the stack uses ${this.stack.apiVersion})`,
+      );
     }
 
     // Register resource metadata after all properties are initialized

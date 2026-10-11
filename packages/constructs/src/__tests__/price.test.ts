@@ -1,7 +1,8 @@
 import { Product } from '../product';
 import { Price } from '../price';
 import { Meter } from '../meter';
-import { createStack } from './helpers';
+import { Stack } from '@pricectl/core';
+import { API_KEY, createStack } from './helpers';
 
 describe('Price', () => {
   describe('基本的なPrice', () => {
@@ -283,6 +284,20 @@ describe('Price', () => {
             recurring: { interval: 'month', usageType: 'metered' },
           })
       ).toThrow('recurring.meter');
+    });
+
+    it('2025-03-31.basilより前のAPIバージョンを指定したStackでは、Meterなしのmetered Priceを定義できる', () => {
+      const stack = new Stack(undefined, 'Legacy', { apiKey: API_KEY, apiVersion: '2024-12-18.acacia' });
+
+      expect(
+        () =>
+          new Price(stack, 'Usage', {
+            product: 'prod_1',
+            currency: 'usd',
+            unitAmount: 5,
+            recurring: { interval: 'month', usageType: 'metered' },
+          })
+      ).not.toThrow();
     });
 
     it('usageTypeがmeteredでないのにMeterを指定するとエラー（Stripeが受け付けないため）', () => {
