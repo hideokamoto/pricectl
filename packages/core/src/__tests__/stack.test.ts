@@ -31,6 +31,18 @@ describe('Stack', () => {
       expect(stack.tags).toEqual({ env: 'test' });
     });
 
+    it('apiVersionのデフォルトはstripe-nodeが前提とする2026-09-30.endive', () => {
+      const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY });
+
+      expect(stack.apiVersion).toBe('2026-09-30.endive');
+    });
+
+    it('apiVersionを指定できる', () => {
+      const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY, apiVersion: '2025-03-31.basil' });
+
+      expect(stack.apiVersion).toBe('2025-03-31.basil');
+    });
+
     it('tagsのデフォルトは空オブジェクト', () => {
       const stack = new Stack(undefined, 'TestStack', { apiKey: API_KEY });
 

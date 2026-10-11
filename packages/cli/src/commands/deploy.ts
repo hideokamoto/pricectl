@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
 import { StateManager } from '../engine/state';
 import { deployOutcome } from '../engine/outcome';
-import { StackManifest, STRIPE_API_KEY_MISSING_ERROR } from '@pricectl/core';
+import { StackManifest, STRIPE_API_KEY_MISSING_ERROR, DEFAULT_STRIPE_API_VERSION } from '@pricectl/core';
 
 export default class Deploy extends Command {
   static description = 'Deploy the stack to Stripe';
@@ -84,7 +84,7 @@ export default class Deploy extends Command {
     let failed = false;
     try {
       // Deploy using the deployer
-      const apiVersion = manifest.apiVersion || '2024-12-18.acacia';
+      const apiVersion = manifest.apiVersion || DEFAULT_STRIPE_API_VERSION;
       const deployer = new StripeDeployer(apiKey, apiVersion, stateManager);
       const result = await deployer.deploy(manifest);
 

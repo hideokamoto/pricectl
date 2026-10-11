@@ -60,6 +60,16 @@ function resetMocks() {
 }
 
 describe('StripeDeployer', () => {
+  it('Stripeクライアントをデフォルトで2026-09-30.endiveのAPIバージョンで作る', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const StripeConstructor = require('stripe') as jest.Mock;
+    StripeConstructor.mockClear();
+
+    new StripeDeployer('sk_test_dummy');
+
+    expect(StripeConstructor).toHaveBeenCalledWith('sk_test_dummy', { apiVersion: '2026-09-30.endive' });
+  });
+
   let deployer: StripeDeployer;
 
   beforeEach(() => {

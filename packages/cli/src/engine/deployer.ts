@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { StackManifest, ResourceManifest } from '@pricectl/core';
+import { StackManifest, ResourceManifest, DEFAULT_STRIPE_API_VERSION } from '@pricectl/core';
 import {
   findExistingProduct as stripeFindExistingProduct,
   findExistingPrice as stripeFindExistingPrice,
@@ -106,7 +106,7 @@ export class StripeDeployer {
 
   constructor(apiKey: string, apiVersion?: string, stateManager?: StateManager) {
     this.stripe = new Stripe(apiKey, {
-      apiVersion: (apiVersion ?? '2024-12-18.acacia') as Stripe.LatestApiVersion,
+      apiVersion: (apiVersion ?? DEFAULT_STRIPE_API_VERSION) as Stripe.LatestApiVersion,
     });
     this.stateManager = stateManager;
   }

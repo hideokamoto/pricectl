@@ -1,6 +1,12 @@
 import { Construct } from './construct';
 import { STRIPE_API_KEY_MISSING_ERROR } from './errors';
 
+/**
+ * The Stripe API version pricectl uses unless a stack sets one: the version that the
+ * stripe-node release pricectl depends on is built for.
+ */
+export const DEFAULT_STRIPE_API_VERSION = '2026-09-30.endive';
+
 export interface StackProps {
   /**
    * Stripe API key (secret key)
@@ -8,8 +14,8 @@ export interface StackProps {
   readonly apiKey?: string;
 
   /**
-   * Stripe API version (e.g., '2024-12-18.acacia')
-   * Defaults to the latest stable version if not specified
+   * Stripe API version (e.g., '2026-09-30.endive').
+   * Defaults to DEFAULT_STRIPE_API_VERSION.
    */
   readonly apiVersion?: string;
 
@@ -44,7 +50,7 @@ export class Stack extends Construct {
     super(scope, id);
 
     this._apiKey = props.apiKey || process.env.STRIPE_SECRET_KEY;
-    this.apiVersion = props.apiVersion || '2024-12-18.acacia';
+    this.apiVersion = props.apiVersion || DEFAULT_STRIPE_API_VERSION;
     this.description = props.description;
     this.tags = props.tags || {};
 

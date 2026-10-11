@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import chalk from 'chalk';
 import { createTwoFilesPatch } from 'diff';
 import Stripe from 'stripe';
-import { StackManifest } from '@pricectl/core';
+import { StackManifest, DEFAULT_STRIPE_API_VERSION } from '@pricectl/core';
 import { fetchCurrentResource } from '../engine/stripe-utils';
 import { diffResource, resolveReferencesFromState } from '../engine/diff';
 import { findOrphans } from '../engine/orphans';
@@ -59,7 +59,7 @@ export default class Diff extends Command {
     }
 
     try {
-      const apiVersion = stack.apiVersion || manifest.apiVersion || '2024-12-18.acacia';
+      const apiVersion = stack.apiVersion || manifest.apiVersion || DEFAULT_STRIPE_API_VERSION;
       const stripe = new Stripe(apiKey, { apiVersion: apiVersion as unknown as Stripe.LatestApiVersion });
       const stateManager = new StateManager(flags['state-file']);
 
