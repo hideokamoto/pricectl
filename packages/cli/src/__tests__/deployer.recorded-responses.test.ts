@@ -252,6 +252,28 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(mockFakeStripe.featuresOf(PRODUCT_ID)).toEqual([outside.id]);
     });
 
+    it('attaches the features on the next deploy when attaching failed after the product was created', async () => {
+      mockFakeStripe.failNext('products.createFeature', { message: 'Stripe is unavailable' });
+      const first = await new StripeDeployer('sk_test_dummy').deploy(createStackWithFeatures(['Support']).synth());
+      expect(first.errors).toHaveLength(1);
+
+      const second = await new StripeDeployer('sk_test_dummy').deploy(createStackWithFeatures(['Support']).synth());
+
+      expect(second.errors).toEqual([]);
+      expect(attachedLookupKeys()).toEqual(['support']);
+    });
+
+    it('re-attaches a feature that was detached outside pricectl', async () => {
+      await new StripeDeployer('sk_test_dummy').deploy(createStackWithFeatures(['Support']).synth());
+      const productId = mockFakeStripe.productsFor('NewProd')[0].id;
+      mockFakeStripe.productFeatureStore.set(productId, []);
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(createStackWithFeatures(['Support']).synth());
+
+      expect(result.deployed.find((d) => d.id === 'NewProd')?.status).toBe('updated');
+      expect(attachedLookupKeys()).toEqual(['support']);
+    });
+
     it('detaches a feature that was removed from the definition', async () => {
       await new StripeDeployer('sk_test_dummy').deploy(createStackWithFeatures(['Support', 'Sso']).synth());
 

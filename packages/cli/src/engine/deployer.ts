@@ -216,12 +216,16 @@ export class StripeDeployer {
       // but still needs to be brought back to its desired active state.
       const activeMatches = existing.active === (props.active ?? true);
       if (existingHash === desiredHash && activeMatches) {
-        // Properties unchanged, return unchanged status
+        // The hash covers the definition, not what is attached in Stripe: attachments can be
+        // missing after a failed deploy or changed outside pricectl, so they are always checked
+        const featuresChanged = desiredFeatureIds
+          ? await this.syncProductFeatures(existing.id, desiredFeatureIds)
+          : false;
         return {
           id: resource.id,
           type: resource.type,
           physicalId: existing.id,
-          status: 'unchanged' as const,
+          status: featuresChanged ? ('updated' as const) : ('unchanged' as const),
         };
       }
 
@@ -269,19 +273,26 @@ export class StripeDeployer {
     }
   }
 
-  /** Attach the desired entitlement features to a product and detach all others. */
-  private async syncProductFeatures(productId: string, desiredFeatureIds: string[]): Promise<void> {
+  /**
+   * Attach the desired entitlement features to a product and detach all others.
+   * Returns whether anything was attached or detached.
+   */
+  private async syncProductFeatures(productId: string, desiredFeatureIds: string[]): Promise<boolean> {
     const attached = await listAttachedFeatures(this.stripe, productId);
+    let changed = false;
     for (const featureId of desiredFeatureIds) {
       if (!attached.has(featureId)) {
         await this.stripe.products.createFeature(productId, { entitlement_feature: featureId });
+        changed = true;
       }
     }
     for (const [featureId, productFeatureId] of attached) {
       if (!desiredFeatureIds.includes(featureId)) {
         await this.stripe.products.deleteFeature(productId, productFeatureId);
+        changed = true;
       }
     }
+    return changed;
   }
 
   private async deployPrice(resource: ResourceManifest, stackId: string) {

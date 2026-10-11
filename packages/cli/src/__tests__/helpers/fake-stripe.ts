@@ -236,6 +236,7 @@ export class FakeStripe {
       return listResult(data);
     },
     createFeature: async (productId: string, params: { entitlement_feature: string }) => {
+      this.checkFailure('products.createFeature');
       if (!this.productStore.has(productId)) throw resourceMissing('product', productId);
       const feature = this.featureStore.get(params.entitlement_feature);
       if (!feature) throw resourceMissing('feature', params.entitlement_feature);
