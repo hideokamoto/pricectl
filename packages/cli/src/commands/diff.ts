@@ -6,7 +6,7 @@ import { createTwoFilesPatch } from 'diff';
 import Stripe from 'stripe';
 import { StackManifest } from '@pricectl/core';
 import { fetchCurrentResource } from '../engine/stripe-utils';
-import { diffResource } from '../engine/diff';
+import { diffResource, resolveReferencesFromState } from '../engine/diff';
 import { StateManager } from '../engine/state';
 
 export default class Diff extends Command {
@@ -80,7 +80,7 @@ export default class Diff extends Command {
         }
 
         // Resolve logical IDs in desired properties for accurate comparison
-        const desiredProperties = this.resolveDesiredForDiff(resource, manifest.stackId, stateManager);
+        const desiredProperties = resolveReferencesFromState(resource, manifest.stackId, stateManager);
 
         const diff = diffResource(resource.type, desiredProperties, current);
 
@@ -106,29 +106,6 @@ export default class Diff extends Command {
     } catch (error: unknown) {
       this.error(`Diff failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }
-
-  /**
-   * Resolve logical IDs to physical IDs in desired properties.
-   * For Prices, replaces product logical ID with the actual physical product ID from state.
-   */
-  private resolveDesiredForDiff(
-    resource: { type: string; id: string; properties: Record<string, unknown> },
-    stackId: string,
-    stateManager?: StateManager,
-  ): Record<string, unknown> {
-    const desired = { ...resource.properties };
-
-    // For Stripe::Price resources, resolve product logical ID to physical ID
-    if (resource.type === 'Stripe::Price' && desired.product && typeof desired.product === 'string' && stateManager) {
-      const productLogicalId = desired.product;
-      const productState = stateManager.getResource(stackId, productLogicalId);
-      if (productState?.type === 'Stripe::Product' && productState.physicalId) {
-        desired.product = productState.physicalId;
-      }
-    }
-
-    return desired;
   }
 
   private colorDiff(patch: string): string {

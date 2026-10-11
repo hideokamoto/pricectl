@@ -1,4 +1,5 @@
 import { normalizeResource } from './stripe-utils';
+import type { StateManager } from './state';
 
 type StripeResource = Parameters<typeof normalizeResource>[0];
 type Plain = Record<string, unknown>;
@@ -97,4 +98,26 @@ export function diffResource(
   const desired = JSON.stringify(canonical(type, desiredProperties), null, 2);
   const existing = JSON.stringify(canonical(type, normalizeResource(current, type)), null, 2);
   return { changed: desired !== existing, current: existing, desired };
+}
+
+/**
+ * Replace logical IDs that reference other resources with their physical IDs from
+ * the state file, so desired properties can be compared with what Stripe returns.
+ */
+export function resolveReferencesFromState(
+  resource: { type: string; properties: Record<string, unknown> },
+  stackId: string,
+  stateManager?: StateManager,
+): Record<string, unknown> {
+  const desired = { ...resource.properties };
+
+  // For Stripe::Price resources, resolve product logical ID to physical ID
+  if (resource.type === 'Stripe::Price' && desired.product && typeof desired.product === 'string' && stateManager) {
+    const productState = stateManager.getResource(stackId, desired.product);
+    if (productState?.type === 'Stripe::Product' && productState.physicalId) {
+      desired.product = productState.physicalId;
+    }
+  }
+
+  return desired;
 }
