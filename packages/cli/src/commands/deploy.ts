@@ -105,6 +105,14 @@ export default class Deploy extends Command {
         this.log('');
       }
 
+      if (result.removed.length > 0) {
+        this.log(chalk.bold('Removed resources (no longer defined):'));
+        for (const item of result.removed) {
+          this.log(`  ${chalk.red(item.status)} ${item.id} [${item.type}]`);
+        }
+        this.log('');
+      }
+
       if (result.errors.length > 0) {
         this.log(chalk.bold.red('Errors:'));
         for (const error of result.errors) {
@@ -121,6 +129,9 @@ export default class Deploy extends Command {
       this.log(`  Created: ${chalk.green(created)}`);
       this.log(`  Updated: ${chalk.yellow(updated)}`);
       this.log(`  Unchanged: ${chalk.gray(unchanged)}`);
+      if (result.removed.length > 0) {
+        this.log(`  Removed: ${chalk.red(result.removed.length)}`);
+      }
       if (result.errors.length > 0) {
         this.log(`  Errors: ${chalk.red(result.errors.length)}`);
       }

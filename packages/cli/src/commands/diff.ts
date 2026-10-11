@@ -7,6 +7,7 @@ import Stripe from 'stripe';
 import { StackManifest } from '@pricectl/core';
 import { fetchCurrentResource } from '../engine/stripe-utils';
 import { diffResource, resolveReferencesFromState } from '../engine/diff';
+import { findOrphans } from '../engine/orphans';
 import { StateManager } from '../engine/state';
 
 export default class Diff extends Command {
@@ -98,6 +99,13 @@ export default class Diff extends Command {
           this.log('');
           hasChanges = true;
         }
+      }
+
+      for (const orphan of findOrphans(manifest, stateManager)) {
+        this.log(chalk.red(`[-] ${orphan.path} [${orphan.type}]`));
+        this.log(chalk.gray('    No longer defined; will be removed on deploy'));
+        this.log('');
+        hasChanges = true;
       }
 
       if (!hasChanges) {
