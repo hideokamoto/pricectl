@@ -23,6 +23,7 @@ export default class Synth extends Command {
     }),
   };
 
+  /** Synthesize the stack and write its manifest. */
   async run(): Promise<void> {
     const { flags } = await this.parse(Synth);
 

@@ -29,6 +29,7 @@ export default class Diff extends Command {
     }),
   };
 
+  /** Compare each resource with Stripe and print the differences. */
   async run(): Promise<void> {
     const { flags } = await this.parse(Diff);
 
@@ -116,6 +117,7 @@ export default class Diff extends Command {
     }
   }
 
+  /** Color the added, removed and hunk lines of a unified diff. */
   private colorDiff(patch: string): string {
     return patch.split('\n').map(line => {
       if (line.startsWith('+')) return chalk.green(line);

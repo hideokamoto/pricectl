@@ -37,6 +37,7 @@ export default class Destroy extends Command {
     }),
   };
 
+  /** Destroy every resource of the stack after confirmation. */
   async run(): Promise<void> {
     const { flags } = await this.parse(Destroy);
 

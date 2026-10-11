@@ -164,6 +164,11 @@ export class Price extends Resource {
     flatAmount?: number;
   }>;
 
+  /**
+   * @param scope construct this price belongs to
+   * @param id logical ID, unique within the stack
+   * @param props price properties
+   */
   constructor(scope: Construct, id: string, props: PriceProps) {
     super(scope, id, props);
 
@@ -200,10 +205,12 @@ export class Price extends Resource {
     this.registerResourceMetadata();
   }
 
+  /** The Stripe resource type of this construct. */
   protected get resourceType(): string {
     return 'Stripe::Price';
   }
 
+  /** The Stripe price create params for this price; references to other constructs are logical IDs. */
   protected synthesizeProperties(): Record<string, unknown> {
     const params: Stripe.PriceCreateParams = {
       product: this.product instanceof Product ? this.product.physicalId || this.product.node.id : this.product,

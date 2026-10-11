@@ -39,11 +39,13 @@ function toNumber(decimal: string | number | Stripe.Decimal | null | undefined):
   return decimal === null || decimal === undefined ? null : Number(String(decimal));
 }
 
+/** The product ID of a price, whether the product is a string or an expanded object. */
 function productId(product: string | { id: string } | null | undefined): string | null {
   if (product === null || product === undefined) return null;
   return typeof product === 'string' ? product : product.id;
 }
 
+/** Map desired price params to the comparable shape, filling in Stripe defaults. */
 function fromDesired(desired: Stripe.PriceCreateParams): ComparablePrice {
   return {
     product: productId(desired.product),
@@ -77,6 +79,7 @@ function fromDesired(desired: Stripe.PriceCreateParams): ComparablePrice {
   };
 }
 
+/** Map a Stripe price to the comparable shape. */
 function fromStripe(existing: Stripe.Price): ComparablePrice {
   return {
     product: productId(existing.product as string | { id: string }),

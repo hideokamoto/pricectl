@@ -22,6 +22,11 @@ export abstract class Resource extends Construct {
    */
   public readonly stack: Stack;
 
+  /**
+   * @param scope construct this resource belongs to; a Stack must be among its ancestors
+   * @param id logical ID, unique within the stack
+   * @param props resource properties
+   */
   constructor(scope: Construct, id: string, props: ResourceProps = {}) {
     super(scope, id);
 

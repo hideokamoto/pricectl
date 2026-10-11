@@ -105,6 +105,7 @@ export async function listAttachedFeatures(stripe: Stripe, productId: string): P
   return attached;
 }
 
+/** Add the IDs of the entitlement features attached to the product. */
 async function withAttachedFeatures(stripe: Stripe, product: Stripe.Product | null): Promise<ProductWithFeatures | null> {
   if (!product) return null;
   const attached = await listAttachedFeatures(stripe, product.id);

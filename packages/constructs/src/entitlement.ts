@@ -38,6 +38,11 @@ export class EntitlementFeature extends Resource {
   public readonly lookupKey: string;
   public readonly metadata?: Record<string, string>;
 
+  /**
+   * @param scope construct this feature belongs to
+   * @param id logical ID, unique within the stack
+   * @param props feature properties
+   */
   constructor(scope: Construct, id: string, props: EntitlementFeatureProps) {
     super(scope, id, props);
 
@@ -49,10 +54,12 @@ export class EntitlementFeature extends Resource {
     this.registerResourceMetadata();
   }
 
+  /** The Stripe resource type of this construct. */
   protected get resourceType(): string {
     return 'Stripe::EntitlementFeature';
   }
 
+  /** The Stripe entitlement feature create params for this feature. */
   protected synthesizeProperties(): Record<string, unknown> {
     const params: Stripe.Entitlements.FeatureCreateParams = {
       name: this.name,

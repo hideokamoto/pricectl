@@ -36,14 +36,17 @@ export interface StateStore {
 export class FileStateStore implements StateStore {
   readonly location: string;
 
+  /** @param stateDir directory of the state file (default: the current directory) */
   constructor(stateDir?: string) {
     this.location = path.resolve(stateDir || process.cwd(), DEFAULT_STATE_FILE);
   }
 
+  /** The contents of the state file, or undefined when it does not exist. */
   read(): string | undefined {
     return fs.existsSync(this.location) ? fs.readFileSync(this.location, 'utf-8') : undefined;
   }
 
+  /** Write the state file, creating its directory when needed. */
   write(contents: string): void {
     const dir = path.dirname(this.location);
     if (!fs.existsSync(dir)) {
@@ -66,6 +69,7 @@ export class StateManager {
     this.state = this.load();
   }
 
+  /** Load the state, starting fresh when it is missing, unreadable or of another version. */
   private load(): StateFile {
     try {
       const raw = this.store.read();
@@ -88,22 +92,27 @@ export class StateManager {
     return this.createEmpty();
   }
 
+  /** An empty state of the current version. */
   private createEmpty(): StateFile {
     return { version: STATE_VERSION, stacks: {} };
   }
 
+  /** Persist the state to its store. */
   save(): void {
     this.store.write(JSON.stringify(this.state, null, 2) + '\n');
   }
 
+  /** Where the state is stored, for display. */
   getFilePath(): string {
     return this.store.location;
   }
 
+  /** The recorded state of a resource, if any. */
   getResource(stackId: string, logicalId: string): ResourceState | undefined {
     return this.state.stacks[stackId]?.resources[logicalId];
   }
 
+  /** Record a deployed resource. */
   setResource(stackId: string, resource: ResourceState): void {
     if (!this.state.stacks[stackId]) {
       this.state.stacks[stackId] = { resources: {} };
@@ -111,6 +120,7 @@ export class StateManager {
     this.state.stacks[stackId].resources[resource.logicalId] = resource;
   }
 
+  /** Forget a resource, and its stack when no resources remain. */
   removeResource(stackId: string, logicalId: string): void {
     if (this.state.stacks[stackId]) {
       delete this.state.stacks[stackId].resources[logicalId];
@@ -121,14 +131,17 @@ export class StateManager {
     }
   }
 
+  /** Forget a whole stack. */
   removeStack(stackId: string): void {
     delete this.state.stacks[stackId];
   }
 
+  /** The recorded state of a stack, if any. */
   getStack(stackId: string): StackState | undefined {
     return this.state.stacks[stackId];
   }
 
+  /** Hash of resource properties that does not depend on key order. */
   static computePropertiesHash(properties: Record<string, unknown>): string {
     const canonical = this.canonicalizeProperties(properties);
     const json = JSON.stringify(canonical);
