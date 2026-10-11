@@ -163,12 +163,10 @@ export class StripeDeployer {
 
   private async deployProduct(resource: ResourceManifest, stackId: string) {
     const props = validateProductCreateParams(resource.properties);
-    const existing = await stripeFindExistingProduct(
-      this.stripe,
-      resource.id,
-      this.stateManager,
-      stackId,
-    );
+    // A physicalId in the construct props adopts that existing product
+    const existing = resource.physicalId
+      ? await this.stripe.products.retrieve(resource.physicalId)
+      : await stripeFindExistingProduct(this.stripe, resource.id, this.stateManager, stackId);
 
     if (existing) {
       // Check if properties have changed by comparing hash

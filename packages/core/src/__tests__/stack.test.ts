@@ -151,6 +151,19 @@ describe('Stack', () => {
       expect(manifest.resources[0].id).toBe('Prod');
     });
 
+    it('physicalIdを指定したリソースはmanifestにphysicalIdが含まれる', () => {
+      const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY });
+      new TestResource(stack, 'Existing', {
+        type: 'Stripe::Product',
+        properties: { name: 'Widget' },
+        physicalId: 'prod_existing',
+      });
+
+      const manifest = stack.synth();
+
+      expect(manifest.resources[0].physicalId).toBe('prod_existing');
+    });
+
     it('ネストしたリソースもmanifestに含まれる', () => {
       const stack = new Stack(undefined, 'MyStack', { apiKey: API_KEY });
       const group = new Construct(stack, 'Group');

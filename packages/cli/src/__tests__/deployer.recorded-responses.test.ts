@@ -178,6 +178,22 @@ describe('StripeDeployer against recorded Stripe responses', () => {
     });
   });
 
+  describe('Product with a physicalId', () => {
+    it('adopts the given existing product instead of creating a new one', async () => {
+      mockFakeStripe.seed('products', { ...productFixture, id: 'prod_unmanaged', metadata: {} });
+      const stack = createStack();
+      new Product(stack, 'Adopted', { name: 'Adopted product', physicalId: 'prod_unmanaged' });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.errors).toEqual([]);
+      expect(result.deployed[0]).toMatchObject({ status: 'updated', physicalId: 'prod_unmanaged' });
+      expect(mockFakeStripe.productsFor('Adopted')).toEqual([
+        expect.objectContaining({ id: 'prod_unmanaged', name: 'Adopted product' }),
+      ]);
+    });
+  });
+
   describe('deploying without a state file', () => {
     it('does not duplicate resources that Stripe search has not indexed yet', async () => {
       const stack = createStack();

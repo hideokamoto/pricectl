@@ -122,14 +122,17 @@ export async function findExistingPrice(
  */
 export async function fetchCurrentResource(
   stripe: Stripe,
-  resource: { type: string; id: string },
+  resource: { type: string; id: string; physicalId?: string },
   stateManager?: StateManager,
   stackId?: string,
 ): Promise<Stripe.Product | Stripe.Price | Stripe.Coupon | Stripe.Entitlements.Feature | Stripe.Billing.Meter | null> {
   try {
     switch (resource.type) {
       case 'Stripe::Product':
-        return findExistingProduct(stripe, resource.id, stateManager, stackId);
+        // Same lookup as deploy: a physicalId in the construct props names the product directly
+        return resource.physicalId
+          ? await stripe.products.retrieve(resource.physicalId)
+          : await findExistingProduct(stripe, resource.id, stateManager, stackId);
       case 'Stripe::Price':
         return findExistingPrice(stripe, resource.id, stateManager, stackId);
       case 'Stripe::Coupon':
