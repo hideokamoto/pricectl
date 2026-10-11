@@ -1,6 +1,5 @@
 import { Construct } from './construct';
 import { Stack } from './stack';
-import { DUPLICATE_RESOURCE_ID_ERROR } from './errors';
 
 export interface ResourceProps {
   /**
@@ -79,12 +78,7 @@ export abstract class Resource extends Construct {
    * so the id must be unique within the whole stack, not only within its scope.
    */
   private assertUniqueLogicalId(): void {
-    const clash = this.stack.node
-      .findAll()
-      .find((c) => c !== this && c instanceof Resource && c.node.id === this.node.id);
-    if (clash) {
-      throw new Error(DUPLICATE_RESOURCE_ID_ERROR(this.node.id, clash.node.path, this.node.path));
-    }
+    this.stack.registerResourceId(this.node.id, this.node.path);
   }
 
   /**

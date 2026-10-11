@@ -1,5 +1,5 @@
 import { Construct } from './construct';
-import { STRIPE_API_KEY_MISSING_ERROR } from './errors';
+import { DUPLICATE_RESOURCE_ID_ERROR, STRIPE_API_KEY_MISSING_ERROR } from './errors';
 
 /**
  * The Stripe API version pricectl uses unless a stack sets one: the version that the
@@ -41,6 +41,8 @@ export class Stack extends Construct {
   public readonly apiVersion?: string;
   public readonly description?: string;
   public readonly tags: Record<string, string>;
+  /** Path of each resource in this stack, by resource id */
+  private readonly resourcePaths = new Map<string, string>();
 
   get apiKey(): string | undefined {
     return this._apiKey;
@@ -57,6 +59,19 @@ export class Stack extends Construct {
     if (!this._apiKey) {
       throw new Error(STRIPE_API_KEY_MISSING_ERROR);
     }
+  }
+
+  /**
+   * Record a resource id, which must be unique within the stack because resources are
+   * identified in Stripe and in the state file by id alone. Called by Resource.
+   * @internal
+   */
+  public registerResourceId(id: string, path: string): void {
+    const existingPath = this.resourcePaths.get(id);
+    if (existingPath !== undefined) {
+      throw new Error(DUPLICATE_RESOURCE_ID_ERROR(id, existingPath, path));
+    }
+    this.resourcePaths.set(id, path);
   }
 
   toJSON(): object {
