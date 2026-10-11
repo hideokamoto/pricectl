@@ -64,7 +64,8 @@ export default class Deploy extends Command {
     const manifest: StackManifest = stack.synth();
 
     if (flags['dry-run']) {
-      for (const line of describeDeployPlan(manifest)) {
+      const removals = findOrphans(manifest, new StateManager(flags['state-file']));
+      for (const line of describeDeployPlan(manifest, removals)) {
         this.log(line);
       }
       return;

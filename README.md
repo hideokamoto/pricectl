@@ -181,6 +181,11 @@ removed: prices are deactivated, products are deleted (or archived when they hav
 prices), coupons are deleted, and entitlement features and meters are deactivated.
 This relies on the state file (`pricectl.state.json`); without it, nothing is removed.
 
+Before removing anything, deploy lists the resources and asks for confirmation.
+Use `--force` (`-f`) to skip the prompt; in a non-interactive environment such as CI,
+deploy stops without changes unless `--force` is given. `pricectl deploy --dry-run`
+shows the resources that would be removed.
+
 ### `pricectl destroy`
 
 Remove all resources defined in your stack from Stripe.
