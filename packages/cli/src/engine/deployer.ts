@@ -432,7 +432,11 @@ export class StripeDeployer {
 
     // Only an active feature can be reused: Stripe rejects every update, including
     // reactivation, on an inactive feature, but allows a new one with the same lookup_key.
-    const existing = await this.findActiveEntitlementFeature(resource.id, props.lookup_key, stackId);
+    const existing = await this.featureForResource(resource, props.lookup_key, stackId);
+    if (existing && !existing.active) {
+      // Only reachable through physicalId: other lookups return active features only
+      throw new Error(`Feature ${existing.id} is inactive, and Stripe does not allow updating inactive features.`);
+    }
 
     if (!existing) {
       const created = await this.stripe.entitlements.features.create({
@@ -478,7 +482,7 @@ export class StripeDeployer {
     const props = resource.properties as unknown as Stripe.Billing.MeterCreateParams;
 
     // Try to find existing meter (state-based first, then by event_name)
-    const existing = await this.findExistingBillingMeter(resource.id, props.event_name, stackId);
+    const existing = await this.meterForResource(resource, props.event_name, stackId);
 
     if (!existing) {
       const created = await this.stripe.billing.meters.create(props);
@@ -514,6 +518,52 @@ export class StripeDeployer {
       physicalId: existing.id,
       status: 'updated' as const,
     };
+  }
+
+  /**
+   * The feature a manifest resource manages: the one named by its physicalId when given
+   * (its lookup_key cannot be changed, so it must match), otherwise the active one found
+   * by logical ID or lookup_key.
+   */
+  private async featureForResource(
+    resource: ResourceManifest,
+    lookupKey: string,
+    stackId: string,
+  ): Promise<Stripe.Entitlements.Feature | null> {
+    if (!resource.physicalId) {
+      return this.findActiveEntitlementFeature(resource.id, lookupKey, stackId);
+    }
+    const feature = await this.stripe.entitlements.features.retrieve(resource.physicalId);
+    if (lookupKey !== undefined && feature.lookup_key !== lookupKey) {
+      throw new Error(
+        `Feature ${feature.id} has lookup_key "${feature.lookup_key}", but "${resource.id}" defines "${lookupKey}"; ` +
+          'Stripe does not allow changing lookup_key.',
+      );
+    }
+    return feature;
+  }
+
+  /**
+   * The meter a manifest resource manages: the one named by its physicalId when given
+   * (its event_name cannot be changed, so it must match), otherwise the one found by
+   * logical ID or event_name.
+   */
+  private async meterForResource(
+    resource: ResourceManifest,
+    eventName: string,
+    stackId: string,
+  ): Promise<Stripe.Billing.Meter | null> {
+    if (!resource.physicalId) {
+      return this.findExistingBillingMeter(resource.id, eventName, stackId);
+    }
+    const meter = await this.stripe.billing.meters.retrieve(resource.physicalId);
+    if (eventName !== undefined && meter.event_name !== eventName) {
+      throw new Error(
+        `Meter ${meter.id} has event_name "${meter.event_name}", but "${resource.id}" defines "${eventName}"; ` +
+          'Stripe does not allow changing event_name.',
+      );
+    }
+    return meter;
   }
 
   private async findActiveEntitlementFeature(
@@ -727,8 +777,8 @@ export class StripeDeployer {
       }
       case 'Stripe::EntitlementFeature': {
         const featureProps = resource.properties as unknown as { lookup_key: string };
-        const existing = await this.findActiveEntitlementFeature(resource.id, featureProps.lookup_key, stackId);
-        if (existing) {
+        const existing = await this.featureForResource(resource, featureProps.lookup_key, stackId);
+        if (existing?.active) {
           // Features are deactivated, not deleted
           await this.stripe.entitlements.features.update(existing.id, { active: false });
           return {
@@ -741,7 +791,7 @@ export class StripeDeployer {
       }
       case 'Stripe::BillingMeter': {
         const meterProps = resource.properties as unknown as { event_name: string };
-        const existing = await this.findExistingBillingMeter(resource.id, meterProps.event_name, stackId);
+        const existing = await this.meterForResource(resource, meterProps.event_name, stackId);
         if (existing) {
           // Meters are deactivated, not deleted
           await this.stripe.billing.meters.deactivate(existing.id);

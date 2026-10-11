@@ -2,6 +2,8 @@ import Stripe from 'stripe';
 import { fetchCurrentResource } from '../engine/stripe-utils';
 import { FakeStripe } from './helpers/fake-stripe';
 import productFixture from './fixtures/stripe/product.json';
+import meterFixture from './fixtures/stripe/meter.json';
+import featureFixture from './fixtures/stripe/feature.json';
 
 describe('fetchCurrentResource', () => {
   it('returns the product named by physicalId, as deploy adopts it', async () => {
@@ -30,5 +32,17 @@ describe('fetchCurrentResource', () => {
     });
 
     expect(current).toMatchObject({ features: [feature.id] });
+  });
+
+  it.each([
+    ['Stripe::BillingMeter', 'meters', meterFixture],
+    ['Stripe::EntitlementFeature', 'features', featureFixture],
+  ] as const)('returns the %s named by physicalId, as deploy uses it', async (type, store, fixture) => {
+    const fake = new FakeStripe();
+    fake.seed(store, fixture);
+
+    const current = await fetchCurrentResource(fake as unknown as Stripe, { type, id: 'Adopted', physicalId: fixture.id });
+
+    expect(current).toMatchObject({ id: fixture.id });
   });
 });

@@ -171,6 +171,10 @@ export async function fetchCurrentResource(
       case 'Stripe::Coupon':
         return await stripe.coupons.retrieve(resource.id);
       case 'Stripe::EntitlementFeature': {
+        // Same lookup as deploy: a physicalId in the construct props names the feature directly
+        if (resource.physicalId) {
+          return await stripe.entitlements.features.retrieve(resource.physicalId);
+        }
         // Try state-based lookup first
         if (stateManager && stackId) {
           const stateEntry = stateManager.getResource(stackId, resource.id);
@@ -193,6 +197,9 @@ export async function fetchCurrentResource(
         return null;
       }
       case 'Stripe::BillingMeter': {
+        if (resource.physicalId) {
+          return await stripe.billing.meters.retrieve(resource.physicalId);
+        }
         // Try state-based lookup (Billing Meters don't support metadata,
         // so state is the only reliable way to find them by logical ID)
         if (stateManager && stackId) {

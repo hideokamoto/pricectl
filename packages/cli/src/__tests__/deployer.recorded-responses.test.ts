@@ -9,6 +9,8 @@ import recurringPriceFixture from './fixtures/stripe/price-recurring.json';
 import lookupPriceFixture from './fixtures/stripe/price-one-time-lookup.json';
 import tieredPriceFixture from './fixtures/stripe/price-tiered-expanded.json';
 import couponFixture from './fixtures/stripe/coupon.json';
+import featureFixture from './fixtures/stripe/feature.json';
+import meterFixture from './fixtures/stripe/meter.json';
 
 let mockFakeStripe: FakeStripe;
 jest.mock('stripe', () => jest.fn().mockImplementation(() => mockFakeStripe));
@@ -297,6 +299,79 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(mockFakeStripe.productsFor('Adopted')).toEqual([
         expect.objectContaining({ id: 'prod_unmanaged', name: 'Adopted product' }),
       ]);
+    });
+  });
+
+  describe('Meter and EntitlementFeature with a physicalId', () => {
+    it('uses the meter named by physicalId even when another meter has the same event name', async () => {
+      mockFakeStripe.seed('meters', { ...meterFixture, id: 'mtr_other' });
+      mockFakeStripe.seed('meters', meterFixture);
+      const stack = createStack();
+      new Meter(stack, 'Adopted', {
+        physicalId: meterFixture.id,
+        displayName: 'Renamed meter',
+        eventName: meterFixture.event_name,
+        defaultAggregation: { formula: 'count' },
+      });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.deployed[0]).toMatchObject({ status: 'updated', physicalId: meterFixture.id });
+      expect(mockFakeStripe.meterStore.get(meterFixture.id)?.display_name).toBe('Renamed meter');
+    });
+
+    it('reports an error when the meter named by physicalId has a different event name', async () => {
+      mockFakeStripe.seed('meters', meterFixture);
+      const stack = createStack();
+      new Meter(stack, 'Adopted', {
+        physicalId: meterFixture.id,
+        displayName: 'Meter',
+        eventName: 'another_event',
+        defaultAggregation: { formula: 'count' },
+      });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.errors[0].error).toContain('event_name');
+      expect(mockFakeStripe.meterStore.size).toBe(1);
+    });
+
+    it('uses the feature named by physicalId', async () => {
+      mockFakeStripe.seed('features', featureFixture);
+      const stack = createStack();
+      new EntitlementFeature(stack, 'Adopted', {
+        physicalId: featureFixture.id,
+        name: 'Renamed feature',
+        lookupKey: featureFixture.lookup_key,
+      });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.deployed[0]).toMatchObject({ status: 'updated', physicalId: featureFixture.id });
+      expect(mockFakeStripe.featureStore.get(featureFixture.id)?.name).toBe('Renamed feature');
+    });
+
+    it('skips a feature named by physicalId that destroy already deactivated', async () => {
+      mockFakeStripe.seed('features', featureFixture);
+      const stack = createStack();
+      new EntitlementFeature(stack, 'Adopted', { physicalId: featureFixture.id, name: 'Feature', lookupKey: featureFixture.lookup_key });
+      await new StripeDeployer('sk_test_dummy').destroy(stack.synth());
+
+      const second = await new StripeDeployer('sk_test_dummy').destroy(stack.synth());
+
+      expect(second.errors).toEqual([]);
+      expect(second.destroyed).toEqual([]);
+    });
+
+    it('reports an error when the feature named by physicalId has a different lookup key', async () => {
+      mockFakeStripe.seed('features', featureFixture);
+      const stack = createStack();
+      new EntitlementFeature(stack, 'Adopted', { physicalId: featureFixture.id, name: 'Feature', lookupKey: 'another_key' });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.errors[0].error).toContain('lookup_key');
+      expect(mockFakeStripe.featureStore.size).toBe(1);
     });
   });
 
