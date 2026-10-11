@@ -1,4 +1,4 @@
-/** What deploy has to do before removing resources that are no longer defined. */
+/** What deploy or destroy has to do before removing resources from Stripe. */
 export type RemovalApproval =
   /** Nothing will be removed */
   | 'none'
@@ -9,7 +9,10 @@ export type RemovalApproval =
   /** Nobody can be asked (no interactive terminal) and --force was not given */
   | 'refuse';
 
-/** Decide how deploy gets approval for removing resources that are no longer defined. */
+/**
+ * Decide how deploy (for resources that are no longer defined) or destroy gets approval
+ * for removing resources from Stripe.
+ */
 export function decideRemovalApproval(options: {
   removalCount: number;
   force: boolean;
