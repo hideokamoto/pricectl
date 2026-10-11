@@ -24,12 +24,19 @@ function pickCurrent<T extends { active: boolean; created: number }>(candidates:
 }
 
 /**
- * Strip internal metadata keys (pricectl_id, pricectl_path, fillet_id, fillet_path)
+ * Strip internal metadata keys (pricectl_id, pricectl_path, pricectl_properties_hash, fillet_id, fillet_path)
  * and return undefined if no user-defined metadata remains.
  */
 export function stripInternalMetadata(metadata: Record<string, string> | null | undefined): Record<string, string> | undefined {
   if (!metadata) return undefined;
-  const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = metadata;
+  const {
+    pricectl_id: _pid,
+    pricectl_path: _ppath,
+    pricectl_properties_hash: _phash,
+    fillet_id: _fid,
+    fillet_path: _fpath,
+    ...userMetadata
+  } = metadata;
   return Object.keys(userMetadata).length > 0 ? userMetadata : undefined;
 }
 
@@ -217,6 +224,8 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
       if (r.active !== undefined) normalized.active = r.active;
       if (r.nickname !== undefined) normalized.nickname = r.nickname;
       if (r.lookup_key !== undefined) normalized.lookup_key = r.lookup_key;
+      if (r.tax_behavior !== undefined) normalized.tax_behavior = r.tax_behavior;
+      if (r.billing_scheme !== undefined) normalized.billing_scheme = r.billing_scheme;
 
       if (r.recurring) {
         const rec: Record<string, unknown> = {};
