@@ -233,4 +233,21 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(mockFakeStripe.couponStore.get('PricectlFxCoupon')?.percent_off).toBe(10);
     });
   });
+
+  describe('destroy', () => {
+    it('archives a product that still has prices, because Stripe refuses to delete it', async () => {
+      const stack = createStack();
+      const product = new Product(stack, 'NewProd', { name: 'New product' });
+      new Price(stack, 'NewMonthly', { product, currency: 'usd', unitAmount: 1000, recurring: { interval: 'month' } });
+      const deployer = new StripeDeployer('sk_test_dummy');
+      await deployer.deploy(stack.synth());
+
+      const result = await deployer.destroy(stack.synth());
+
+      expect(result.errors).toEqual([]);
+      expect(result.destroyed).toContainEqual({ id: 'NewProd', type: 'Stripe::Product', status: 'deactivated' });
+      expect(mockFakeStripe.productsFor('NewProd')).toEqual([expect.objectContaining({ active: false })]);
+    });
+  });
 });
+

@@ -556,6 +556,7 @@ describe('StripeDeployer', () => {
   describe('destroy', () => {
     it('Productを削除する', async () => {
       mockStripeInstance.products.list.mockReturnValue(listOf([{ id: 'prod_to_delete', ...managedBy('MyProduct') }]));
+      mockStripeInstance.prices.list.mockReturnValue(listOf([]));
       mockStripeInstance.products.del.mockResolvedValue({});
 
       const manifest: StackManifest = {

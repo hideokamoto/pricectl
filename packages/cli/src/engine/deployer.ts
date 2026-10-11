@@ -497,6 +497,13 @@ export class StripeDeployer {
     return resolved;
   }
 
+  private async hasPrices(productId: string): Promise<boolean> {
+    for await (const _price of this.stripe.prices.list({ product: productId, limit: 1 })) {
+      return true;
+    }
+    return false;
+  }
+
   private async findExistingCoupon(logicalId: string): Promise<Stripe.Coupon | null> {
     // Coupons don't support search API, so we retrieve by logical ID directly.
     // If metadata support is needed in the future, coupons would need to be queried via list() with pagination.
@@ -558,6 +565,16 @@ export class StripeDeployer {
           stackId,
         );
         if (existing) {
+          // Stripe refuses to delete a product that has prices, and prices cannot be deleted,
+          // so such a product is archived instead.
+          if (await this.hasPrices(existing.id)) {
+            await this.stripe.products.update(existing.id, { active: false });
+            return {
+              id: resource.id,
+              type: resource.type,
+              status: 'deactivated',
+            };
+          }
           await this.stripe.products.del(existing.id);
           return {
             id: resource.id,
