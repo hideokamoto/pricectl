@@ -1,0 +1,24 @@
+{
+  "created": 1791724685,
+  "customer_mapping": {
+    "event_payload_key": "stripe_customer_id",
+    "type": "by_id"
+  },
+  "default_aggregation": {
+    "formula": "count"
+  },
+  "display_name": "Fx meter",
+  "event_name": "pricectl_fx_event",
+  "event_time_window": null,
+  "id": "mtr_test_61VYkazqjPbqvLg5q41TESTACCT00Qa0",
+  "livemode": false,
+  "object": "billing.meter",
+  "status": "inactive",
+  "status_transitions": {
+    "deactivated_at": 1791724686
+  },
+  "updated": 1791724686,
+  "value_settings": {
+    "event_payload_key": "value"
+  }
+}

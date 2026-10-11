@@ -1,0 +1,46 @@
+{
+  "active": true,
+  "billing_scheme": "tiered",
+  "created": 1791724680,
+  "currency": "usd",
+  "custom_unit_amount": null,
+  "id": "price_1UPMdYTESTACCT00uyey8zVl",
+  "livemode": false,
+  "lookup_key": null,
+  "metadata": {
+    "pricectl_id": "FxTiered"
+  },
+  "nickname": null,
+  "object": "price",
+  "product": "prod_VQD388UM7b7q5W",
+  "recurring": {
+    "aggregate_usage": null,
+    "interval": "month",
+    "interval_count": 1,
+    "meter": null,
+    "trial_period_days": null,
+    "usage_type": "licensed"
+  },
+  "tax_behavior": "unspecified",
+  "tiers": [
+    {
+      "flat_amount": null,
+      "flat_amount_decimal": null,
+      "unit_amount": 10,
+      "unit_amount_decimal": "10",
+      "up_to": 1000
+    },
+    {
+      "flat_amount": 100,
+      "flat_amount_decimal": "100",
+      "unit_amount": 2,
+      "unit_amount_decimal": "2",
+      "up_to": null
+    }
+  ],
+  "tiers_mode": "graduated",
+  "transform_quantity": null,
+  "type": "recurring",
+  "unit_amount": null,
+  "unit_amount_decimal": null
+}

@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { StackManifest, ResourceManifest } from '@pricectl/core';
 import { findExistingProduct as stripeFindExistingProduct, findExistingPrice as stripeFindExistingPrice } from './stripe-utils';
 import { StateManager } from './state';
+import { isPriceEquivalent } from './price-comparison';
 
 export interface DeployResult {
   stackId: string;
@@ -196,7 +197,7 @@ export class StripeDeployer {
 
     if (existing) {
       // Check if properties match
-      const propsMatch = this.comparePriceProperties(existing, props);
+      const propsMatch = isPriceEquivalent(existing, props);
       if (propsMatch) {
         return {
           id: resource.id,
@@ -443,75 +444,6 @@ export class StripeDeployer {
     }
   }
 
-
-  /**
-   * Compare all relevant properties of a price to determine if it needs to be recreated.
-   * Prices are immutable in Stripe, so any property change requires deactivating
-   * the old price and creating a new one.
-   */
-  private comparePriceProperties(existing: Stripe.Price, desired: Stripe.PriceCreateParams): boolean {
-    // Compare product linkage (critical for Prices since they're immutable)
-    const existingProduct = typeof existing.product === 'string' ? existing.product : existing.product?.id;
-    const desiredProduct = typeof desired.product === 'string' ? desired.product : (desired.product as unknown as Stripe.Product)?.id;
-    if (existingProduct !== desiredProduct) return false;
-
-    // Compare basic properties
-    if (existing.currency !== desired.currency) return false;
-    if (existing.unit_amount !== desired.unit_amount) return false;
-    if (existing.unit_amount_decimal !== desired.unit_amount_decimal) return false;
-    if (existing.active !== desired.active) return false;
-    if (existing.nickname !== desired.nickname) return false;
-    if ((existing.tax_behavior ?? undefined) !== (desired.tax_behavior ?? undefined)) return false;
-
-    // Compare recurring properties
-    if (desired.recurring) {
-      if (!existing.recurring) return false;
-      if (existing.recurring.interval !== desired.recurring.interval) return false;
-      if (existing.recurring.interval_count !== desired.recurring.interval_count) return false;
-      if (existing.recurring.usage_type !== desired.recurring.usage_type) return false;
-      // Treat null (API response) and undefined (request) as equivalent for trial_period_days
-      const existingTrialDays = existing.recurring.trial_period_days ?? undefined;
-      const desiredTrialDays = desired.recurring.trial_period_days ?? undefined;
-      if (existingTrialDays !== desiredTrialDays) return false;
-    } else if (existing.recurring) {
-      return false;
-    }
-
-    // Compare tiers and billing scheme
-    if ((existing.billing_scheme ?? undefined) !== (desired.billing_scheme ?? undefined)) return false;
-    if (desired.tiers_mode !== existing.tiers_mode) return false;
-
-    if (desired.tiers) {
-      if (!existing.tiers || existing.tiers.length !== desired.tiers.length) return false;
-
-      for (let i = 0; i < desired.tiers.length; i++) {
-        const existingTier = existing.tiers[i];
-        const desiredTier = desired.tiers[i];
-
-        if (existingTier.up_to !== desiredTier.up_to) return false;
-        if (existingTier.unit_amount !== desiredTier.unit_amount) return false;
-        if (existingTier.unit_amount_decimal !== desiredTier.unit_amount_decimal) return false;
-        if (existingTier.flat_amount !== desiredTier.flat_amount) return false;
-        if (existingTier.flat_amount_decimal !== desiredTier.flat_amount_decimal) return false;
-      }
-    } else if (existing.tiers) {
-      return false;
-    }
-
-    // Compare transform_quantity
-    if (desired.transform_quantity) {
-      if (!existing.transform_quantity) return false;
-      if (existing.transform_quantity.divide_by !== desired.transform_quantity.divide_by) return false;
-      if (existing.transform_quantity.round !== desired.transform_quantity.round) return false;
-    } else if (existing.transform_quantity) {
-      return false;
-    }
-
-    // Compare lookup_key
-    if (existing.lookup_key !== desired.lookup_key) return false;
-
-    return true;
-  }
 
   async destroy(manifest: StackManifest): Promise<DestroyResult> {
     const result: DestroyResult = {

@@ -88,7 +88,7 @@ export async function findExistingPrice(
     const stateEntry = stateManager.getResource(stackId, logicalId);
     if (stateEntry?.physicalId) {
       try {
-        const price = await stripe.prices.retrieve(stateEntry.physicalId);
+        const price = await stripe.prices.retrieve(stateEntry.physicalId, { expand: ['tiers'] });
         if (price) {
           return price;
         }
@@ -107,6 +107,7 @@ export async function findExistingPrice(
     const result = await stripe.prices.search({
       query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
       limit: 1,
+      expand: ['data.tiers'],
     });
     return result.data.length > 0 ? result.data[0] : null;
   } catch (error: unknown) {
