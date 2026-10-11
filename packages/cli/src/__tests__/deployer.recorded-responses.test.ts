@@ -3,6 +3,7 @@ import { Coupon, EntitlementFeature, Meter, Price, Product } from '@pricectl/con
 import { StripeDeployer } from '../engine/deployer';
 import { StateManager } from '../engine/state';
 import { FakeStripe } from './helpers/fake-stripe';
+import { InMemoryStateStore } from './helpers/in-memory-state-store';
 import productFixture from './fixtures/stripe/product.json';
 import recurringPriceFixture from './fixtures/stripe/price-recurring.json';
 import lookupPriceFixture from './fixtures/stripe/price-one-time-lookup.json';
@@ -423,9 +424,9 @@ describe('StripeDeployer against recorded Stripe responses', () => {
   });
 
   describe('resources removed from the definition', () => {
-    /** In-memory state: the directory does not exist and save() is never called. */
+    /** State kept in memory, so the test does not touch the filesystem. */
     function inMemoryState(): StateManager {
-      return new StateManager('/nonexistent/pricectl-test-state');
+      return new StateManager(new InMemoryStateStore());
     }
 
     function createPricingStack(withYearly: boolean): Stack {

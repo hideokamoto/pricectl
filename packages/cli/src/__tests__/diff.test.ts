@@ -3,6 +3,7 @@ import { Coupon, EntitlementFeature, Meter, Price, Product } from '@pricectl/con
 import { diffResource, resolveReferencesFromState } from '../engine/diff';
 import { StateManager } from '../engine/state';
 import { asSdkPrice } from './helpers/sdk-shapes';
+import { InMemoryStateStore } from './helpers/in-memory-state-store';
 import productFixture from './fixtures/stripe/product.json';
 import recurringPriceFixture from './fixtures/stripe/price-recurring.json';
 import lookupPriceFixture from './fixtures/stripe/price-one-time-lookup.json';
@@ -218,9 +219,9 @@ describe('diffResource', () => {
 });
 
 describe('resolveReferencesFromState', () => {
-  /** In-memory state: the directory does not exist and save() is never called. */
+  /** State kept in memory, so the test does not touch the filesystem. */
   function stateWith(...entries: Array<{ logicalId: string; physicalId: string; type: string }>): StateManager {
-    const state = new StateManager('/nonexistent/pricectl-test-state');
+    const state = new StateManager(new InMemoryStateStore());
     for (const entry of entries) {
       state.setResource('FxStack', { ...entry, path: `FxStack/${entry.logicalId}`, lastDeployedAt: '', propertiesHash: '' });
     }

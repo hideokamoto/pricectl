@@ -23,19 +23,53 @@ export interface StateFile {
 const STATE_VERSION = 1;
 const DEFAULT_STATE_FILE = 'pricectl.state.json';
 
-export class StateManager {
-  private state: StateFile;
-  private filePath: string;
+/** Where a state file is persisted. */
+export interface StateStore {
+  /** Human-readable location of the state, shown to the user. */
+  readonly location: string;
+  /** The saved contents, or undefined when nothing has been saved yet. */
+  read(): string | undefined;
+  write(contents: string): void;
+}
+
+/** Stores the state as `pricectl.state.json` in a directory. */
+export class FileStateStore implements StateStore {
+  readonly location: string;
 
   constructor(stateDir?: string) {
-    this.filePath = path.resolve(stateDir || process.cwd(), DEFAULT_STATE_FILE);
+    this.location = path.resolve(stateDir || process.cwd(), DEFAULT_STATE_FILE);
+  }
+
+  read(): string | undefined {
+    return fs.existsSync(this.location) ? fs.readFileSync(this.location, 'utf-8') : undefined;
+  }
+
+  write(contents: string): void {
+    const dir = path.dirname(this.location);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    // Atomic write via temp file
+    const tmpPath = this.location + '.tmp';
+    fs.writeFileSync(tmpPath, contents, 'utf-8');
+    fs.renameSync(tmpPath, this.location);
+  }
+}
+
+export class StateManager {
+  private state: StateFile;
+  private readonly store: StateStore;
+
+  /** @param storeOrDir a StateStore, or the directory of a file-based state (default: cwd) */
+  constructor(storeOrDir?: StateStore | string) {
+    this.store = typeof storeOrDir === 'object' ? storeOrDir : new FileStateStore(storeOrDir);
     this.state = this.load();
   }
 
   private load(): StateFile {
     try {
-      if (fs.existsSync(this.filePath)) {
-        const raw = fs.readFileSync(this.filePath, 'utf-8');
+      const raw = this.store.read();
+      if (raw !== undefined) {
         const parsed = JSON.parse(raw);
         if (
           parsed.version === STATE_VERSION &&
@@ -59,18 +93,11 @@ export class StateManager {
   }
 
   save(): void {
-    const dir = path.dirname(this.filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    // Atomic write via temp file
-    const tmpPath = this.filePath + '.tmp';
-    fs.writeFileSync(tmpPath, JSON.stringify(this.state, null, 2) + '\n', 'utf-8');
-    fs.renameSync(tmpPath, this.filePath);
+    this.store.write(JSON.stringify(this.state, null, 2) + '\n');
   }
 
   getFilePath(): string {
-    return this.filePath;
+    return this.store.location;
   }
 
   getResource(stackId: string, logicalId: string): ResourceState | undefined {
