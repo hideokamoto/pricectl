@@ -7,6 +7,7 @@ import { StateManager } from '../engine/state';
 import { deployOutcome } from '../engine/outcome';
 import { findOrphans } from '../engine/orphans';
 import { decideRemovalApproval } from '../engine/removal-approval';
+import { describeDeployPlan } from '../engine/deploy-plan';
 import { StackManifest, STRIPE_API_KEY_MISSING_ERROR, DEFAULT_STRIPE_API_VERSION } from '@pricectl/core';
 
 export default class Deploy extends Command {
@@ -63,22 +64,9 @@ export default class Deploy extends Command {
     const manifest: StackManifest = stack.synth();
 
     if (flags['dry-run']) {
-      this.log(chalk.bold.cyan('Dry run — no changes will be made to Stripe'));
-      this.log('');
-      this.log(`Stack: ${chalk.bold(manifest.stackId)}`);
-      if (manifest.description) this.log(`Description: ${manifest.description}`);
-      this.log('');
-      this.log(chalk.bold(`Resources to deploy (${manifest.resources.length}):`));
-      for (const resource of manifest.resources) {
-        this.log(chalk.green(`  + ${resource.path} [${resource.type}]`));
-        this.log('    Properties:');
-        for (const line of JSON.stringify(resource.properties, null, 2).split('\n')) {
-          this.log(`    ${line}`);
-        }
+      for (const line of describeDeployPlan(manifest)) {
+        this.log(line);
       }
-      this.log('');
-      this.log(chalk.bold('Summary:'));
-      this.log(`  Total: ${chalk.green(manifest.resources.length)} resource(s) would be created/updated`);
       return;
     }
 
