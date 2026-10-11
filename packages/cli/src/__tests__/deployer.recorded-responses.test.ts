@@ -1,5 +1,5 @@
 import { Stack } from '@pricectl/core';
-import { Price } from '@pricectl/constructs';
+import { Price, Product } from '@pricectl/constructs';
 import { StripeDeployer } from '../engine/deployer';
 import { FakeStripe } from './helpers/fake-stripe';
 import productFixture from './fixtures/stripe/product.json';
@@ -153,6 +153,45 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(mockFakeStripe.pricesFor('FxMonthly')).toEqual([
         expect.objectContaining({ id: recurringPriceFixture.id, active: true }),
       ]);
+    });
+  });
+
+  describe('deploying without a state file', () => {
+    it('does not duplicate resources that Stripe search has not indexed yet', async () => {
+      const stack = createStack();
+      const product = new Product(stack, 'NewProd', { name: 'New product' });
+      new Price(stack, 'NewMonthly', { product, currency: 'usd', unitAmount: 1000, recurring: { interval: 'month' } });
+
+      await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+      const second = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(second.errors).toEqual([]);
+      expect(second.deployed.map((d) => d.status)).toEqual(['unchanged', 'unchanged']);
+      expect(mockFakeStripe.productsFor('NewProd')).toHaveLength(1);
+      expect(mockFakeStripe.pricesFor('NewMonthly')).toHaveLength(1);
+    });
+
+    it('compares against the active price when replaced prices share the logical ID', async () => {
+      mockFakeStripe.seed('prices', {
+        ...recurringPriceFixture,
+        id: 'price_replaced',
+        active: false,
+        unit_amount: 900,
+        unit_amount_decimal: '900',
+      });
+      mockFakeStripe.seed('prices', recurringPriceFixture);
+      const stack = createStack();
+      new Price(stack, 'FxMonthly', {
+        product: PRODUCT_ID,
+        currency: 'usd',
+        unitAmount: 1000,
+        recurring: { interval: 'month' },
+      });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.deployed[0]).toMatchObject({ status: 'unchanged', physicalId: recurringPriceFixture.id });
+      expect(mockFakeStripe.pricesFor('FxMonthly')).toHaveLength(2);
     });
   });
 });

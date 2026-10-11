@@ -12,12 +12,12 @@ const mockStripeInstance = {
     create: jest.fn(),
     update: jest.fn(),
     del: jest.fn(),
-    search: jest.fn(),
+    list: jest.fn(),
   },
   prices: {
     create: jest.fn(),
     update: jest.fn(),
-    search: jest.fn(),
+    list: jest.fn(),
   },
   coupons: {
     create: jest.fn(),
@@ -25,6 +25,30 @@ const mockStripeInstance = {
     del: jest.fn(),
   },
 };
+
+/** Simulates the SDK's auto-paginating list result. */
+function listOf<T>(items: T[]) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield* items;
+    },
+  };
+}
+
+/** Simulates a list request that fails while paginating. */
+function failingList(error: Error) {
+  return {
+    // eslint-disable-next-line require-yield
+    async *[Symbol.asyncIterator]() {
+      throw error;
+    },
+  };
+}
+
+/** Fields Stripe returns on objects that pricectl created for the given logical ID. */
+function managedBy(logicalId: string) {
+  return { metadata: { pricectl_id: logicalId }, active: true, created: 1700000000 };
+}
 
 function resetMocks() {
   Object.values(mockStripeInstance).forEach(resource => {
@@ -45,7 +69,7 @@ describe('StripeDeployer', () => {
   describe('deploy', () => {
     describe('Product', () => {
       it('新規Productを作成する', async () => {
-        mockStripeInstance.products.search.mockResolvedValue({ data: [] });
+        mockStripeInstance.products.list.mockReturnValue(listOf([]));
         mockStripeInstance.products.create.mockResolvedValue({
           id: 'prod_new_123',
         });
@@ -88,9 +112,7 @@ describe('StripeDeployer', () => {
       });
 
       it('既存Productを更新する', async () => {
-        mockStripeInstance.products.search.mockResolvedValue({
-          data: [{ id: 'prod_existing_456' }],
-        });
+        mockStripeInstance.products.list.mockReturnValue(listOf([{ id: 'prod_existing_456', ...managedBy('MyProduct') }]));
         mockStripeInstance.products.update.mockResolvedValue({
           id: 'prod_existing_456',
         });
@@ -130,7 +152,7 @@ describe('StripeDeployer', () => {
 
     describe('Price', () => {
       it('新規Priceを作成する', async () => {
-        mockStripeInstance.prices.search.mockResolvedValue({ data: [] });
+        mockStripeInstance.prices.list.mockReturnValue(listOf([]));
         mockStripeInstance.prices.create.mockResolvedValue({
           id: 'price_new_789',
         });
@@ -167,6 +189,7 @@ describe('StripeDeployer', () => {
       it('変更なしのPriceはunchangedになる', async () => {
         const existingPrice = {
           id: 'price_existing',
+          ...managedBy('MyPrice'),
           product: 'prod_123',
           currency: 'usd',
           unit_amount: 999,
@@ -181,9 +204,7 @@ describe('StripeDeployer', () => {
           lookup_key: null,
         };
 
-        mockStripeInstance.prices.search.mockResolvedValue({
-          data: [existingPrice],
-        });
+        mockStripeInstance.prices.list.mockReturnValue(listOf([existingPrice]));
 
         const manifest: StackManifest = {
           stackId: 'TestStack',
@@ -213,6 +234,7 @@ describe('StripeDeployer', () => {
       it('tax_behaviorが異なるPriceは旧Priceを無効化して新規作成する', async () => {
         const existingPrice = {
           id: 'price_exclusive',
+          ...managedBy('MyPrice'),
           product: 'prod_123',
           currency: 'usd',
           unit_amount: 999,
@@ -227,9 +249,7 @@ describe('StripeDeployer', () => {
           lookup_key: undefined,
         };
 
-        mockStripeInstance.prices.search.mockResolvedValue({
-          data: [existingPrice],
-        });
+        mockStripeInstance.prices.list.mockReturnValue(listOf([existingPrice]));
         mockStripeInstance.prices.update.mockResolvedValue({});
         mockStripeInstance.prices.create.mockResolvedValue({
           id: 'price_inclusive',
@@ -267,6 +287,7 @@ describe('StripeDeployer', () => {
       it('tax_behaviorが同じPriceはunchangedになる', async () => {
         const existingPrice = {
           id: 'price_existing',
+          ...managedBy('MyPrice'),
           product: 'prod_123',
           currency: 'usd',
           unit_amount: 999,
@@ -281,9 +302,7 @@ describe('StripeDeployer', () => {
           lookup_key: null,
         };
 
-        mockStripeInstance.prices.search.mockResolvedValue({
-          data: [existingPrice],
-        });
+        mockStripeInstance.prices.list.mockReturnValue(listOf([existingPrice]));
 
         const manifest: StackManifest = {
           stackId: 'TestStack',
@@ -313,6 +332,7 @@ describe('StripeDeployer', () => {
       it('変更ありのPriceは旧Priceを無効化して新規作成する', async () => {
         const existingPrice = {
           id: 'price_old',
+          ...managedBy('MyPrice'),
           product: 'prod_123',
           currency: 'usd',
           unit_amount: 500,
@@ -326,9 +346,7 @@ describe('StripeDeployer', () => {
           lookup_key: undefined,
         };
 
-        mockStripeInstance.prices.search.mockResolvedValue({
-          data: [existingPrice],
-        });
+        mockStripeInstance.prices.list.mockReturnValue(listOf([existingPrice]));
         mockStripeInstance.prices.update.mockResolvedValue({});
         mockStripeInstance.prices.create.mockResolvedValue({
           id: 'price_new',
@@ -428,13 +446,13 @@ describe('StripeDeployer', () => {
     describe('依存関係の解決', () => {
       it('Productの物理IDがPriceのproductプロパティに反映される', async () => {
         // Product: 新規作成
-        mockStripeInstance.products.search.mockResolvedValue({ data: [] });
+        mockStripeInstance.products.list.mockReturnValue(listOf([]));
         mockStripeInstance.products.create.mockResolvedValue({
           id: 'prod_resolved_abc',
         });
 
         // Price: 新規作成
-        mockStripeInstance.prices.search.mockResolvedValue({ data: [] });
+        mockStripeInstance.prices.list.mockReturnValue(listOf([]));
         mockStripeInstance.prices.create.mockResolvedValue({
           id: 'price_created_xyz',
         });
@@ -478,9 +496,7 @@ describe('StripeDeployer', () => {
 
     describe('エラーハンドリング', () => {
       it('デプロイ中のエラーがerrors配列に記録される', async () => {
-        mockStripeInstance.products.search.mockRejectedValue(
-          new Error('Network failure')
-        );
+        mockStripeInstance.products.list.mockReturnValue(failingList(new Error('Network failure')));
 
         const manifest: StackManifest = {
           stackId: 'TestStack',
@@ -530,9 +546,7 @@ describe('StripeDeployer', () => {
 
   describe('destroy', () => {
     it('Productを削除する', async () => {
-      mockStripeInstance.products.search.mockResolvedValue({
-        data: [{ id: 'prod_to_delete' }],
-      });
+      mockStripeInstance.products.list.mockReturnValue(listOf([{ id: 'prod_to_delete', ...managedBy('MyProduct') }]));
       mockStripeInstance.products.del.mockResolvedValue({});
 
       const manifest: StackManifest = {
@@ -560,7 +574,7 @@ describe('StripeDeployer', () => {
     });
 
     it('存在しないProductの削除はスキップされる', async () => {
-      mockStripeInstance.products.search.mockResolvedValue({ data: [] });
+      mockStripeInstance.products.list.mockReturnValue(listOf([]));
 
       const manifest: StackManifest = {
         stackId: 'TestStack',
@@ -583,9 +597,7 @@ describe('StripeDeployer', () => {
     });
 
     it('Priceを無効化する（Stripeでは削除不可）', async () => {
-      mockStripeInstance.prices.search.mockResolvedValue({
-        data: [{ id: 'price_to_deactivate' }],
-      });
+      mockStripeInstance.prices.list.mockReturnValue(listOf([{ id: 'price_to_deactivate', ...managedBy('MyPrice') }]));
       mockStripeInstance.prices.update.mockResolvedValue({});
 
       const manifest: StackManifest = {
@@ -667,13 +679,9 @@ describe('StripeDeployer', () => {
 
     it('リソースが逆順で削除される', async () => {
       // 依存関係: Product → Price の順で定義、破壊は逆順
-      mockStripeInstance.prices.search.mockResolvedValue({
-        data: [{ id: 'price_1' }],
-      });
+      mockStripeInstance.prices.list.mockReturnValue(listOf([{ id: 'price_1', ...managedBy('MyPrice') }]));
       mockStripeInstance.prices.update.mockResolvedValue({});
-      mockStripeInstance.products.search.mockResolvedValue({
-        data: [{ id: 'prod_1' }],
-      });
+      mockStripeInstance.products.list.mockReturnValue(listOf([{ id: 'prod_1', ...managedBy('MyProduct') }]));
       mockStripeInstance.products.del.mockResolvedValue({});
 
       const manifest: StackManifest = {
@@ -704,9 +712,7 @@ describe('StripeDeployer', () => {
     });
 
     it('destroy中のエラーがerrors配列に記録される', async () => {
-      mockStripeInstance.products.search.mockRejectedValue(
-        new Error('API Error')
-      );
+      mockStripeInstance.products.list.mockReturnValue(failingList(new Error('API Error')));
 
       const manifest: StackManifest = {
         stackId: 'TestStack',
@@ -726,58 +732,6 @@ describe('StripeDeployer', () => {
       expect(result.destroyed).toHaveLength(0);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0].error).toBe('API Error');
-    });
-  });
-
-  describe('search queryのエスケープ', () => {
-    it('論理IDにダブルクォートが含まれる場合にエスケープされる', async () => {
-      mockStripeInstance.products.search.mockResolvedValue({ data: [] });
-      mockStripeInstance.products.create.mockResolvedValue({ id: 'prod_1' });
-
-      const manifest: StackManifest = {
-        stackId: 'TestStack',
-        tags: {},
-        resources: [
-          {
-            id: 'Product"WithQuotes',
-            path: 'TestStack/Product"WithQuotes',
-            type: 'Stripe::Product',
-            properties: { name: 'Test' },
-          },
-        ],
-      };
-
-      await deployer.deploy(manifest);
-
-      expect(mockStripeInstance.products.search).toHaveBeenCalledWith({
-        query: expect.stringContaining('Product\\"WithQuotes'),
-        limit: 1,
-      });
-    });
-
-    it('論理IDにバックスラッシュが含まれる場合にエスケープされる', async () => {
-      mockStripeInstance.products.search.mockResolvedValue({ data: [] });
-      mockStripeInstance.products.create.mockResolvedValue({ id: 'prod_1' });
-
-      const manifest: StackManifest = {
-        stackId: 'TestStack',
-        tags: {},
-        resources: [
-          {
-            id: 'Product\\Path',
-            path: 'TestStack/Product\\Path',
-            type: 'Stripe::Product',
-            properties: { name: 'Test' },
-          },
-        ],
-      };
-
-      await deployer.deploy(manifest);
-
-      expect(mockStripeInstance.products.search).toHaveBeenCalledWith({
-        query: expect.stringContaining('Product\\\\Path'),
-        limit: 1,
-      });
     });
   });
 });
