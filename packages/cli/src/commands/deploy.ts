@@ -1,10 +1,12 @@
-import { Command, Flags } from '@oclif/core';
+import { Command, Flags, ux } from '@oclif/core';
 import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
 import { StateManager } from '../engine/state';
 import { deployOutcome } from '../engine/outcome';
+import { findOrphans } from '../engine/orphans';
+import { decideRemovalApproval } from '../engine/removal-approval';
 import { StackManifest, STRIPE_API_KEY_MISSING_ERROR, DEFAULT_STRIPE_API_VERSION } from '@pricectl/core';
 
 export default class Deploy extends Command {
@@ -14,6 +16,7 @@ export default class Deploy extends Command {
     '<%= config.bin %> <%= command.id %>',
     '<%= config.bin %> <%= command.id %> --app ./infra/main.ts',
     '<%= config.bin %> <%= command.id %> --dry-run',
+    '<%= config.bin %> <%= command.id %> --force',
   ];
 
   static flags = {
@@ -27,6 +30,11 @@ export default class Deploy extends Command {
     }),
     'dry-run': Flags.boolean({
       description: 'Preview the API calls that would be made without actually deploying',
+      default: false,
+    }),
+    force: Flags.boolean({
+      char: 'f',
+      description: 'Remove resources that are no longer defined without asking for confirmation',
       default: false,
     }),
   };
@@ -81,6 +89,31 @@ export default class Deploy extends Command {
     }
 
     const stateManager = new StateManager(flags['state-file']);
+
+    // Removing resources is destructive, so it needs approval before anything is changed
+    const removals = findOrphans(manifest, stateManager);
+    const approval = decideRemovalApproval({
+      removalCount: removals.length,
+      force: flags.force,
+      interactive: Boolean(process.stdin.isTTY),
+    });
+    if (approval === 'confirm' || approval === 'refuse') {
+      this.log(chalk.bold.yellow('The following resources are no longer defined and will be removed from Stripe:'));
+      for (const resource of removals) {
+        this.log(chalk.red(`  - ${resource.path} [${resource.type}]`));
+      }
+      this.log('');
+    }
+    if (approval === 'refuse') {
+      this.error('Cannot ask for confirmation in a non-interactive environment. Use --force to remove these resources.', {
+        exit: 1,
+      });
+    }
+    if (approval === 'confirm' && !(await ux.confirm('Remove these resources? [y/n]'))) {
+      this.log('Deployment cancelled. No changes were made.');
+      return;
+    }
+
     let failed = false;
     try {
       // Deploy using the deployer
