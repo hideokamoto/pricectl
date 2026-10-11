@@ -17,6 +17,12 @@ export interface DeployResult {
     physicalId: string;
     status: 'created' | 'updated' | 'unchanged';
   }>;
+  /** Resources recorded in the state file that are no longer defined, removed during deploy */
+  removed: Array<{
+    id: string;
+    type: string;
+    status: 'deleted' | 'deactivated';
+  }>;
   errors: Array<{
     id: string;
     type: string;
@@ -46,6 +52,15 @@ function isResourceNotFoundError(error: unknown): boolean {
   }
   return false;
 }
+
+/** Order in which resource types are removed, so that references are removed before their targets. */
+const REMOVAL_ORDER = [
+  'Stripe::Price',
+  'Stripe::Coupon',
+  'Stripe::Product',
+  'Stripe::EntitlementFeature',
+  'Stripe::BillingMeter',
+];
 
 /** Coupon fields that Stripe does not allow to change after creation. */
 const IMMUTABLE_COUPON_FIELDS = [
@@ -108,6 +123,7 @@ export class StripeDeployer {
     const result: DeployResult = {
       stackId: manifest.stackId,
       deployed: [],
+      removed: [],
       errors: [],
     };
 
@@ -142,7 +158,41 @@ export class StripeDeployer {
       }
     }
 
+    await this.removeOrphans(manifest, result);
+
     return result;
+  }
+
+  /**
+   * Resources recorded in the state file for this stack that the manifest no longer defines,
+   * in removal order (prices before the products and meters they refer to).
+   */
+  private findOrphans(manifest: StackManifest): ResourceManifest[] {
+    const stack = this.stateManager?.getStack(manifest.stackId);
+    if (!stack) return [];
+    const defined = new Set(manifest.resources.map((r) => r.id));
+    return Object.values(stack.resources)
+      .filter((entry) => !defined.has(entry.logicalId))
+      .sort((a, b) => REMOVAL_ORDER.indexOf(a.type) - REMOVAL_ORDER.indexOf(b.type))
+      // Lookups during removal go through the state file, so no properties are needed
+      .map((entry) => ({ id: entry.logicalId, path: entry.path, type: entry.type, properties: {} }));
+  }
+
+  /** Remove resources that were deleted from the definition since the last deploy. */
+  private async removeOrphans(manifest: StackManifest, result: DeployResult): Promise<void> {
+    for (const orphan of this.findOrphans(manifest)) {
+      try {
+        const removed = await this.destroyResource(orphan, manifest.stackId);
+        if (removed) result.removed.push(removed);
+        this.stateManager?.removeResource(manifest.stackId, orphan.id);
+      } catch (error: unknown) {
+        result.errors.push({
+          id: orphan.id,
+          type: orphan.type,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
   }
 
   private async deployResource(resource: ResourceManifest, stackId: string) {
@@ -585,8 +635,9 @@ export class StripeDeployer {
       errors: [],
     };
 
-    // Delete resources in reverse order to handle dependencies
-    const resources = [...manifest.resources].reverse();
+    // Delete resources in reverse order to handle dependencies, and also clean up
+    // resources that are only left in the state file because they were removed from the code
+    const resources = [...this.findOrphans(manifest), ...[...manifest.resources].reverse()];
 
     for (const resource of resources) {
       try {

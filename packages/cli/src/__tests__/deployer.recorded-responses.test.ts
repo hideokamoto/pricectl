@@ -1,6 +1,7 @@
 import { Stack } from '@pricectl/core';
 import { Coupon, EntitlementFeature, Meter, Price, Product } from '@pricectl/constructs';
 import { StripeDeployer } from '../engine/deployer';
+import { StateManager } from '../engine/state';
 import { FakeStripe } from './helpers/fake-stripe';
 import productFixture from './fixtures/stripe/product.json';
 import recurringPriceFixture from './fixtures/stripe/price-recurring.json';
@@ -418,6 +419,48 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(features.filter((f) => f.active)).toHaveLength(1);
       const meters = [...mockFakeStripe.meterStore.values()].filter((m) => m.event_name === 'new_event');
       expect(meters.map((m) => m.status)).toEqual(['active']);
+    });
+  });
+
+  describe('resources removed from the definition', () => {
+    /** In-memory state: the directory does not exist and save() is never called. */
+    function inMemoryState(): StateManager {
+      return new StateManager('/nonexistent/pricectl-test-state');
+    }
+
+    function createPricingStack(withYearly: boolean): Stack {
+      const stack = createStack();
+      const product = new Product(stack, 'NewProd', { name: 'New product' });
+      new Price(stack, 'NewMonthly', { product, currency: 'usd', unitAmount: 1000, recurring: { interval: 'month' } });
+      if (withYearly) {
+        new Price(stack, 'NewYearly', { product, currency: 'usd', unitAmount: 10000, recurring: { interval: 'year' } });
+      }
+      return stack;
+    }
+
+    it('deactivates on deploy a price that was removed from the definition', async () => {
+      const state = inMemoryState();
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(createPricingStack(true).synth());
+
+      const result = await new StripeDeployer('sk_test_dummy', undefined, state).deploy(createPricingStack(false).synth());
+
+      expect(result.errors).toEqual([]);
+      expect(result.removed).toEqual([{ id: 'NewYearly', type: 'Stripe::Price', status: 'deactivated' }]);
+      expect(mockFakeStripe.pricesFor('NewYearly')).toEqual([expect.objectContaining({ active: false })]);
+      expect(state.getResource('FxStack', 'NewYearly')).toBeUndefined();
+    });
+
+    it('also cleans up on destroy a resource that is only left in the state file', async () => {
+      const state = inMemoryState();
+      const stack = createStack();
+      new Coupon(stack, 'PricectlOldCoupon', { percentOff: 5, duration: 'once' });
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(stack.synth());
+
+      const result = await new StripeDeployer('sk_test_dummy', undefined, state).destroy(createStack().synth());
+
+      expect(result.errors).toEqual([]);
+      expect(result.destroyed).toEqual([{ id: 'PricectlOldCoupon', type: 'Stripe::Coupon', status: 'deleted' }]);
+      expect(mockFakeStripe.couponStore.has('PricectlOldCoupon')).toBe(false);
     });
   });
 });

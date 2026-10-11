@@ -5,6 +5,7 @@ describe('deployOutcome', () => {
     const outcome = deployOutcome({
       stackId: 'S',
       deployed: [{ id: 'P', type: 'Stripe::Product', physicalId: 'prod_1', status: 'created' }],
+      removed: [],
       errors: [],
     });
 
@@ -15,6 +16,7 @@ describe('deployOutcome', () => {
     const outcome = deployOutcome({
       stackId: 'S',
       deployed: [{ id: 'P', type: 'Stripe::Product', physicalId: 'prod_1', status: 'created' }],
+      removed: [],
       errors: [{ id: 'Q', type: 'Stripe::Price', error: 'boom' }],
     });
 
