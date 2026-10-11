@@ -1,5 +1,5 @@
 import { Stack } from '@pricectl/core';
-import { Coupon, Price, Product } from '@pricectl/constructs';
+import { Coupon, EntitlementFeature, Meter, Price, Product } from '@pricectl/constructs';
 import { StripeDeployer } from '../engine/deployer';
 import { FakeStripe } from './helpers/fake-stripe';
 import productFixture from './fixtures/stripe/product.json';
@@ -247,6 +247,44 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(result.errors).toEqual([]);
       expect(result.destroyed).toContainEqual({ id: 'NewProd', type: 'Stripe::Product', status: 'deactivated' });
       expect(mockFakeStripe.productsFor('NewProd')).toEqual([expect.objectContaining({ active: false })]);
+    });
+  });
+
+  describe('EntitlementFeature and Meter', () => {
+    function createFeatureAndMeterStack(): Stack {
+      const stack = createStack();
+      new EntitlementFeature(stack, 'NewFeature', { name: 'New feature', lookupKey: 'new_feature' });
+      new Meter(stack, 'NewMeter', {
+        displayName: 'New meter',
+        eventName: 'new_event',
+        defaultAggregation: { formula: 'count' },
+      });
+      return stack;
+    }
+
+    it('reports a feature and a meter that did not change as unchanged', async () => {
+      const stack = createFeatureAndMeterStack();
+      await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      const second = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(second.errors).toEqual([]);
+      expect(second.deployed.map((d) => d.status)).toEqual(['unchanged', 'unchanged']);
+    });
+
+    it('makes a destroyed feature and meter usable again on the next deploy', async () => {
+      const stack = createFeatureAndMeterStack();
+      const deployer = new StripeDeployer('sk_test_dummy');
+      await deployer.deploy(stack.synth());
+      await deployer.destroy(stack.synth());
+
+      const redeploy = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(redeploy.errors).toEqual([]);
+      const features = [...mockFakeStripe.featureStore.values()].filter((f) => f.lookup_key === 'new_feature');
+      expect(features.filter((f) => f.active)).toHaveLength(1);
+      const meters = [...mockFakeStripe.meterStore.values()].filter((m) => m.event_name === 'new_event');
+      expect(meters.map((m) => m.status)).toEqual(['active']);
     });
   });
 });
