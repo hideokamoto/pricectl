@@ -19,7 +19,9 @@ export interface StackProps {
   readonly description?: string;
 
   /**
-   * Tags to apply to all resources in this stack
+   * Tags to apply to all resources in this stack, as Stripe metadata.
+   * A resource's own metadata takes precedence over a tag with the same key.
+   * Resources without metadata support (billing meters) are not tagged.
    */
   readonly tags?: Record<string, string>;
 }

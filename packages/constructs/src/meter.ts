@@ -104,6 +104,11 @@ export class Meter extends Resource {
     return 'Stripe::BillingMeter';
   }
 
+  /** Billing meters have no metadata, so stack tags are not applied. */
+  protected get supportsMetadata(): boolean {
+    return false;
+  }
+
   protected synthesizeProperties(): Record<string, unknown> {
     const params: Stripe.Billing.MeterCreateParams = {
       display_name: this.displayName,

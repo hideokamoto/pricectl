@@ -43,8 +43,25 @@ export abstract class Resource extends Construct {
   protected registerResourceMetadata(): void {
     this.node.addMetadata('resource', {
       type: this.resourceType,
-      properties: this.synthesizeProperties(),
+      properties: this.withStackTags(this.synthesizeProperties()),
     });
+  }
+
+  /**
+   * Whether the Stripe object supports metadata. Stack tags are applied as metadata,
+   * so resources without metadata (e.g. billing meters) override this to return false.
+   */
+  protected get supportsMetadata(): boolean {
+    return true;
+  }
+
+  /** Apply the stack's tags as metadata; the resource's own metadata wins on conflicts. */
+  private withStackTags(properties: Record<string, unknown>): Record<string, unknown> {
+    if (!this.supportsMetadata || Object.keys(this.stack.tags).length === 0) {
+      return properties;
+    }
+    const own = (properties.metadata ?? {}) as Record<string, string>;
+    return { ...properties, metadata: { ...this.stack.tags, ...own } };
   }
 
   /**
