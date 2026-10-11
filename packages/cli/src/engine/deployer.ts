@@ -206,16 +206,18 @@ export class StripeDeployer {
           status: 'unchanged' as const,
         };
       } else {
-        // Deactivate old price and create new one
-        await this.stripe.prices.update(existing.id, { active: false });
+        // Create the replacement first so that a failure leaves the old price usable,
+        // and take over its lookup key (Stripe allows a lookup key on only one price).
         const created = await this.stripe.prices.create({
           ...props,
+          ...(props.lookup_key ? { transfer_lookup_key: true } : {}),
           metadata: {
             ...props.metadata,
             pricectl_id: resource.id,
             pricectl_path: resource.path,
           },
         });
+        await this.stripe.prices.update(existing.id, { active: false });
         return {
           id: resource.id,
           type: resource.type,

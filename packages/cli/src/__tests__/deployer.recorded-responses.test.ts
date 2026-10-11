@@ -115,5 +115,44 @@ describe('StripeDeployer against recorded Stripe responses', () => {
 
       expect(result.deployed[0].status).toBe('created');
     });
+
+    it('moves the lookup key to the replacement price and deactivates the old one', async () => {
+      mockFakeStripe.seed('prices', lookupPriceFixture);
+      const stack = createStack();
+      new Price(stack, 'FxLookup', {
+        product: PRODUCT_ID,
+        currency: 'usd',
+        unitAmount: 600,
+        lookupKey: 'pricectl_fx_lookup',
+      });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.errors).toEqual([]);
+      const prices = mockFakeStripe.pricesFor('FxLookup');
+      const replacement = prices.find((p) => p.id !== lookupPriceFixture.id);
+      const original = prices.find((p) => p.id === lookupPriceFixture.id);
+      expect(replacement).toMatchObject({ active: true, unit_amount: 600, lookup_key: 'pricectl_fx_lookup' });
+      expect(original).toMatchObject({ active: false, lookup_key: null });
+    });
+
+    it('leaves the old price active when creating the replacement fails', async () => {
+      mockFakeStripe.seed('prices', recurringPriceFixture);
+      mockFakeStripe.failNext('prices.create', { message: 'Stripe is unavailable' });
+      const stack = createStack();
+      new Price(stack, 'FxMonthly', {
+        product: PRODUCT_ID,
+        currency: 'usd',
+        unitAmount: 1200,
+        recurring: { interval: 'month' },
+      });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.errors).toHaveLength(1);
+      expect(mockFakeStripe.pricesFor('FxMonthly')).toEqual([
+        expect.objectContaining({ id: recurringPriceFixture.id, active: true }),
+      ]);
+    });
   });
 });
