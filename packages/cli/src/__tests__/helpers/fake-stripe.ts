@@ -140,6 +140,22 @@ export class FakeStripe {
     return 1791724000 + this.seq;
   }
 
+  /**
+   * A lookup key can belong to only one price: take it from its current holder when
+   * transfer_lookup_key is set, otherwise reject the request as Stripe does.
+   */
+  private claimLookupKey(lookupKey: string, transfer: boolean, claimantId?: string): void {
+    const holder = [...this.priceStore.values()].find((p) => p.lookup_key === lookupKey && p.id !== claimantId);
+    if (!holder) return;
+    if (!transfer) {
+      throw new FakeStripeError({
+        message: `Price ${holder.id} already uses this \`lookup_key\`. Use a unique key or transfer the key from that price.`,
+        param: 'lookup_key',
+      });
+    }
+    holder.lookup_key = null;
+  }
+
   private priceView(price: StripeObject, expand?: string[]): StripeObject {
     const view = clone(price);
     if (!wantsTiers(expand)) delete view.tiers;
@@ -220,16 +236,7 @@ export class FakeStripe {
       if (!this.productStore.has(params.product)) {
         throw new FakeStripeError({ message: `No such product: '${params.product}'`, code: 'resource_missing', param: 'product' });
       }
-      if (params.lookup_key) {
-        const holder = [...this.priceStore.values()].find((p) => p.lookup_key === params.lookup_key);
-        if (holder && !params.transfer_lookup_key) {
-          throw new FakeStripeError({
-            message: `Price ${holder.id} already uses this \`lookup_key\`. Use a unique key or transfer the key from that price.`,
-            param: 'lookup_key',
-          });
-        }
-        if (holder) holder.lookup_key = null;
-      }
+      if (params.lookup_key) this.claimLookupKey(params.lookup_key, Boolean(params.transfer_lookup_key));
       const recurring = params.recurring
         ? {
             aggregate_usage: null,
@@ -283,7 +290,8 @@ export class FakeStripe {
       this.checkFailure('prices.update');
       const price = this.priceStore.get(id);
       if (!price) throw resourceMissing('price', id);
-      const { metadata, ...rest } = params;
+      const { metadata, transfer_lookup_key: transfer, ...rest } = params;
+      if (rest.lookup_key) this.claimLookupKey(rest.lookup_key, Boolean(transfer), id);
       Object.assign(price, rest, { metadata: mergeMetadata(price.metadata, metadata) });
       return this.priceView(price);
     },
