@@ -1,0 +1,6 @@
+{
+  "error": {
+    "message": "You cannot update an inactive feature",
+    "type": "invalid_request_error"
+  }
+}

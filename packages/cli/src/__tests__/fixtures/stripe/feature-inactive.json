@@ -1,0 +1,11 @@
+{
+  "active": false,
+  "id": "feat_test_61VYkaxYQ3vK1fyxS41TESTACCT00OaG",
+  "livemode": false,
+  "lookup_key": "pricectl_fx_feature",
+  "metadata": {
+    "pricectl_id": "FxFeature"
+  },
+  "name": "Fx feature",
+  "object": "entitlements.feature"
+}

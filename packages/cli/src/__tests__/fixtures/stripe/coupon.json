@@ -1,0 +1,19 @@
+{
+  "amount_off": null,
+  "created": 1791724682,
+  "currency": null,
+  "duration": "once",
+  "duration_in_months": null,
+  "id": "PricectlFxCoupon",
+  "livemode": false,
+  "max_redemptions": null,
+  "metadata": {
+    "pricectl_id": "PricectlFxCoupon"
+  },
+  "name": "Fx coupon",
+  "object": "coupon",
+  "percent_off": 10.0,
+  "redeem_by": null,
+  "times_redeemed": 0,
+  "valid": true
+}

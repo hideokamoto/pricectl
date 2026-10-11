@@ -1,7 +1,12 @@
 import Stripe from 'stripe';
 import { StackManifest, ResourceManifest } from '@pricectl/core';
-import { findExistingProduct as stripeFindExistingProduct, findExistingPrice as stripeFindExistingPrice } from './stripe-utils';
+import {
+  findExistingProduct as stripeFindExistingProduct,
+  findExistingPrice as stripeFindExistingPrice,
+  stripInternalMetadata,
+} from './stripe-utils';
 import { StateManager } from './state';
+import { isPriceEquivalent } from './price-comparison';
 
 export interface DeployResult {
   stackId: string;
@@ -39,6 +44,41 @@ function isResourceNotFoundError(error: unknown): boolean {
     return (error as { code?: string }).code === 'resource_missing';
   }
   return false;
+}
+
+/** Coupon fields that Stripe does not allow to change after creation. */
+const IMMUTABLE_COUPON_FIELDS = [
+  'duration',
+  'amount_off',
+  'currency',
+  'percent_off',
+  'duration_in_months',
+  'max_redemptions',
+  'redeem_by',
+] as const;
+
+/** Compare a coupon field from Stripe (null when unset) with the desired value (undefined when unset). */
+function isSameCouponValue(existing: unknown, desired: unknown): boolean {
+  return (existing ?? null) === (desired ?? null);
+}
+
+/**
+ * Metadata update that turns `current` into `desired`: changed keys get their new value and
+ * removed keys are unset with an empty string. Returns null when nothing changes.
+ */
+function metadataChanges(
+  current: Record<string, string>,
+  desired: Record<string | number, string | number | null>,
+): Record<string, string> | null {
+  const update: Record<string, string> = {};
+  for (const [key, value] of Object.entries(desired)) {
+    const next = value === null ? '' : String(value);
+    if (current[key] !== next) update[key] = next;
+  }
+  for (const key of Object.keys(current)) {
+    if (!(key in desired)) update[key] = '';
+  }
+  return Object.keys(update).length > 0 ? update : null;
 }
 
 /** Validate and cast object to Stripe.ProductCreateParams */
@@ -135,7 +175,10 @@ export class StripeDeployer {
       const desiredHash = StateManager.computePropertiesHash(resource.properties);
       const existingHash = existing.metadata?.pricectl_properties_hash as string | undefined;
 
-      if (existingHash === desiredHash) {
+      // The hash covers the definition only; a product archived by destroy has the same hash
+      // but still needs to be brought back to its desired active state.
+      const activeMatches = existing.active === (props.active ?? true);
+      if (existingHash === desiredHash && activeMatches) {
         // Properties unchanged, return unchanged status
         return {
           id: resource.id,
@@ -196,7 +239,7 @@ export class StripeDeployer {
 
     if (existing) {
       // Check if properties match
-      const propsMatch = this.comparePriceProperties(existing, props);
+      const propsMatch = isPriceEquivalent(existing, props);
       if (propsMatch) {
         return {
           id: resource.id,
@@ -205,16 +248,23 @@ export class StripeDeployer {
           status: 'unchanged' as const,
         };
       } else {
-        // Deactivate old price and create new one
-        await this.stripe.prices.update(existing.id, { active: false });
+        // Create the replacement first so that a failure leaves the old price usable,
+        // and take over its lookup key (Stripe allows a lookup key on only one price).
         const created = await this.stripe.prices.create({
           ...props,
+          ...(props.lookup_key ? { transfer_lookup_key: true } : {}),
           metadata: {
             ...props.metadata,
             pricectl_id: resource.id,
             pricectl_path: resource.path,
           },
         });
+        try {
+          await this.stripe.prices.update(existing.id, { active: false });
+        } catch (error: unknown) {
+          await this.undoPriceReplacement(existing.id, created.id, props.lookup_key);
+          throw error;
+        }
         return {
           id: resource.id,
           type: resource.type,
@@ -240,19 +290,31 @@ export class StripeDeployer {
     }
   }
 
+  /**
+   * Undo a price replacement whose old price could not be deactivated, so that the old
+   * price stays the only active one: give its lookup key back, then deactivate the
+   * replacement. Each step is best effort; this is not an atomic rollback.
+   */
+  private async undoPriceReplacement(oldPriceId: string, newPriceId: string, lookupKey?: string): Promise<void> {
+    if (lookupKey) {
+      try {
+        await this.stripe.prices.update(oldPriceId, { lookup_key: lookupKey, transfer_lookup_key: true });
+      } catch {
+        // The caller reports the original error
+      }
+    }
+    try {
+      await this.stripe.prices.update(newPriceId, { active: false });
+    } catch {
+      // The caller reports the original error
+    }
+  }
+
   private async deployCoupon(resource: ResourceManifest, _stackId: string) {
+    const props = resource.properties as unknown as Stripe.CouponCreateParams;
     const existing = await this.findExistingCoupon(resource.id);
 
-    if (existing) {
-      return {
-        id: resource.id,
-        type: resource.type,
-        physicalId: existing.id,
-        status: 'unchanged' as const,
-      };
-    } else {
-      // Create new coupon
-      const props = resource.properties as unknown as Stripe.CouponCreateParams;
+    if (!existing) {
       const created = await this.stripe.coupons.create({
         ...props,
         id: resource.id,
@@ -269,31 +331,49 @@ export class StripeDeployer {
         status: 'created' as const,
       };
     }
+
+    // Stripe can only update a coupon's name and metadata; refuse to silently drop other changes.
+    const immutableChanges = IMMUTABLE_COUPON_FIELDS.filter(
+      (field) => !isSameCouponValue(existing[field], props[field]),
+    );
+    if (immutableChanges.length > 0) {
+      throw new Error(
+        `Coupon "${resource.id}" cannot be updated: Stripe does not allow changing ${immutableChanges.join(', ')}. ` +
+          'Give the coupon a new id to create a replacement.',
+      );
+    }
+
+    const nameChanged = props.name !== undefined && props.name !== existing.name;
+    const metadataUpdate = metadataChanges(stripInternalMetadata(existing.metadata) ?? {}, props.metadata || {});
+    if (!nameChanged && metadataUpdate === null) {
+      return {
+        id: resource.id,
+        type: resource.type,
+        physicalId: existing.id,
+        status: 'unchanged' as const,
+      };
+    }
+
+    const updated = await this.stripe.coupons.update(existing.id, {
+      ...(nameChanged ? { name: props.name } : {}),
+      ...(metadataUpdate ? { metadata: metadataUpdate } : {}),
+    });
+    return {
+      id: resource.id,
+      type: resource.type,
+      physicalId: updated.id,
+      status: 'updated' as const,
+    };
   }
 
   private async deployEntitlementFeature(resource: ResourceManifest, stackId: string) {
     const props = resource.properties as unknown as Stripe.Entitlements.FeatureCreateParams;
 
-    // Try to find existing feature (state-based first, then by lookup_key)
-    const existing = await this.findExistingEntitlementFeature(resource.id, props.lookup_key, stackId);
+    // Only an active feature can be reused: Stripe rejects every update, including
+    // reactivation, on an inactive feature, but allows a new one with the same lookup_key.
+    const existing = await this.findActiveEntitlementFeature(resource.id, props.lookup_key, stackId);
 
-    if (existing) {
-      // Update existing feature
-      const updated = await this.stripe.entitlements.features.update(existing.id, {
-        name: props.name,
-        metadata: {
-          ...props.metadata,
-          pricectl_id: resource.id,
-          pricectl_path: resource.path,
-        },
-      });
-      return {
-        id: resource.id,
-        type: resource.type,
-        physicalId: updated.id,
-        status: 'updated' as const,
-      };
-    } else {
+    if (!existing) {
       const created = await this.stripe.entitlements.features.create({
         ...props,
         metadata: {
@@ -309,6 +389,28 @@ export class StripeDeployer {
         status: 'created' as const,
       };
     }
+
+    const nameChanged = props.name !== existing.name;
+    const metadataUpdate = metadataChanges(stripInternalMetadata(existing.metadata) ?? {}, props.metadata ?? {});
+    if (!nameChanged && metadataUpdate === null) {
+      return {
+        id: resource.id,
+        type: resource.type,
+        physicalId: existing.id,
+        status: 'unchanged' as const,
+      };
+    }
+
+    const updated = await this.stripe.entitlements.features.update(existing.id, {
+      ...(nameChanged ? { name: props.name } : {}),
+      ...(metadataUpdate ? { metadata: metadataUpdate } : {}),
+    });
+    return {
+      id: resource.id,
+      type: resource.type,
+      physicalId: updated.id,
+      status: 'updated' as const,
+    };
   }
 
   private async deployBillingMeter(resource: ResourceManifest, stackId: string) {
@@ -317,18 +419,7 @@ export class StripeDeployer {
     // Try to find existing meter (state-based first, then by event_name)
     const existing = await this.findExistingBillingMeter(resource.id, props.event_name, stackId);
 
-    if (existing) {
-      // Meters can only update display_name
-      const updated = await this.stripe.billing.meters.update(existing.id, {
-        display_name: props.display_name,
-      });
-      return {
-        id: resource.id,
-        type: resource.type,
-        physicalId: updated.id,
-        status: 'updated' as const,
-      };
-    } else {
+    if (!existing) {
       const created = await this.stripe.billing.meters.create(props);
       return {
         id: resource.id,
@@ -337,9 +428,34 @@ export class StripeDeployer {
         status: 'created' as const,
       };
     }
+
+    const inactive = existing.status !== 'active';
+    const displayNameChanged = props.display_name !== existing.display_name;
+    if (!inactive && !displayNameChanged) {
+      return {
+        id: resource.id,
+        type: resource.type,
+        physicalId: existing.id,
+        status: 'unchanged' as const,
+      };
+    }
+
+    // A meter deactivated by destroy is brought back; display_name is its only mutable field.
+    if (inactive) {
+      await this.stripe.billing.meters.reactivate(existing.id);
+    }
+    if (displayNameChanged) {
+      await this.stripe.billing.meters.update(existing.id, { display_name: props.display_name });
+    }
+    return {
+      id: resource.id,
+      type: resource.type,
+      physicalId: existing.id,
+      status: 'updated' as const,
+    };
   }
 
-  private async findExistingEntitlementFeature(
+  private async findActiveEntitlementFeature(
     logicalId: string,
     lookupKey: string,
     stackId: string,
@@ -349,30 +465,27 @@ export class StripeDeployer {
       const stateEntry = this.stateManager.getResource(stackId, logicalId);
       if (stateEntry?.physicalId) {
         try {
-          return await this.stripe.entitlements.features.retrieve(stateEntry.physicalId);
+          const feature = await this.stripe.entitlements.features.retrieve(stateEntry.physicalId);
+          if (feature.active) {
+            return feature;
+          }
+          // Inactive features cannot be reused — fall through to listing
         } catch (error: unknown) {
           if (!isResourceNotFoundError(error)) {
             throw error;
           }
-          // Physical ID from state is stale — fall through to search
+          // Physical ID from state is stale — fall through to listing
         }
       }
     }
 
-    // Fall back to paginated search by lookup_key
-    try {
-      for await (const feature of this.stripe.entitlements.features.list({ limit: 100 })) {
-        if (feature.lookup_key === lookupKey) {
-          return feature;
-        }
+    // Fall back to listing by lookup_key (the list also returns inactive features)
+    for await (const feature of this.stripe.entitlements.features.list({ limit: 100 })) {
+      if (feature.active && feature.lookup_key === lookupKey) {
+        return feature;
       }
-      return null;
-    } catch (error: unknown) {
-      if (isResourceNotFoundError(error)) {
-        return null;
-      }
-      throw error;
     }
+    return null;
   }
 
   private async findExistingBillingMeter(
@@ -390,26 +503,20 @@ export class StripeDeployer {
           if (!isResourceNotFoundError(error)) {
             throw error;
           }
-          // Physical ID from state is stale — fall through to search
+          // Physical ID from state is stale — fall through to listing
         }
       }
     }
 
-    // Fall back to paginated search by event_name
+    // Fall back to listing by event_name, preferring an active meter
     // (Billing Meters don't support metadata, so event_name is the natural key)
-    try {
-      for await (const meter of this.stripe.billing.meters.list({ limit: 100 })) {
-        if (meter.event_name === eventName) {
-          return meter;
-        }
-      }
-      return null;
-    } catch (error: unknown) {
-      if (isResourceNotFoundError(error)) {
-        return null;
-      }
-      throw error;
+    let inactiveMatch: Stripe.Billing.Meter | null = null;
+    for await (const meter of this.stripe.billing.meters.list({ limit: 100 })) {
+      if (meter.event_name !== eventName) continue;
+      if (meter.status === 'active') return meter;
+      inactiveMatch = inactiveMatch ?? meter;
     }
+    return inactiveMatch;
   }
 
   /**
@@ -430,6 +537,13 @@ export class StripeDeployer {
     return resolved;
   }
 
+  private async hasPrices(productId: string): Promise<boolean> {
+    for await (const _price of this.stripe.prices.list({ product: productId, limit: 1 })) {
+      return true;
+    }
+    return false;
+  }
+
   private async findExistingCoupon(logicalId: string): Promise<Stripe.Coupon | null> {
     // Coupons don't support search API, so we retrieve by logical ID directly.
     // If metadata support is needed in the future, coupons would need to be queried via list() with pagination.
@@ -443,75 +557,6 @@ export class StripeDeployer {
     }
   }
 
-
-  /**
-   * Compare all relevant properties of a price to determine if it needs to be recreated.
-   * Prices are immutable in Stripe, so any property change requires deactivating
-   * the old price and creating a new one.
-   */
-  private comparePriceProperties(existing: Stripe.Price, desired: Stripe.PriceCreateParams): boolean {
-    // Compare product linkage (critical for Prices since they're immutable)
-    const existingProduct = typeof existing.product === 'string' ? existing.product : existing.product?.id;
-    const desiredProduct = typeof desired.product === 'string' ? desired.product : (desired.product as unknown as Stripe.Product)?.id;
-    if (existingProduct !== desiredProduct) return false;
-
-    // Compare basic properties
-    if (existing.currency !== desired.currency) return false;
-    if (existing.unit_amount !== desired.unit_amount) return false;
-    if (existing.unit_amount_decimal !== desired.unit_amount_decimal) return false;
-    if (existing.active !== desired.active) return false;
-    if (existing.nickname !== desired.nickname) return false;
-    if ((existing.tax_behavior ?? undefined) !== (desired.tax_behavior ?? undefined)) return false;
-
-    // Compare recurring properties
-    if (desired.recurring) {
-      if (!existing.recurring) return false;
-      if (existing.recurring.interval !== desired.recurring.interval) return false;
-      if (existing.recurring.interval_count !== desired.recurring.interval_count) return false;
-      if (existing.recurring.usage_type !== desired.recurring.usage_type) return false;
-      // Treat null (API response) and undefined (request) as equivalent for trial_period_days
-      const existingTrialDays = existing.recurring.trial_period_days ?? undefined;
-      const desiredTrialDays = desired.recurring.trial_period_days ?? undefined;
-      if (existingTrialDays !== desiredTrialDays) return false;
-    } else if (existing.recurring) {
-      return false;
-    }
-
-    // Compare tiers and billing scheme
-    if ((existing.billing_scheme ?? undefined) !== (desired.billing_scheme ?? undefined)) return false;
-    if (desired.tiers_mode !== existing.tiers_mode) return false;
-
-    if (desired.tiers) {
-      if (!existing.tiers || existing.tiers.length !== desired.tiers.length) return false;
-
-      for (let i = 0; i < desired.tiers.length; i++) {
-        const existingTier = existing.tiers[i];
-        const desiredTier = desired.tiers[i];
-
-        if (existingTier.up_to !== desiredTier.up_to) return false;
-        if (existingTier.unit_amount !== desiredTier.unit_amount) return false;
-        if (existingTier.unit_amount_decimal !== desiredTier.unit_amount_decimal) return false;
-        if (existingTier.flat_amount !== desiredTier.flat_amount) return false;
-        if (existingTier.flat_amount_decimal !== desiredTier.flat_amount_decimal) return false;
-      }
-    } else if (existing.tiers) {
-      return false;
-    }
-
-    // Compare transform_quantity
-    if (desired.transform_quantity) {
-      if (!existing.transform_quantity) return false;
-      if (existing.transform_quantity.divide_by !== desired.transform_quantity.divide_by) return false;
-      if (existing.transform_quantity.round !== desired.transform_quantity.round) return false;
-    } else if (existing.transform_quantity) {
-      return false;
-    }
-
-    // Compare lookup_key
-    if (existing.lookup_key !== desired.lookup_key) return false;
-
-    return true;
-  }
 
   async destroy(manifest: StackManifest): Promise<DestroyResult> {
     const result: DestroyResult = {
@@ -560,6 +605,16 @@ export class StripeDeployer {
           stackId,
         );
         if (existing) {
+          // Stripe refuses to delete a product that has prices, and prices cannot be deleted,
+          // so such a product is archived instead.
+          if (await this.hasPrices(existing.id)) {
+            await this.stripe.products.update(existing.id, { active: false });
+            return {
+              id: resource.id,
+              type: resource.type,
+              status: 'deactivated',
+            };
+          }
           await this.stripe.products.del(existing.id);
           return {
             id: resource.id,
@@ -601,7 +656,7 @@ export class StripeDeployer {
       }
       case 'Stripe::EntitlementFeature': {
         const featureProps = resource.properties as unknown as { lookup_key: string };
-        const existing = await this.findExistingEntitlementFeature(resource.id, featureProps.lookup_key, stackId);
+        const existing = await this.findActiveEntitlementFeature(resource.id, featureProps.lookup_key, stackId);
         if (existing) {
           // Features are deactivated, not deleted
           await this.stripe.entitlements.features.update(existing.id, { active: false });

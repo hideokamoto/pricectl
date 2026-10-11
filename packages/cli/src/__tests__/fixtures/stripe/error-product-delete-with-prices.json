@@ -1,0 +1,6 @@
+{
+  "error": {
+    "message": "This product cannot be deleted because it has one or more user-created prices.",
+    "type": "invalid_request_error"
+  }
+}

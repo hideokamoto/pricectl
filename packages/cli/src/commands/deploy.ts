@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import chalk from 'chalk';
 import { StripeDeployer } from '../engine/deployer';
 import { StateManager } from '../engine/state';
+import { deployOutcome } from '../engine/outcome';
 import { StackManifest, STRIPE_API_KEY_MISSING_ERROR } from '@pricectl/core';
 
 export default class Deploy extends Command {
@@ -80,6 +81,7 @@ export default class Deploy extends Command {
     }
 
     const stateManager = new StateManager(flags['state-file']);
+    let failed = false;
     try {
       // Deploy using the deployer
       const apiVersion = manifest.apiVersion || '2024-12-18.acacia';
@@ -87,7 +89,9 @@ export default class Deploy extends Command {
       const result = await deployer.deploy(manifest);
 
       // Display results
-      this.log(chalk.bold.green('✓ Deployment completed'));
+      const outcome = deployOutcome(result);
+      failed = outcome.failed;
+      this.log(failed ? chalk.bold.red(outcome.headline) : chalk.bold.green(outcome.headline));
       this.log('');
 
       if (result.deployed.length > 0) {
@@ -132,6 +136,10 @@ export default class Deploy extends Command {
         this.log('');
         this.log(chalk.yellow(`Warning: Failed to save state: ${saveError instanceof Error ? saveError.message : String(saveError)}`));
       }
+    }
+
+    if (failed) {
+      this.error('Some resources could not be deployed. See errors above.', { exit: 1 });
     }
   }
 }

@@ -9,27 +9,40 @@ function isResourceMissingError(error: unknown): boolean {
   return false;
 }
 
-/**
- * Escape a logical ID for use in a Stripe Search API query.
- * Prevents search query injection by escaping backslashes and double quotes.
- */
-export function escapeSearchQuery(id: string): string {
-  return id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+/** Whether Stripe metadata carries the given logical ID (current or legacy key). */
+function hasLogicalId(metadata: Record<string, string> | null | undefined, logicalId: string): boolean {
+  return metadata?.pricectl_id === logicalId || metadata?.fillet_id === logicalId;
 }
 
 /**
- * Strip internal metadata keys (pricectl_id, pricectl_path, fillet_id, fillet_path)
+ * Pick the object that represents the resource now: active objects win over
+ * inactive ones (e.g. prices that were replaced), then the most recently created.
+ */
+function pickCurrent<T extends { active: boolean; created: number }>(candidates: T[]): T | null {
+  const sorted = [...candidates].sort((a, b) => Number(b.active) - Number(a.active) || b.created - a.created);
+  return sorted[0] ?? null;
+}
+
+/**
+ * Strip internal metadata keys (pricectl_id, pricectl_path, pricectl_properties_hash, fillet_id, fillet_path)
  * and return undefined if no user-defined metadata remains.
  */
-function stripInternalMetadata(metadata: Record<string, string> | null | undefined): Record<string, string> | undefined {
+export function stripInternalMetadata(metadata: Record<string, string> | null | undefined): Record<string, string> | undefined {
   if (!metadata) return undefined;
-  const { pricectl_id: _pid, pricectl_path: _ppath, fillet_id: _fid, fillet_path: _fpath, ...userMetadata } = metadata;
+  const {
+    pricectl_id: _pid,
+    pricectl_path: _ppath,
+    pricectl_properties_hash: _phash,
+    fillet_id: _fid,
+    fillet_path: _fpath,
+    ...userMetadata
+  } = metadata;
   return Object.keys(userMetadata).length > 0 ? userMetadata : undefined;
 }
 
 /**
  * Find an existing Stripe Product by logical ID.
- * Uses state-based lookup first for speed, then falls back to the Search API.
+ * Uses state-based lookup first, then falls back to listing all objects.
  * Supports both the current `pricectl_id` metadata key and the legacy `fillet_id` key.
  */
 export async function findExistingProduct(
@@ -51,30 +64,23 @@ export async function findExistingProduct(
         if (!isResourceMissingError(error)) {
           throw error;
         }
-        // Physical ID from state is stale — fall through to search
+        // Physical ID from state is stale — fall through to listing
       }
     }
   }
 
-  // Fall back to Search API
-  try {
-    const escapedId = escapeSearchQuery(logicalId);
-    const result = await stripe.products.search({
-      query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
-      limit: 1,
-    });
-    return result.data.length > 0 ? result.data[0] : null;
-  } catch (error: unknown) {
-    if (isResourceMissingError(error)) {
-      return null;
-    }
-    throw error;
+  // Fall back to listing. The Search API is eventually consistent and misses
+  // objects created moments ago, which would lead to duplicates.
+  const matches: Stripe.Product[] = [];
+  for await (const product of stripe.products.list({ limit: 100 })) {
+    if (hasLogicalId(product.metadata, logicalId)) matches.push(product);
   }
+  return pickCurrent(matches);
 }
 
 /**
  * Find an existing Stripe Price by logical ID.
- * Uses state-based lookup first for speed, then falls back to the Search API.
+ * Uses state-based lookup first, then falls back to listing all objects.
  * Supports both the current `pricectl_id` metadata key and the legacy `fillet_id` key.
  */
 export async function findExistingPrice(
@@ -88,7 +94,7 @@ export async function findExistingPrice(
     const stateEntry = stateManager.getResource(stackId, logicalId);
     if (stateEntry?.physicalId) {
       try {
-        const price = await stripe.prices.retrieve(stateEntry.physicalId);
+        const price = await stripe.prices.retrieve(stateEntry.physicalId, { expand: ['tiers'] });
         if (price) {
           return price;
         }
@@ -96,25 +102,17 @@ export async function findExistingPrice(
         if (!isResourceMissingError(error)) {
           throw error;
         }
-        // Physical ID from state is stale — fall through to search
+        // Physical ID from state is stale — fall through to listing
       }
     }
   }
 
-  // Fall back to Search API
-  try {
-    const escapedId = escapeSearchQuery(logicalId);
-    const result = await stripe.prices.search({
-      query: `metadata["pricectl_id"]:"${escapedId}" OR metadata["fillet_id"]:"${escapedId}"`,
-      limit: 1,
-    });
-    return result.data.length > 0 ? result.data[0] : null;
-  } catch (error: unknown) {
-    if (isResourceMissingError(error)) {
-      return null;
-    }
-    throw error;
+  // Fall back to listing (see findExistingProduct for why not the Search API)
+  const matches: Stripe.Price[] = [];
+  for await (const price of stripe.prices.list({ limit: 100, expand: ['data.tiers'] })) {
+    if (hasLogicalId(price.metadata, logicalId)) matches.push(price);
   }
+  return pickCurrent(matches);
 }
 
 /**
@@ -226,6 +224,8 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
       if (r.active !== undefined) normalized.active = r.active;
       if (r.nickname !== undefined) normalized.nickname = r.nickname;
       if (r.lookup_key !== undefined) normalized.lookup_key = r.lookup_key;
+      if (r.tax_behavior !== undefined) normalized.tax_behavior = r.tax_behavior;
+      if (r.billing_scheme !== undefined) normalized.billing_scheme = r.billing_scheme;
 
       if (r.recurring) {
         const rec: Record<string, unknown> = {};
