@@ -1,10 +1,10 @@
 {
   "active": true,
   "attributes": [],
-  "created": 1791724678,
+  "created": 1791728046,
   "default_price": null,
   "description": "fixture",
-  "id": "prod_VQD388UM7b7q5W",
+  "id": "prod_VQDxAwlJKLYobj",
   "images": [],
   "livemode": false,
   "marketing_features": [],
@@ -21,6 +21,6 @@
   "tax_details": null,
   "type": "service",
   "unit_label": null,
-  "updated": 1791724678,
+  "updated": 1791728046,
   "url": null
 }

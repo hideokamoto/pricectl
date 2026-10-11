@@ -1,0 +1,6 @@
+{
+  "error": {
+    "message": "Starting with Stripe version `2025-03-31.basil`, metered prices must be backed by meters.",
+    "type": "invalid_request_error"
+  }
+}

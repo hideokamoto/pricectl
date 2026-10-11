@@ -1,10 +1,10 @@
 {
   "active": true,
   "billing_scheme": "per_unit",
-  "created": 1791724679,
+  "created": 1791728047,
   "currency": "usd",
   "custom_unit_amount": null,
-  "id": "price_1UPMdXTESTACCT00mrXvcHgU",
+  "id": "price_1UPNVrTESTACCT00Ma0SmbWQ",
   "livemode": false,
   "lookup_key": null,
   "metadata": {
@@ -13,9 +13,8 @@
   },
   "nickname": null,
   "object": "price",
-  "product": "prod_VQD388UM7b7q5W",
+  "product": "prod_VQDxAwlJKLYobj",
   "recurring": {
-    "aggregate_usage": null,
     "interval": "month",
     "interval_count": 1,
     "meter": null,

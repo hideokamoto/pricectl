@@ -49,7 +49,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
         product: PRODUCT_ID,
         currency: 'usd',
         unitAmount: 500,
-        lookupKey: 'pricectl_fx_lookup',
+        lookupKey: lookupPriceFixture.lookup_key,
       });
 
       const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
@@ -146,7 +146,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
         product: PRODUCT_ID,
         currency: 'usd',
         unitAmount: 600,
-        lookupKey: 'pricectl_fx_lookup',
+        lookupKey: lookupPriceFixture.lookup_key,
       });
 
       const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
@@ -155,7 +155,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       const prices = mockFakeStripe.pricesFor('FxLookup');
       const replacement = prices.find((p) => p.id !== lookupPriceFixture.id);
       const original = prices.find((p) => p.id === lookupPriceFixture.id);
-      expect(replacement).toMatchObject({ active: true, unit_amount: 600, lookup_key: 'pricectl_fx_lookup' });
+      expect(replacement).toMatchObject({ active: true, unit_amount: 600, lookup_key: lookupPriceFixture.lookup_key });
       expect(original).toMatchObject({ active: false, lookup_key: null });
     });
 
@@ -323,7 +323,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
 
     it('reports a coupon with the same definition as unchanged', async () => {
       const stack = createStack();
-      new Coupon(stack, 'PricectlFxCoupon', { percentOff: 10, duration: 'once', name: 'Fx coupon' });
+      new Coupon(stack, couponFixture.id, { percentOff: 10, duration: 'once', name: 'Fx coupon' });
 
       const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
 
@@ -333,24 +333,24 @@ describe('StripeDeployer against recorded Stripe responses', () => {
 
     it('updates the name of an existing coupon', async () => {
       const stack = createStack();
-      new Coupon(stack, 'PricectlFxCoupon', { percentOff: 10, duration: 'once', name: 'Fx coupon B' });
+      new Coupon(stack, couponFixture.id, { percentOff: 10, duration: 'once', name: 'Fx coupon B' });
 
       const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
 
       expect(result.errors).toEqual([]);
       expect(result.deployed[0].status).toBe('updated');
-      expect(mockFakeStripe.couponStore.get('PricectlFxCoupon')?.name).toBe('Fx coupon B');
+      expect(mockFakeStripe.couponStore.get(couponFixture.id)?.name).toBe('Fx coupon B');
     });
 
     it('reports an error instead of silently ignoring a change Stripe cannot apply to a coupon', async () => {
       const stack = createStack();
-      new Coupon(stack, 'PricectlFxCoupon', { percentOff: 20, duration: 'once', name: 'Fx coupon' });
+      new Coupon(stack, couponFixture.id, { percentOff: 20, duration: 'once', name: 'Fx coupon' });
 
       const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
 
       expect(result.deployed).toEqual([]);
       expect(result.errors[0].error).toContain('percent_off');
-      expect(mockFakeStripe.couponStore.get('PricectlFxCoupon')?.percent_off).toBe(10);
+      expect(mockFakeStripe.couponStore.get(couponFixture.id)?.percent_off).toBe(10);
     });
   });
 

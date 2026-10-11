@@ -1,25 +1,23 @@
 {
   "active": true,
   "billing_scheme": "per_unit",
-  "created": 1791727880,
+  "created": 1791728051,
   "currency": "usd",
   "custom_unit_amount": null,
-  "id": "price_1UPNTATESTACCT00rQ2TYE8K",
+  "id": "price_1UPNVvTESTACCT00CW2ohley",
   "livemode": false,
   "lookup_key": null,
   "metadata": {
-    "pricectl_id": "Exp3Usage",
-    "pricectl_path": "PricectlExp3/Exp3Usage",
+    "pricectl_id": "FxUsage",
     "team": "billing"
   },
   "nickname": null,
   "object": "price",
-  "product": "prod_VQDuGI88hc3vVC",
+  "product": "prod_VQDxAwlJKLYobj",
   "recurring": {
-    "aggregate_usage": null,
     "interval": "month",
     "interval_count": 1,
-    "meter": "mtr_test_61VYlQVog02VinEhM41TESTACCT00OPI",
+    "meter": "mtr_test_61VYlTGiQzM1wrUlE41TESTACCT00TCK",
     "trial_period_days": null,
     "usage_type": "metered"
   },

@@ -61,7 +61,7 @@ describe('diffResource', () => {
             product: PRODUCT_ID,
             currency: 'usd',
             unitAmount: 500,
-            lookupKey: 'pricectl_fx_lookup',
+            lookupKey: lookupPriceFixture.lookup_key,
           }),
         lookupPriceFixture,
       ],
@@ -85,15 +85,15 @@ describe('diffResource', () => {
       [
         'coupon',
         'Stripe::Coupon',
-        'PricectlFxCoupon',
-        (stack: Stack) => new Coupon(stack, 'PricectlFxCoupon', { percentOff: 10, duration: 'once', name: 'Fx coupon' }),
+        couponFixture.id,
+        (stack: Stack) => new Coupon(stack, couponFixture.id, { percentOff: 10, duration: 'once', name: 'Fx coupon' }),
         couponFixture,
       ],
       [
         'entitlement feature',
         'Stripe::EntitlementFeature',
         'FxFeature',
-        (stack: Stack) => new EntitlementFeature(stack, 'FxFeature', { name: 'Fx feature', lookupKey: 'pricectl_fx_feature' }),
+        (stack: Stack) => new EntitlementFeature(stack, 'FxFeature', { name: 'Fx feature', lookupKey: featureFixture.lookup_key }),
         featureFixture,
       ],
       [
@@ -103,7 +103,7 @@ describe('diffResource', () => {
         (stack: Stack) =>
           new Meter(stack, 'FxMeter', {
             displayName: 'Fx meter',
-            eventName: 'pricectl_fx_event',
+            eventName: meterFixture.event_name,
             defaultAggregation: { formula: 'count' },
           }),
         meterFixture,
@@ -205,7 +205,7 @@ describe('diffResource', () => {
         product: PRODUCT_ID,
         currency: 'usd',
         unitAmount: 500,
-        lookupKey: 'pricectl_fx_lookup',
+        lookupKey: lookupPriceFixture.lookup_key,
         taxBehavior: 'inclusive',
       });
 

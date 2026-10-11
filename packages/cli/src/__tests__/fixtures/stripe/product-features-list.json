@@ -3,41 +3,21 @@
     {
       "entitlement_feature": {
         "active": true,
-        "id": "feat_test_61VYlQVIwmUn91E0541TESTACCT00Bei",
+        "id": "feat_test_61VYlTGj0COFsKODQ41TESTACCT001I0",
         "livemode": false,
-        "lookup_key": "pricectl_exp3_sso",
+        "lookup_key": "pricectl_fx2_feature",
         "metadata": {
-          "pricectl_id": "Exp3Sso",
-          "pricectl_path": "PricectlExp3/Exp3Sso",
-          "team": "billing"
+          "pricectl_id": "FxFeature"
         },
-        "name": "Exp3 SSO",
+        "name": "Fx feature",
         "object": "entitlements.feature"
       },
-      "id": "prodft_1UPNT9TESTACCT00tUgrqZ29",
-      "livemode": false,
-      "object": "product_feature"
-    },
-    {
-      "entitlement_feature": {
-        "active": true,
-        "id": "feat_test_61VYlQVPhSWFotsI941TESTACCT00TsW",
-        "livemode": false,
-        "lookup_key": "pricectl_exp3_support",
-        "metadata": {
-          "pricectl_id": "Exp3Support",
-          "pricectl_path": "PricectlExp3/Exp3Support",
-          "team": "billing"
-        },
-        "name": "Exp3 support",
-        "object": "entitlements.feature"
-      },
-      "id": "prodft_1UPNT9TESTACCT00koN71JtA",
+      "id": "prodft_1UPNVwTESTACCT00r69z5gqx",
       "livemode": false,
       "object": "product_feature"
     }
   ],
   "has_more": false,
   "object": "list",
-  "url": "/v1/products/prod_VQDuGI88hc3vVC/features"
+  "url": "/v1/products/prod_VQDxAwlJKLYobj/features"
 }
