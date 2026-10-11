@@ -270,6 +270,8 @@ export function normalizeResource(resource: Stripe.Product | Stripe.Price | Stri
         if (r.recurring.trial_period_days !== undefined) {
           rec.trial_period_days = r.recurring.trial_period_days;
         }
+        const meter = (r.recurring as { meter?: string | null }).meter;
+        if (meter !== undefined) rec.meter = meter;
         normalized.recurring = rec;
       }
 

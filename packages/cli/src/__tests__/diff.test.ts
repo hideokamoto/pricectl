@@ -9,6 +9,7 @@ import tieredPriceFixture from './fixtures/stripe/price-tiered-expanded.json';
 import couponFixture from './fixtures/stripe/coupon.json';
 import featureFixture from './fixtures/stripe/feature.json';
 import meterFixture from './fixtures/stripe/meter.json';
+import meteredPriceFixture from './fixtures/stripe/price-metered.json';
 
 const PRODUCT_ID = productFixture.id;
 
@@ -114,6 +115,25 @@ describe('diffResource', () => {
       const diff = diffResource(type, synthesizedProperties(stack, logicalId), current as never);
 
       expect(diff).toMatchObject({ changed: false });
+    });
+  });
+
+  describe('metered price', () => {
+    it('reports no change when the price bills through the same meter', () => {
+      const diff = diffResource(
+        'Stripe::Price',
+        {
+          product: meteredPriceFixture.product,
+          currency: 'usd',
+          active: true,
+          unit_amount: 5,
+          metadata: { team: 'billing' },
+          recurring: { interval: 'month', usage_type: 'metered', meter: meteredPriceFixture.recurring.meter },
+        },
+        meteredPriceFixture as never,
+      );
+
+      expect(diff.changed).toBe(false);
     });
   });
 

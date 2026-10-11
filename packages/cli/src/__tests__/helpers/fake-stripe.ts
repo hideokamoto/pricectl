@@ -19,8 +19,8 @@
  *   searchable until indexSearch() is called.
  * - Products reject parameters that are not product fields.
  *
- * Product features (products.createFeature/listFeatures/deleteFeature) follow the
- * shape in Stripe's API reference; they were not recorded from Stripe.
+ * Product features (products.createFeature/listFeatures/deleteFeature) return the
+ * shape recorded in ../fixtures/stripe/product-features-list.json.
  */
 
 type StripeObject = Record<string, any>;
