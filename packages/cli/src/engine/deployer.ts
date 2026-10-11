@@ -241,11 +241,22 @@ export class StripeDeployer {
       // Check if properties match
       const propsMatch = isPriceEquivalent(existing, props);
       if (propsMatch) {
+        // Metadata is mutable, so it is updated in place rather than by recreating the price
+        const metadataUpdate = metadataChanges(stripInternalMetadata(existing.metadata) ?? {}, props.metadata || {});
+        if (metadataUpdate === null) {
+          return {
+            id: resource.id,
+            type: resource.type,
+            physicalId: existing.id,
+            status: 'unchanged' as const,
+          };
+        }
+        await this.stripe.prices.update(existing.id, { metadata: metadataUpdate });
         return {
           id: resource.id,
           type: resource.type,
           physicalId: existing.id,
-          status: 'unchanged' as const,
+          status: 'updated' as const,
         };
       } else {
         // Create the replacement first so that a failure leaves the old price usable,

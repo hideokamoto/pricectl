@@ -80,6 +80,27 @@ describe('StripeDeployer against recorded Stripe responses', () => {
     });
   });
 
+  describe('Price whose metadata differs from Stripe', () => {
+    it('updates the metadata in place instead of recreating the price', async () => {
+      mockFakeStripe.seed('prices', recurringPriceFixture);
+      const stack = new Stack(undefined, 'FxStack', { apiKey: 'sk_test_dummy', tags: { team: 'billing' } });
+      new Price(stack, 'FxMonthly', {
+        product: PRODUCT_ID,
+        currency: 'usd',
+        unitAmount: 1000,
+        recurring: { interval: 'month' },
+      });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.errors).toEqual([]);
+      expect(result.deployed[0]).toMatchObject({ status: 'updated', physicalId: recurringPriceFixture.id });
+      expect(mockFakeStripe.pricesFor('FxMonthly')).toEqual([
+        expect.objectContaining({ metadata: expect.objectContaining({ team: 'billing', pricectl_id: 'FxMonthly' }) }),
+      ]);
+    });
+  });
+
   describe('Price whose definition differs from Stripe', () => {
     it('creates a new price when the unit amount changed', async () => {
       mockFakeStripe.seed('prices', recurringPriceFixture);
