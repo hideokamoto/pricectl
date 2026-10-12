@@ -585,7 +585,7 @@ describe('StripeDeployer', () => {
         ],
       };
 
-      const result = await deployer.destroy(manifest);
+      const result = await deployer.destroy(manifest, await deployer.planDestroy(manifest));
 
       expect(result.destroyed).toHaveLength(1);
       expect(result.destroyed[0]).toEqual({
@@ -612,7 +612,7 @@ describe('StripeDeployer', () => {
         ],
       };
 
-      const result = await deployer.destroy(manifest);
+      const result = await deployer.destroy(manifest, await deployer.planDestroy(manifest));
 
       expect(result.destroyed).toHaveLength(0);
       expect(result.errors).toHaveLength(0);
@@ -636,7 +636,7 @@ describe('StripeDeployer', () => {
         ],
       };
 
-      const result = await deployer.destroy(manifest);
+      const result = await deployer.destroy(manifest, await deployer.planDestroy(manifest));
 
       expect(result.destroyed).toHaveLength(1);
       expect(result.destroyed[0].status).toBe('deactivated');
@@ -665,7 +665,7 @@ describe('StripeDeployer', () => {
         ],
       };
 
-      const result = await deployer.destroy(manifest);
+      const result = await deployer.destroy(manifest, await deployer.planDestroy(manifest));
 
       expect(result.destroyed).toHaveLength(1);
       expect(result.destroyed[0]).toEqual({
@@ -693,7 +693,7 @@ describe('StripeDeployer', () => {
         ],
       };
 
-      const result = await deployer.destroy(manifest);
+      const result = await deployer.destroy(manifest, await deployer.planDestroy(manifest));
 
       expect(result.destroyed).toHaveLength(0);
       expect(result.errors).toHaveLength(0);
@@ -726,7 +726,7 @@ describe('StripeDeployer', () => {
         ],
       };
 
-      const result = await deployer.destroy(manifest);
+      const result = await deployer.destroy(manifest, await deployer.planDestroy(manifest));
 
       expect(result.destroyed).toHaveLength(2);
       // Priceが先に処理される（逆順）
@@ -750,7 +750,7 @@ describe('StripeDeployer', () => {
         ],
       };
 
-      const result = await deployer.destroy(manifest);
+      const result = await deployer.destroy(manifest, await deployer.planDestroy(manifest));
 
       expect(result.destroyed).toHaveLength(0);
       expect(result.errors).toHaveLength(1);

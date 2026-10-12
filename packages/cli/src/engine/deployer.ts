@@ -59,6 +59,8 @@ export interface DestroyPlan {
     path: string;
     type: string;
     status: 'deleted' | 'deactivated';
+    /** Stripe ID of the object that was planned for destruction, so that a replacement is not destroyed in its place */
+    physicalId: string;
   }>;
   /** Resources whose current state in Stripe could not be read */
   errors: Array<{
@@ -797,22 +799,37 @@ export class StripeDeployer {
   }
 
 
-  /** Delete or deactivate every resource in the manifest, and the ones only left in the state file. */
-  async destroy(manifest: StackManifest): Promise<DestroyResult> {
+  /**
+   * Carry out a destroy plan made by `planDestroy`. Only the resources in the plan are deleted or
+   * deactivated, and only in the way the plan says; anything else is left alone in Stripe and
+   * just dropped from the state file, since the plan found nothing to do for it.
+   */
+  async destroy(manifest: StackManifest, plan: DestroyPlan): Promise<DestroyResult> {
     const result: DestroyResult = {
       stackId: manifest.stackId,
       destroyed: [],
       errors: [],
     };
+    const planned = new Map(plan.resources.map((resource) => [resource.id, resource]));
+    const unreadable = new Map(plan.errors.map((error) => [error.id, error]));
 
     for (const resource of this.destroyOrder(manifest)) {
       try {
-        const destroyed = await this.destroyResource(resource, manifest.stackId);
-        if (destroyed) {
-          result.destroyed.push(destroyed);
+        const unreadableResource = unreadable.get(resource.id);
+        if (unreadableResource) {
+          // The plan could not tell what destroying it would do, so nothing about it is approved
+          throw new Error(unreadableResource.error);
         }
 
-        // Always clean state when destroyResource succeeds (even if resource was already gone)
+        const approved = planned.get(resource.id);
+        if (approved) {
+          const destroyed = await this.destroyResource(resource, manifest.stackId, approved);
+          if (destroyed) {
+            result.destroyed.push(destroyed);
+          }
+        }
+
+        // Always clean state when the resource is gone or was never planned for destruction
         if (this.stateManager) {
           this.stateManager.removeResource(manifest.stackId, resource.id);
         }
@@ -838,7 +855,13 @@ export class StripeDeployer {
       try {
         const pending = await this.pendingDestruction(resource, manifest.stackId);
         if (pending) {
-          plan.resources.push({ id: resource.id, path: resource.path, type: resource.type, status: pending.status });
+          plan.resources.push({
+            id: resource.id,
+            path: resource.path,
+            type: resource.type,
+            status: pending.status,
+            physicalId: pending.physicalId,
+          });
         }
       } catch (error: unknown) {
         plan.errors.push({
@@ -860,23 +883,43 @@ export class StripeDeployer {
     return [...findOrphans(manifest, this.stateManager), ...[...manifest.resources].reverse()];
   }
 
-  /** Delete or deactivate one resource. Returns null when there is nothing to do. */
-  private async destroyResource(resource: ResourceManifest, stackId: string): Promise<{
+  /**
+   * Delete or deactivate one resource. Returns null when there is nothing left to do. With an
+   * `approved` plan entry, throws without changing anything when Stripe has moved on so that
+   * the action would now be a different one, or would hit a different Stripe object.
+   */
+  private async destroyResource(
+    resource: ResourceManifest,
+    stackId: string,
+    approved?: { status: 'deleted' | 'deactivated'; physicalId: string },
+  ): Promise<{
     id: string;
     type: string;
     status: 'deleted' | 'deactivated';
   } | null> {
     const pending = await this.pendingDestruction(resource, stackId);
     if (!pending) return null;
+    if (approved && pending.physicalId !== approved.physicalId) {
+      throw new Error(
+        `"${resource.id}" was planned for ${approved.physicalId}, but is now ${pending.physicalId}; run destroy again to review the new plan.`,
+      );
+    }
+    if (approved && pending.status !== approved.status) {
+      throw new Error(
+        `"${resource.id}" was planned to be ${approved.status}, but would now be ${pending.status}; run destroy again to review the new plan.`,
+      );
+    }
     await pending.apply();
     return { id: resource.id, type: resource.type, status: pending.status };
   }
 
   /**
-   * What destroying one resource would do to Stripe, without doing it yet: whether it would be
-   * deleted or deactivated, and the call that does it. Null when it is already gone or inactive.
+   * What destroying one resource would do to Stripe, without doing it yet: the Stripe object it
+   * would hit, whether it would be deleted or deactivated, and the call that does it. Null when
+   * it is already gone or inactive.
    */
   private async pendingDestruction(resource: ResourceManifest, stackId: string): Promise<{
+    physicalId: string;
     status: 'deleted' | 'deactivated';
     apply: () => Promise<unknown>;
   } | null> {
@@ -894,9 +937,13 @@ export class StripeDeployer {
         if (await this.hasPrices(existing.id)) {
           // Already archived by an earlier destroy: nothing to do
           if (!existing.active) return null;
-          return { status: 'deactivated', apply: () => this.stripe.products.update(existing.id, { active: false }) };
+          return {
+            physicalId: existing.id,
+            status: 'deactivated',
+            apply: () => this.stripe.products.update(existing.id, { active: false }),
+          };
         }
-        return { status: 'deleted', apply: () => this.stripe.products.del(existing.id) };
+        return { physicalId: existing.id, status: 'deleted', apply: () => this.stripe.products.del(existing.id) };
       }
       case 'Stripe::Price': {
         const existing = await stripeFindExistingPrice(
@@ -907,12 +954,16 @@ export class StripeDeployer {
         );
         // Prices cannot be deleted, only deactivated; an inactive price needs nothing
         if (!existing?.active) return null;
-        return { status: 'deactivated', apply: () => this.stripe.prices.update(existing.id, { active: false }) };
+        return {
+          physicalId: existing.id,
+          status: 'deactivated',
+          apply: () => this.stripe.prices.update(existing.id, { active: false }),
+        };
       }
       case 'Stripe::Coupon': {
         const existing = await this.findExistingCoupon(resource.id);
         if (!existing) return null;
-        return { status: 'deleted', apply: () => this.stripe.coupons.del(existing.id) };
+        return { physicalId: existing.id, status: 'deleted', apply: () => this.stripe.coupons.del(existing.id) };
       }
       case 'Stripe::EntitlementFeature': {
         const featureProps = resource.properties as unknown as { lookup_key: string };
@@ -920,6 +971,7 @@ export class StripeDeployer {
         // Features are deactivated, not deleted
         if (!existing?.active) return null;
         return {
+          physicalId: existing.id,
           status: 'deactivated',
           apply: () => this.stripe.entitlements.features.update(existing.id, { active: false }),
         };
@@ -930,7 +982,11 @@ export class StripeDeployer {
         // Meters are deactivated, not deleted. Stripe rejects deactivating a meter twice
         // (meter_already_deactivated)
         if (existing?.status !== 'active') return null;
-        return { status: 'deactivated', apply: () => this.stripe.billing.meters.deactivate(existing.id) };
+        return {
+          physicalId: existing.id,
+          status: 'deactivated',
+          apply: () => this.stripe.billing.meters.deactivate(existing.id),
+        };
       }
       default:
         throw new Error(`Unknown resource type: ${resource.type}`);

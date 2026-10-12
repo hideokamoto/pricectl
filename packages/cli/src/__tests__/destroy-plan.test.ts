@@ -5,8 +5,8 @@ describe('describeDestroyPlan', () => {
     const lines = describeDestroyPlan({
       stackId: 'Shop',
       resources: [
-        { id: 'Monthly', path: 'Shop/Monthly', type: 'Stripe::Price', status: 'deactivated' },
-        { id: 'PricectlSale', path: 'Shop/PricectlSale', type: 'Stripe::Coupon', status: 'deleted' },
+        { id: 'Monthly', path: 'Shop/Monthly', type: 'Stripe::Price', status: 'deactivated', physicalId: 'price_1' },
+        { id: 'PricectlSale', path: 'Shop/PricectlSale', type: 'Stripe::Coupon', status: 'deleted', physicalId: 'PricectlSale' },
       ],
       errors: [],
     });

@@ -376,9 +376,9 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       mockFakeStripe.seed('features', featureFixture);
       const stack = createStack();
       new EntitlementFeature(stack, 'Adopted', { physicalId: featureFixture.id, name: 'Feature', lookupKey: featureFixture.lookup_key });
-      await new StripeDeployer('sk_test_dummy').destroy(stack.synth());
+      await new StripeDeployer('sk_test_dummy').destroy(stack.synth(), await new StripeDeployer('sk_test_dummy').planDestroy(stack.synth()));
 
-      const second = await new StripeDeployer('sk_test_dummy').destroy(stack.synth());
+      const second = await new StripeDeployer('sk_test_dummy').destroy(stack.synth(), await new StripeDeployer('sk_test_dummy').planDestroy(stack.synth()));
 
       expect(second.errors).toEqual([]);
       expect(second.destroyed).toEqual([]);
@@ -494,7 +494,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       const deployer = new StripeDeployer('sk_test_dummy');
       await deployer.deploy(stack.synth());
 
-      const result = await deployer.destroy(stack.synth());
+      const result = await deployer.destroy(stack.synth(), await deployer.planDestroy(stack.synth()));
 
       expect(result.errors).toEqual([]);
       expect(result.destroyed).toContainEqual({ id: 'NewProd', type: 'Stripe::Product', status: 'deactivated' });
@@ -508,9 +508,9 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       new Meter(stack, 'NewMeter', { displayName: 'New meter', eventName: 'new_event', defaultAggregation: { formula: 'count' } });
       const deployer = new StripeDeployer('sk_test_dummy');
       await deployer.deploy(stack.synth());
-      await deployer.destroy(stack.synth());
+      await deployer.destroy(stack.synth(), await deployer.planDestroy(stack.synth()));
 
-      const second = await new StripeDeployer('sk_test_dummy').destroy(stack.synth());
+      const second = await new StripeDeployer('sk_test_dummy').destroy(stack.synth(), await new StripeDeployer('sk_test_dummy').planDestroy(stack.synth()));
 
       expect(second.errors).toEqual([]);
       expect(second.destroyed).toEqual([]);
@@ -522,7 +522,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       new Price(stack, 'NewMonthly', { product, currency: 'usd', unitAmount: 1000, recurring: { interval: 'month' } });
       const deployer = new StripeDeployer('sk_test_dummy');
       await deployer.deploy(stack.synth());
-      await deployer.destroy(stack.synth());
+      await deployer.destroy(stack.synth(), await deployer.planDestroy(stack.synth()));
 
       const redeploy = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
 
@@ -548,9 +548,9 @@ describe('StripeDeployer against recorded Stripe responses', () => {
 
       expect(plan.errors).toEqual([]);
       expect(plan.resources).toEqual([
-        { id: 'NewMeter', path: 'FxStack/NewMeter', type: 'Stripe::BillingMeter', status: 'deactivated' },
-        { id: 'NewMonthly', path: 'FxStack/NewMonthly', type: 'Stripe::Price', status: 'deactivated' },
-        { id: 'NewProd', path: 'FxStack/NewProd', type: 'Stripe::Product', status: 'deactivated' },
+        { id: 'NewMeter', path: 'FxStack/NewMeter', type: 'Stripe::BillingMeter', status: 'deactivated', physicalId: expect.any(String) },
+        { id: 'NewMonthly', path: 'FxStack/NewMonthly', type: 'Stripe::Price', status: 'deactivated', physicalId: expect.any(String) },
+        { id: 'NewProd', path: 'FxStack/NewProd', type: 'Stripe::Product', status: 'deactivated', physicalId: expect.any(String) },
       ]);
       expect(mockFakeStripe.productsFor('NewProd')).toEqual([expect.objectContaining({ active: true })]);
     });
@@ -559,7 +559,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       const stack = createDestroyableStack();
       const deployer = new StripeDeployer('sk_test_dummy');
       await deployer.deploy(stack.synth());
-      await deployer.destroy(stack.synth());
+      await deployer.destroy(stack.synth(), await deployer.planDestroy(stack.synth()));
 
       const plan = await new StripeDeployer('sk_test_dummy').planDestroy(stack.synth());
 
@@ -575,7 +575,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       const plan = await new StripeDeployer('sk_test_dummy', undefined, state).planDestroy(createStack().synth());
 
       expect(plan.resources).toEqual([
-        { id: 'PricectlOldCoupon', path: 'FxStack/PricectlOldCoupon', type: 'Stripe::Coupon', status: 'deleted' },
+        { id: 'PricectlOldCoupon', path: 'FxStack/PricectlOldCoupon', type: 'Stripe::Coupon', status: 'deleted', physicalId: 'PricectlOldCoupon' },
       ]);
     });
 
@@ -589,6 +589,94 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(plan.errors).toEqual([
         { id: 'Mystery', type: 'Stripe::Unknown', error: 'Unknown resource type: Stripe::Unknown' },
       ]);
+    });
+  });
+
+  describe('destroy with a plan', () => {
+    function createStackWith(...kinds: Array<'price' | 'meter'>): Stack {
+      const stack = createStack();
+      const product = new Product(stack, 'NewProd', { name: 'New product' });
+      if (kinds.includes('price')) {
+        new Price(stack, 'NewMonthly', { product, currency: 'usd', unitAmount: 1000, recurring: { interval: 'month' } });
+      }
+      if (kinds.includes('meter')) {
+        new Meter(stack, 'NewMeter', { displayName: 'New meter', eventName: 'new_event', defaultAggregation: { formula: 'count' } });
+      }
+      return stack;
+    }
+
+    it('leaves a resource that is not in the plan untouched in Stripe, but drops it from the state file', async () => {
+      const state = new StateManager(new InMemoryStateStore());
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(createStackWith().synth());
+      const plan = await new StripeDeployer('sk_test_dummy', undefined, state).planDestroy(createStackWith().synth());
+      // The meter appears after the plan was made, so nobody approved destroying it
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(createStackWith('meter').synth());
+
+      const result = await new StripeDeployer('sk_test_dummy', undefined, state).destroy(createStackWith('meter').synth(), plan);
+
+      expect(result.errors).toEqual([]);
+      expect(result.destroyed.map((d) => d.id)).toEqual(['NewProd']);
+      expect([...mockFakeStripe.meterStore.values()].map((m) => m.status)).toEqual(['active']);
+      expect(state.getResource('FxStack', 'NewMeter')).toBeUndefined();
+    });
+
+    it('does not carry out a destruction that differs from the planned one', async () => {
+      const state = new StateManager(new InMemoryStateStore());
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(createStackWith().synth());
+      const plan = await new StripeDeployer('sk_test_dummy', undefined, state).planDestroy(createStackWith().synth());
+      expect(plan.resources).toEqual([expect.objectContaining({ id: 'NewProd', status: 'deleted' })]);
+      // A price appears after the plan was made: deleting the product is no longer possible, only archiving it
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(createStackWith('price').synth());
+
+      const result = await new StripeDeployer('sk_test_dummy', undefined, state).destroy(createStackWith().synth(), plan);
+
+      expect(result.destroyed).toEqual([]);
+      expect(result.errors).toEqual([expect.objectContaining({ id: 'NewProd' })]);
+      expect(mockFakeStripe.productsFor('NewProd')).toEqual([expect.objectContaining({ active: true })]);
+      expect(state.getResource('FxStack', 'NewProd')).toBeDefined();
+    });
+
+    it('does not destroy a different Stripe object that took over the logical ID after the plan was made', async () => {
+      const state = new StateManager(new InMemoryStateStore());
+      const stackWithPrice = (unitAmount: number): Stack => {
+        const stack = createStack();
+        new Price(stack, 'NewMonthly', { product: PRODUCT_ID, currency: 'usd', unitAmount, recurring: { interval: 'month' } });
+        return stack;
+      };
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(stackWithPrice(1000).synth());
+      const plan = await new StripeDeployer('sk_test_dummy', undefined, state).planDestroy(stackWithPrice(1000).synth());
+      // A deploy replaces the price after the plan was made: the new price is not what was approved
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(stackWithPrice(2000).synth());
+
+      const result = await new StripeDeployer('sk_test_dummy', undefined, state).destroy(stackWithPrice(2000).synth(), plan);
+
+      expect(result.destroyed).toEqual([]);
+      expect(result.errors).toEqual([expect.objectContaining({ id: 'NewMonthly' })]);
+      expect(mockFakeStripe.pricesFor('NewMonthly').filter((price) => price.active)).toHaveLength(1);
+      expect(state.getResource('FxStack', 'NewMonthly')).toBeDefined();
+    });
+
+    it('reports a resource the plan could not read and keeps it in the state file', async () => {
+      const state = new StateManager(new InMemoryStateStore());
+      const manifest = createStackWith().synth();
+      manifest.resources.push({ id: 'Mystery', path: 'FxStack/Mystery', type: 'Stripe::Unknown', properties: {} });
+      state.setResource('FxStack', {
+        logicalId: 'Mystery',
+        physicalId: 'mystery_1',
+        type: 'Stripe::Unknown',
+        path: 'FxStack/Mystery',
+        lastDeployedAt: new Date().toISOString(),
+        propertiesHash: 'hash',
+      });
+      const deployer = new StripeDeployer('sk_test_dummy', undefined, state);
+      const plan = await deployer.planDestroy(manifest);
+
+      const result = await deployer.destroy(manifest, plan);
+
+      expect(result.errors).toEqual([
+        { id: 'Mystery', type: 'Stripe::Unknown', error: 'Unknown resource type: Stripe::Unknown' },
+      ]);
+      expect(state.getResource('FxStack', 'Mystery')).toBeDefined();
     });
   });
 
@@ -681,7 +769,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       const stack = createFeatureAndMeterStack();
       const deployer = new StripeDeployer('sk_test_dummy');
       await deployer.deploy(stack.synth());
-      await deployer.destroy(stack.synth());
+      await deployer.destroy(stack.synth(), await deployer.planDestroy(stack.synth()));
 
       const redeploy = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
 
@@ -779,7 +867,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       new Coupon(stack, 'PricectlOldCoupon', { percentOff: 5, duration: 'once' });
       await new StripeDeployer('sk_test_dummy', undefined, state).deploy(stack.synth());
 
-      const result = await new StripeDeployer('sk_test_dummy', undefined, state).destroy(createStack().synth());
+      const result = await new StripeDeployer('sk_test_dummy', undefined, state).destroy(createStack().synth(), await new StripeDeployer('sk_test_dummy', undefined, state).planDestroy(createStack().synth()));
 
       expect(result.errors).toEqual([]);
       expect(result.destroyed).toEqual([{ id: 'PricectlOldCoupon', type: 'Stripe::Coupon', status: 'deleted' }]);
