@@ -184,7 +184,9 @@ This relies on the state file (`pricectl.state.json`); without it, nothing is re
 Before removing anything, deploy lists the resources and asks for confirmation.
 Use `--force` (`-f`) to skip the prompt; in a non-interactive environment such as CI,
 deploy stops without changes unless `--force` is given. `pricectl deploy --dry-run`
-shows the resources that would be removed.
+reads Stripe and shows, for each resource, whether it would be created, updated, replaced
+(a price whose definition changed) or left unchanged, plus the resources that would be removed.
+It needs the Stripe API key, like `diff`.
 
 ### `pricectl destroy`
 
