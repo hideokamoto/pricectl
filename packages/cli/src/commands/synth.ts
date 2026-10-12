@@ -1,6 +1,7 @@
 import { Command, Flags } from '@oclif/core';
 import * as path from 'path';
 import * as fs from 'fs';
+import { FileLockStore, syncLock } from '../engine/lock-store';
 
 export default class Synth extends Command {
   static description = 'Synthesize the stack definition into a deployable manifest';
@@ -20,6 +21,10 @@ export default class Synth extends Command {
       char: 'o',
       description: 'Output directory for the synthesized manifest',
       default: './pricectl.out',
+    }),
+    'frozen-lock': Flags.boolean({
+      description: 'Fail instead of updating pricectl.lock.json when it is out of date (for CI)',
+      default: false,
     }),
   };
 
@@ -45,6 +50,14 @@ export default class Synth extends Command {
     }
 
     const manifest = stack.synth();
+
+    const lock = syncLock(manifest, new FileLockStore(), { frozen: flags['frozen-lock'] });
+    if (!lock.ok) {
+      this.error(lock.message, { exit: 1 });
+    }
+    if (lock.changed) {
+      this.log('✓ Updated pricectl.lock.json (commit it to Git)');
+    }
 
     try {
       // Ensure output directory exists
