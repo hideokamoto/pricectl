@@ -1,0 +1,2084 @@
+{
+  "name": "ApalacheIR",
+  "version": "1.0",
+  "description": "https://apalache-mc.org/docs/adr/005adr-json.html",
+  "modules": [
+    {
+      "kind": "TlaModule",
+      "name": "counterexample",
+      "declarations": [
+        {
+          "type": "(() => Bool)",
+          "kind": "TlaOperDecl",
+          "name": "ConstInit",
+          "formalParams": [],
+          "isRecursive": false,
+          "body": {
+            "type": "Bool",
+            "kind": "ValEx",
+            "value": {
+              "kind": "TlaBool",
+              "value": true
+            }
+          }
+        },
+        {
+          "type": "(() => Bool)",
+          "kind": "TlaOperDecl",
+          "name": "State0",
+          "formalParams": [],
+          "isRecursive": false,
+          "body": {
+            "type": "Bool",
+            "kind": "OperEx",
+            "oper": "AND",
+            "args": [
+              {
+                "type": "Bool",
+                "kind": "OperEx",
+                "oper": "EQ",
+                "args": [
+                  {
+                    "type": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }",
+                    "kind": "NameEx",
+                    "name": "s"
+                  },
+                  {
+                    "type": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }",
+                    "kind": "OperEx",
+                    "oper": "RECORD",
+                    "args": [
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "active"
+                        }
+                      },
+                      {
+                        "type": "Set(Str)",
+                        "kind": "OperEx",
+                        "oper": "SET_ENUM",
+                        "args": [
+                          {
+                            "type": "Str",
+                            "kind": "ValEx",
+                            "value": {
+                              "kind": "TlaStr",
+                              "value": "OLD"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "dashboardEnabled"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "defaultAtStart"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "defaultPrice"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "desiredActive"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "everFailed"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "exists"
+                        }
+                      },
+                      {
+                        "type": "Set(Str)",
+                        "kind": "OperEx",
+                        "oper": "SET_ENUM",
+                        "args": [
+                          {
+                            "type": "Str",
+                            "kind": "ValEx",
+                            "value": {
+                              "kind": "TlaStr",
+                              "value": "OLD"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "hasKey"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "keyHolder"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastDashboard"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastDefaultAtStart"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastOk"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastRejected"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastTransient"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "phase"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "idle"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "reusedStray"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runDashboard"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runRejected"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runTransient"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runs"
+                        }
+                      },
+                      {
+                        "type": "Int",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaInt",
+                          "value": 0
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "target"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "(() => Bool)",
+          "kind": "TlaOperDecl",
+          "name": "State1",
+          "formalParams": [],
+          "isRecursive": false,
+          "body": {
+            "type": "Bool",
+            "kind": "OperEx",
+            "oper": "AND",
+            "args": [
+              {
+                "type": "Bool",
+                "kind": "OperEx",
+                "oper": "EQ",
+                "args": [
+                  {
+                    "type": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }",
+                    "kind": "NameEx",
+                    "name": "s"
+                  },
+                  {
+                    "type": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }",
+                    "kind": "OperEx",
+                    "oper": "RECORD",
+                    "args": [
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "active"
+                        }
+                      },
+                      {
+                        "type": "Set(Str)",
+                        "kind": "OperEx",
+                        "oper": "SET_ENUM",
+                        "args": [
+                          {
+                            "type": "Str",
+                            "kind": "ValEx",
+                            "value": {
+                              "kind": "TlaStr",
+                              "value": "OLD"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "dashboardEnabled"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "defaultAtStart"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "defaultPrice"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "desiredActive"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "everFailed"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "exists"
+                        }
+                      },
+                      {
+                        "type": "Set(Str)",
+                        "kind": "OperEx",
+                        "oper": "SET_ENUM",
+                        "args": [
+                          {
+                            "type": "Str",
+                            "kind": "ValEx",
+                            "value": {
+                              "kind": "TlaStr",
+                              "value": "OLD"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "hasKey"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "keyHolder"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastDashboard"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastDefaultAtStart"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastOk"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastRejected"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastTransient"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "phase"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "create"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "reusedStray"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runDashboard"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runRejected"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runTransient"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runs"
+                        }
+                      },
+                      {
+                        "type": "Int",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaInt",
+                          "value": 1
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "target"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "(() => Bool)",
+          "kind": "TlaOperDecl",
+          "name": "State2",
+          "formalParams": [],
+          "isRecursive": false,
+          "body": {
+            "type": "Bool",
+            "kind": "OperEx",
+            "oper": "AND",
+            "args": [
+              {
+                "type": "Bool",
+                "kind": "OperEx",
+                "oper": "EQ",
+                "args": [
+                  {
+                    "type": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }",
+                    "kind": "NameEx",
+                    "name": "s"
+                  },
+                  {
+                    "type": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }",
+                    "kind": "OperEx",
+                    "oper": "RECORD",
+                    "args": [
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "active"
+                        }
+                      },
+                      {
+                        "type": "Set(Str)",
+                        "kind": "OperEx",
+                        "oper": "SET_ENUM",
+                        "args": [
+                          {
+                            "type": "Str",
+                            "kind": "ValEx",
+                            "value": {
+                              "kind": "TlaStr",
+                              "value": "OLD"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "dashboardEnabled"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "defaultAtStart"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "defaultPrice"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "desiredActive"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "everFailed"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "exists"
+                        }
+                      },
+                      {
+                        "type": "Set(Str)",
+                        "kind": "OperEx",
+                        "oper": "SET_ENUM",
+                        "args": [
+                          {
+                            "type": "Str",
+                            "kind": "ValEx",
+                            "value": {
+                              "kind": "TlaStr",
+                              "value": "OLD"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "hasKey"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "keyHolder"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastDashboard"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastDefaultAtStart"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastOk"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastRejected"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastTransient"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "phase"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "create"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "reusedStray"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runDashboard"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runRejected"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runTransient"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runs"
+                        }
+                      },
+                      {
+                        "type": "Int",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaInt",
+                          "value": 1
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "target"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "(() => Bool)",
+          "kind": "TlaOperDecl",
+          "name": "State3",
+          "formalParams": [],
+          "isRecursive": false,
+          "body": {
+            "type": "Bool",
+            "kind": "OperEx",
+            "oper": "AND",
+            "args": [
+              {
+                "type": "Bool",
+                "kind": "OperEx",
+                "oper": "EQ",
+                "args": [
+                  {
+                    "type": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }",
+                    "kind": "NameEx",
+                    "name": "s"
+                  },
+                  {
+                    "type": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }",
+                    "kind": "OperEx",
+                    "oper": "RECORD",
+                    "args": [
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "active"
+                        }
+                      },
+                      {
+                        "type": "Set(Str)",
+                        "kind": "OperEx",
+                        "oper": "SET_ENUM",
+                        "args": [
+                          {
+                            "type": "Str",
+                            "kind": "ValEx",
+                            "value": {
+                              "kind": "TlaStr",
+                              "value": "OLD"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "dashboardEnabled"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "defaultAtStart"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "defaultPrice"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "desiredActive"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "everFailed"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "exists"
+                        }
+                      },
+                      {
+                        "type": "Set(Str)",
+                        "kind": "OperEx",
+                        "oper": "SET_ENUM",
+                        "args": [
+                          {
+                            "type": "Str",
+                            "kind": "ValEx",
+                            "value": {
+                              "kind": "TlaStr",
+                              "value": "OLD"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "hasKey"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "keyHolder"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastDashboard"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastDefaultAtStart"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastOk"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastRejected"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastTransient"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "phase"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "undo"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "reusedStray"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runDashboard"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runRejected"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runTransient"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runs"
+                        }
+                      },
+                      {
+                        "type": "Int",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaInt",
+                          "value": 1
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "target"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "(() => Bool)",
+          "kind": "TlaOperDecl",
+          "name": "State4",
+          "formalParams": [],
+          "isRecursive": false,
+          "body": {
+            "type": "Bool",
+            "kind": "OperEx",
+            "oper": "AND",
+            "args": [
+              {
+                "type": "Bool",
+                "kind": "OperEx",
+                "oper": "EQ",
+                "args": [
+                  {
+                    "type": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }",
+                    "kind": "NameEx",
+                    "name": "s"
+                  },
+                  {
+                    "type": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }",
+                    "kind": "OperEx",
+                    "oper": "RECORD",
+                    "args": [
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "active"
+                        }
+                      },
+                      {
+                        "type": "Set(Str)",
+                        "kind": "OperEx",
+                        "oper": "SET_ENUM",
+                        "args": [
+                          {
+                            "type": "Str",
+                            "kind": "ValEx",
+                            "value": {
+                              "kind": "TlaStr",
+                              "value": "OLD"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "current"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "dashboardEnabled"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "defaultAtStart"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "defaultPrice"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "desiredActive"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "everFailed"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "exists"
+                        }
+                      },
+                      {
+                        "type": "Set(Str)",
+                        "kind": "OperEx",
+                        "oper": "SET_ENUM",
+                        "args": [
+                          {
+                            "type": "Str",
+                            "kind": "ValEx",
+                            "value": {
+                              "kind": "TlaStr",
+                              "value": "OLD"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "hasKey"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "keyHolder"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "OLD"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastDashboard"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastDefaultAtStart"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastOk"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastRejected"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastTransient"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "phase"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "idle"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "reusedStray"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runDashboard"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runRejected"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": false
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runTransient"
+                        }
+                      },
+                      {
+                        "type": "Bool",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaBool",
+                          "value": true
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "runs"
+                        }
+                      },
+                      {
+                        "type": "Int",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaInt",
+                          "value": 1
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "target"
+                        }
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": ""
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "(() => Bool)",
+          "kind": "TlaOperDecl",
+          "name": "InvariantViolation",
+          "formalParams": [],
+          "isRecursive": false,
+          "body": {
+            "type": "Bool",
+            "kind": "OperEx",
+            "oper": "AND",
+            "args": [
+              {
+                "type": "Bool",
+                "kind": "OperEx",
+                "oper": "FUN_APP",
+                "args": [
+                  {
+                    "type": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }",
+                    "kind": "NameEx",
+                    "name": "s"
+                  },
+                  {
+                    "type": "Str",
+                    "kind": "ValEx",
+                    "value": {
+                      "kind": "TlaStr",
+                      "value": "lastDashboard"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "Bool",
+                "kind": "OperEx",
+                "oper": "NOT",
+                "args": [
+                  {
+                    "type": "Bool",
+                    "kind": "OperEx",
+                    "oper": "FUN_APP",
+                    "args": [
+                      {
+                        "type": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }",
+                        "kind": "NameEx",
+                        "name": "s"
+                      },
+                      {
+                        "type": "Str",
+                        "kind": "ValEx",
+                        "value": {
+                          "kind": "TlaStr",
+                          "value": "lastOk"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

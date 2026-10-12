@@ -1,0 +1,485 @@
+{
+  "#meta": {
+    "format": "ITF",
+    "format-description": "https://apalache-mc.org/docs/adr/015adr-trace.html",
+    "description": "Created by Apalache on Mon Oct 12 05:08:07 UTC 2026",
+    "varTypes": {
+      "s": "{ active: Set(Str), current: Str, dashboardEnabled: Bool, defaultAtStart: Str, defaultPrice: Str, desiredActive: Bool, everFailed: Bool, exists: Set(Str), hasKey: Bool, keyHolder: Str, lastDashboard: Bool, lastDefaultAtStart: Str, lastOk: Bool, lastRejected: Bool, lastTransient: Bool, phase: Str, reusedStray: Bool, runDashboard: Bool, runRejected: Bool, runTransient: Bool, runs: Int, target: Str }"
+    }
+  },
+  "vars": [
+    "s"
+  ],
+  "states": [
+    {
+      "#meta": {
+        "index": 0
+      },
+      "s": {
+        "active": {
+          "#set": [
+            "OLD"
+          ]
+        },
+        "current": "OLD",
+        "dashboardEnabled": true,
+        "defaultAtStart": "",
+        "defaultPrice": "OLD",
+        "desiredActive": false,
+        "everFailed": false,
+        "exists": {
+          "#set": [
+            "OLD"
+          ]
+        },
+        "hasKey": true,
+        "keyHolder": "OLD",
+        "lastDashboard": false,
+        "lastDefaultAtStart": "",
+        "lastOk": false,
+        "lastRejected": false,
+        "lastTransient": false,
+        "phase": "idle",
+        "reusedStray": false,
+        "runDashboard": false,
+        "runRejected": false,
+        "runTransient": false,
+        "runs": {
+          "#bigint": "0"
+        },
+        "target": ""
+      }
+    },
+    {
+      "#meta": {
+        "index": 1
+      },
+      "s": {
+        "active": {
+          "#set": [
+            "OLD"
+          ]
+        },
+        "current": "OLD",
+        "dashboardEnabled": true,
+        "defaultAtStart": "OLD",
+        "defaultPrice": "OLD",
+        "desiredActive": false,
+        "everFailed": false,
+        "exists": {
+          "#set": [
+            "OLD"
+          ]
+        },
+        "hasKey": true,
+        "keyHolder": "OLD",
+        "lastDashboard": false,
+        "lastDefaultAtStart": "",
+        "lastOk": false,
+        "lastRejected": false,
+        "lastTransient": false,
+        "phase": "create",
+        "reusedStray": false,
+        "runDashboard": false,
+        "runRejected": false,
+        "runTransient": false,
+        "runs": {
+          "#bigint": "1"
+        },
+        "target": ""
+      }
+    },
+    {
+      "#meta": {
+        "index": 2
+      },
+      "s": {
+        "active": {
+          "#set": [
+            "OLD"
+          ]
+        },
+        "current": "OLD",
+        "dashboardEnabled": true,
+        "defaultAtStart": "OLD",
+        "defaultPrice": "OLD",
+        "desiredActive": false,
+        "everFailed": false,
+        "exists": {
+          "#set": [
+            "N1",
+            "OLD"
+          ]
+        },
+        "hasKey": true,
+        "keyHolder": "N1",
+        "lastDashboard": false,
+        "lastDefaultAtStart": "",
+        "lastOk": false,
+        "lastRejected": false,
+        "lastTransient": false,
+        "phase": "undo",
+        "reusedStray": false,
+        "runDashboard": false,
+        "runRejected": false,
+        "runTransient": true,
+        "runs": {
+          "#bigint": "1"
+        },
+        "target": "N1"
+      }
+    },
+    {
+      "#meta": {
+        "index": 3
+      },
+      "s": {
+        "active": {
+          "#set": [
+            "OLD"
+          ]
+        },
+        "current": "OLD",
+        "dashboardEnabled": true,
+        "defaultAtStart": "OLD",
+        "defaultPrice": "OLD",
+        "desiredActive": false,
+        "everFailed": true,
+        "exists": {
+          "#set": [
+            "N1",
+            "OLD"
+          ]
+        },
+        "hasKey": true,
+        "keyHolder": "OLD",
+        "lastDashboard": false,
+        "lastDefaultAtStart": "OLD",
+        "lastOk": false,
+        "lastRejected": false,
+        "lastTransient": true,
+        "phase": "idle",
+        "reusedStray": false,
+        "runDashboard": false,
+        "runRejected": false,
+        "runTransient": true,
+        "runs": {
+          "#bigint": "1"
+        },
+        "target": "N1"
+      }
+    },
+    {
+      "#meta": {
+        "index": 4
+      },
+      "s": {
+        "active": {
+          "#set": [
+            "OLD"
+          ]
+        },
+        "current": "OLD",
+        "dashboardEnabled": true,
+        "defaultAtStart": "OLD",
+        "defaultPrice": "OLD",
+        "desiredActive": false,
+        "everFailed": true,
+        "exists": {
+          "#set": [
+            "N1",
+            "OLD"
+          ]
+        },
+        "hasKey": true,
+        "keyHolder": "OLD",
+        "lastDashboard": false,
+        "lastDefaultAtStart": "OLD",
+        "lastOk": false,
+        "lastRejected": false,
+        "lastTransient": true,
+        "phase": "activate",
+        "reusedStray": true,
+        "runDashboard": false,
+        "runRejected": false,
+        "runTransient": false,
+        "runs": {
+          "#bigint": "2"
+        },
+        "target": "N1"
+      }
+    },
+    {
+      "#meta": {
+        "index": 5
+      },
+      "s": {
+        "active": {
+          "#set": [
+            "OLD"
+          ]
+        },
+        "current": "OLD",
+        "dashboardEnabled": true,
+        "defaultAtStart": "OLD",
+        "defaultPrice": "OLD",
+        "desiredActive": false,
+        "everFailed": true,
+        "exists": {
+          "#set": [
+            "N1",
+            "OLD"
+          ]
+        },
+        "hasKey": true,
+        "keyHolder": "OLD",
+        "lastDashboard": false,
+        "lastDefaultAtStart": "OLD",
+        "lastOk": false,
+        "lastRejected": false,
+        "lastTransient": true,
+        "phase": "key",
+        "reusedStray": true,
+        "runDashboard": false,
+        "runRejected": false,
+        "runTransient": false,
+        "runs": {
+          "#bigint": "2"
+        },
+        "target": "N1"
+      }
+    },
+    {
+      "#meta": {
+        "index": 6
+      },
+      "s": {
+        "active": {
+          "#set": [
+            "OLD"
+          ]
+        },
+        "current": "OLD",
+        "dashboardEnabled": true,
+        "defaultAtStart": "OLD",
+        "defaultPrice": "OLD",
+        "desiredActive": false,
+        "everFailed": true,
+        "exists": {
+          "#set": [
+            "N1",
+            "OLD"
+          ]
+        },
+        "hasKey": true,
+        "keyHolder": "N1",
+        "lastDashboard": false,
+        "lastDefaultAtStart": "OLD",
+        "lastOk": false,
+        "lastRejected": false,
+        "lastTransient": true,
+        "phase": "default",
+        "reusedStray": true,
+        "runDashboard": false,
+        "runRejected": false,
+        "runTransient": false,
+        "runs": {
+          "#bigint": "2"
+        },
+        "target": "N1"
+      }
+    },
+    {
+      "#meta": {
+        "index": 7
+      },
+      "s": {
+        "active": {
+          "#set": [
+            "OLD"
+          ]
+        },
+        "current": "OLD",
+        "dashboardEnabled": true,
+        "defaultAtStart": "OLD",
+        "defaultPrice": "",
+        "desiredActive": false,
+        "everFailed": true,
+        "exists": {
+          "#set": [
+            "N1",
+            "OLD"
+          ]
+        },
+        "hasKey": true,
+        "keyHolder": "N1",
+        "lastDashboard": false,
+        "lastDefaultAtStart": "OLD",
+        "lastOk": false,
+        "lastRejected": false,
+        "lastTransient": true,
+        "phase": "archive",
+        "reusedStray": true,
+        "runDashboard": false,
+        "runRejected": false,
+        "runTransient": false,
+        "runs": {
+          "#bigint": "2"
+        },
+        "target": "N1"
+      }
+    },
+    {
+      "#meta": {
+        "index": 8
+      },
+      "s": {
+        "active": {
+          "#set": []
+        },
+        "current": "OLD",
+        "dashboardEnabled": true,
+        "defaultAtStart": "OLD",
+        "defaultPrice": "",
+        "desiredActive": false,
+        "everFailed": true,
+        "exists": {
+          "#set": [
+            "N1",
+            "OLD"
+          ]
+        },
+        "hasKey": true,
+        "keyHolder": "N1",
+        "lastDashboard": false,
+        "lastDefaultAtStart": "OLD",
+        "lastOk": false,
+        "lastRejected": false,
+        "lastTransient": true,
+        "phase": "archive",
+        "reusedStray": true,
+        "runDashboard": false,
+        "runRejected": false,
+        "runTransient": false,
+        "runs": {
+          "#bigint": "2"
+        },
+        "target": "N1"
+      }
+    },
+    {
+      "#meta": {
+        "index": 9
+      },
+      "s": {
+        "active": {
+          "#set": []
+        },
+        "current": "OLD",
+        "dashboardEnabled": true,
+        "defaultAtStart": "OLD",
+        "defaultPrice": "",
+        "desiredActive": false,
+        "everFailed": true,
+        "exists": {
+          "#set": [
+            "N1",
+            "OLD"
+          ]
+        },
+        "hasKey": true,
+        "keyHolder": "N1",
+        "lastDashboard": false,
+        "lastDefaultAtStart": "OLD",
+        "lastOk": false,
+        "lastRejected": false,
+        "lastTransient": true,
+        "phase": "deactivate",
+        "reusedStray": true,
+        "runDashboard": false,
+        "runRejected": false,
+        "runTransient": false,
+        "runs": {
+          "#bigint": "2"
+        },
+        "target": "N1"
+      }
+    },
+    {
+      "#meta": {
+        "index": 10
+      },
+      "s": {
+        "active": {
+          "#set": []
+        },
+        "current": "OLD",
+        "dashboardEnabled": true,
+        "defaultAtStart": "OLD",
+        "defaultPrice": "",
+        "desiredActive": false,
+        "everFailed": true,
+        "exists": {
+          "#set": [
+            "N1",
+            "OLD"
+          ]
+        },
+        "hasKey": true,
+        "keyHolder": "N1",
+        "lastDashboard": false,
+        "lastDefaultAtStart": "OLD",
+        "lastOk": false,
+        "lastRejected": false,
+        "lastTransient": true,
+        "phase": "commit",
+        "reusedStray": true,
+        "runDashboard": false,
+        "runRejected": false,
+        "runTransient": false,
+        "runs": {
+          "#bigint": "2"
+        },
+        "target": "N1"
+      }
+    },
+    {
+      "#meta": {
+        "index": 11
+      },
+      "s": {
+        "active": {
+          "#set": []
+        },
+        "current": "N1",
+        "dashboardEnabled": true,
+        "defaultAtStart": "OLD",
+        "defaultPrice": "",
+        "desiredActive": false,
+        "everFailed": true,
+        "exists": {
+          "#set": [
+            "N1",
+            "OLD"
+          ]
+        },
+        "hasKey": true,
+        "keyHolder": "N1",
+        "lastDashboard": false,
+        "lastDefaultAtStart": "OLD",
+        "lastOk": true,
+        "lastRejected": false,
+        "lastTransient": false,
+        "phase": "idle",
+        "reusedStray": true,
+        "runDashboard": false,
+        "runRejected": false,
+        "runTransient": false,
+        "runs": {
+          "#bigint": "2"
+        },
+        "target": "N1"
+      }
+    }
+  ]
+}
