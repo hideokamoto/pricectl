@@ -181,6 +181,13 @@ removed: prices are deactivated, products are deleted (or archived when they hav
 prices), coupons are deleted, and entitlement features and meters are deactivated.
 This relies on the state file (`pricectl.state.json`); without it, nothing is removed.
 
+Stripe does not allow changing the amount or billing settings of a price, so deploy replaces
+a changed price: it creates a new price and deactivates the old one. When the old price is
+its product's default price, the new price becomes the default price; when it has a lookup
+key, the key moves to the new price. A price defined under a new logical ID also takes over
+the lookup key of a price that is no longer defined in the stack (this relies on the state
+file). A lookup key held by any other price is not taken over, and deploy reports Stripe's error.
+
 Before removing anything, deploy lists the resources and asks for confirmation.
 Use `--force` (`-f`) to skip the prompt; in a non-interactive environment such as CI,
 deploy stops without changes unless `--force` is given. `pricectl deploy --dry-run`
@@ -198,6 +205,10 @@ Before changing anything, destroy reads the current state of each resource from 
 lists only the ones it would delete or deactivate. Resources that are already deleted or
 inactive are left out, and when nothing is left the command ends without asking.
 `pricectl destroy --dry-run` shows the same list without changing Stripe.
+
+Stripe does not allow archiving a price that is its product's default price. destroy does
+not change a product's default price, so such a price stays active and destroy reports
+Stripe's error.
 
 ## Available Resources
 
