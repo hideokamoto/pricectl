@@ -737,22 +737,37 @@ export class StripeDeployer {
   }
 
 
-  /** Delete or deactivate every resource in the manifest, and the ones only left in the state file. */
-  async destroy(manifest: StackManifest): Promise<DestroyResult> {
+  /**
+   * Carry out a destroy plan made by `planDestroy`. Only the resources in the plan are deleted or
+   * deactivated, and only in the way the plan says; anything else is left alone in Stripe and
+   * just dropped from the state file, since the plan found nothing to do for it.
+   */
+  async destroy(manifest: StackManifest, plan: DestroyPlan): Promise<DestroyResult> {
     const result: DestroyResult = {
       stackId: manifest.stackId,
       destroyed: [],
       errors: [],
     };
+    const planned = new Map(plan.resources.map((resource) => [resource.id, resource]));
+    const unreadable = new Map(plan.errors.map((error) => [error.id, error]));
 
     for (const resource of this.destroyOrder(manifest)) {
       try {
-        const destroyed = await this.destroyResource(resource, manifest.stackId);
-        if (destroyed) {
-          result.destroyed.push(destroyed);
+        const unreadableResource = unreadable.get(resource.id);
+        if (unreadableResource) {
+          // The plan could not tell what destroying it would do, so nothing about it is approved
+          throw new Error(unreadableResource.error);
         }
 
-        // Always clean state when destroyResource succeeds (even if resource was already gone)
+        const approved = planned.get(resource.id);
+        if (approved) {
+          const destroyed = await this.destroyResource(resource, manifest.stackId, approved.status);
+          if (destroyed) {
+            result.destroyed.push(destroyed);
+          }
+        }
+
+        // Always clean state when the resource is gone or was never planned for destruction
         if (this.stateManager) {
           this.stateManager.removeResource(manifest.stackId, resource.id);
         }
@@ -800,14 +815,27 @@ export class StripeDeployer {
     return [...findOrphans(manifest, this.stateManager), ...[...manifest.resources].reverse()];
   }
 
-  /** Delete or deactivate one resource. Returns null when there is nothing to do. */
-  private async destroyResource(resource: ResourceManifest, stackId: string): Promise<{
+  /**
+   * Delete or deactivate one resource. Returns null when there is nothing left to do. With an
+   * `approvedStatus`, throws without changing anything when Stripe has moved on so that the
+   * action would now be a different one.
+   */
+  private async destroyResource(
+    resource: ResourceManifest,
+    stackId: string,
+    approvedStatus?: 'deleted' | 'deactivated',
+  ): Promise<{
     id: string;
     type: string;
     status: 'deleted' | 'deactivated';
   } | null> {
     const pending = await this.pendingDestruction(resource, stackId);
     if (!pending) return null;
+    if (approvedStatus && pending.status !== approvedStatus) {
+      throw new Error(
+        `"${resource.id}" was planned to be ${approvedStatus}, but would now be ${pending.status}; run destroy again to review the new plan.`,
+      );
+    }
     await pending.apply();
     return { id: resource.id, type: resource.type, status: pending.status };
   }

@@ -126,7 +126,7 @@ export default class Destroy extends Command {
     });
     if (approval === 'none') {
       // Nothing changes in Stripe; this only drops state entries of resources that are already gone
-      await deployer.destroy(manifest);
+      await deployer.destroy(manifest, plan);
       stateManager.save();
       return 'done';
     }
@@ -142,7 +142,7 @@ export default class Destroy extends Command {
     this.log('Destroying resources...');
     this.log('');
 
-    const result = await deployer.destroy(manifest);
+    const result = await deployer.destroy(manifest, plan);
 
     // Save state after destroy (resources removed from state during destroy)
     stateManager.save();
