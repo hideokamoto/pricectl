@@ -26,6 +26,7 @@ module meter_lock_v3b {
     planned: Set[str],         // meters seen at plan time that a removal may deactivate
     failed: bool,
     sawOutsideChange: bool,    // a Dashboard change happened while it ran
+    sawOtherDeploy: bool,      // another deploy was running at some point while it ran
   }
 
   type St = {
@@ -42,6 +43,8 @@ module meter_lock_v3b {
     // a deploy of the latest commit finished without failures, and no commit or Dashboard
     // change happened since (other pricectl deploys may still have acted)
     latestOk: bool,
+    // the same, and that deploy ran alone (no other deploy at any point while it ran)
+    latestSoloOk: bool,
   }
 
   var s: St
@@ -51,7 +54,7 @@ module meter_lock_v3b {
 
   def idleDeploy: Deploy = {
     phase: "idle", seq: 0, defined: Set(), lock: NAMES.mapBy(n => "none"),
-    todo: Set(), planned: Set(), failed: false, sawOutsideChange: false,
+    todo: Set(), planned: Set(), failed: false, sawOutsideChange: false, sawOtherDeploy: false,
   }
 
   action init = {
@@ -60,7 +63,7 @@ module meter_lock_v3b {
       concurrent: c, seq: 0, defined: Set(), lock: NAMES.mapBy(n => "none"), released: Set(),
       exists: Set(), active: Set(), deploys: DEPLOYS.mapBy(d => idleDeploy),
       foreignClaimed: false, foreignDeactivated: false,
-      latestOk: false,
+      latestOk: false, latestSoloOk: false,
     }
   }
 
@@ -73,7 +76,7 @@ module meter_lock_v3b {
     nondet withLock = Set(true, false).oneOf()
     val d = if (s.defined.contains(n)) s.defined.exclude(Set(n)) else s.defined.union(Set(n))
     val l = if (withLock) NAMES.mapBy(x => nextLock(s.lock.get(x), d.contains(x))) else s.lock
-    s' = { ...s, seq: s.seq + 1, defined: d, lock: l, latestOk: false,
+    s' = { ...s, seq: s.seq + 1, defined: d, lock: l, latestOk: false, latestSoloOk: false,
       foreignClaimed: s.foreignClaimed or (l.get("E1") != "none" and s.active.contains(FOREIGN)) }
   }
 
@@ -84,7 +87,7 @@ module meter_lock_v3b {
       not(s.defined.contains(n)),
       s.lock.get(n) == "removing",
       s' = { ...s, seq: s.seq + 1, lock: s.lock.set(n, "none"), released: s.released.union(Set(n)),
-        latestOk: false },
+        latestOk: false, latestSoloOk: false },
     }
   }
 
@@ -96,7 +99,7 @@ module meter_lock_v3b {
       foreignClaimed: s.foreignClaimed or s.lock.get("E1") != "none",
       deploys: s.deploys.keys().mapBy(d => { ...s.deploys.get(d),
         sawOutsideChange: s.deploys.get(d).sawOutsideChange or s.deploys.get(d).phase == "run" }),
-      latestOk: false,
+      latestOk: false, latestSoloOk: false,
     },
   }
 
@@ -110,11 +113,11 @@ module meter_lock_v3b {
       s.deploys.get(d).phase == "idle",
       s.concurrent or running(s).size() == 0,
       upToDate,
-      s' = { ...s, deploys: s.deploys.set(d, {
+      s' = { ...s, deploys: s.deploys.keys().mapBy(x => if (x == d) {
         phase: "run", seq: s.seq, defined: s.defined, lock: s.lock, todo: todo,
         planned: s.active.filter(m => s.lock.get(nameOf(m)) == "removing"),
-        failed: false, sawOutsideChange: false,
-      }) },
+        failed: false, sawOutsideChange: false, sawOtherDeploy: running(s).size() > 0,
+      } else { ...s.deploys.get(x), sawOtherDeploy: s.deploys.get(x).sawOtherDeploy or s.deploys.get(x).phase == "run" }) },
     }
   }
 
@@ -170,6 +173,7 @@ module meter_lock_v3b {
       s' = { ...s,
         deploys: s.deploys.set(d, idleDeploy),
         latestOk: s.latestOk or (dp.seq == s.seq and not(dp.failed) and not(dp.sawOutsideChange)),
+        latestSoloOk: s.latestSoloOk or (dp.seq == s.seq and not(dp.failed) and not(dp.sawOutsideChange) and not(dp.sawOtherDeploy)),
       },
     }
   }
@@ -206,4 +210,14 @@ module meter_lock_v3b {
   val concurrentNoFloating: bool = not(s.concurrent) or noFloatingMeter
   val concurrentForeignOnlyWhenClaimed: bool = not(s.concurrent) or foreignDeactivatedOnlyWhenClaimed
   val concurrentConverges: bool = not(s.concurrent) or quiescentConverges
+
+  // After deploys ran at the same time, a later deploy of the latest commit that ran alone
+  // and without failures ends as defined: concurrent deploys leave things wrong only until then.
+  val soloDeployRecovers: bool =
+    not(running(s).size() == 0 and s.latestSoloOk) or
+      NAMES.forall(n =>
+        if (s.defined.contains(n)) activeWith(s, n).size() == 1
+        else (s.lock.get(n) == "removing" implies activeWith(s, n).size() == 0))
+
+  val witnessNoSoloAfterConcurrent: bool = not(s.concurrent and s.latestSoloOk and s.lock.get("E1") == "removing")
 }

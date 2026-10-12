@@ -29,6 +29,27 @@ fails after Stripe created the meter), people dropping lock entries, and Dashboa
 | cleanDeployConverges (a deploy without failures or outside changes during it ends as defined) | holds |
 | witnesses: CI refuses an out-of-date lock, a removed meter is added again, a Dashboard meter is taken over, a meter is adopted | reachable |
 
+`meter_lock_v3b.qnt` (Quint), the same with two event names, a deploy that keeps using the
+commit it started from while new commits land, and two deploys that may run at the same
+time. Removals deactivate only the meters plan saw. Apalache stopped at the step shown
+(about an hour each); simulation 20,000 samples of 40 steps:
+
+| Invariant | Apalache | Simulation |
+|---|---|---|
+| oneActivePerName | holds up to 15 steps | no violation |
+| serialNoFloating | holds up to 13 steps | no violation |
+| serialForeignOnlyWhenClaimed | holds up to 14 steps | no violation |
+| serialConverges | holds up to 15 steps | no violation |
+| concurrentNoFloating | holds up to 14 steps | no violation |
+| concurrentForeignOnlyWhenClaimed | holds up to 13 steps | no violation |
+| concurrentConverges | counterexample: a deploy of an older commit creates a meter after a newer deploy planned its removal; the meter stays tracked as `removing` | |
+| soloDeployRecovers (a later deploy that runs alone ends as defined) | see below | |
+| witnesses: two deploys at once, both names managed | reachable | |
+
+Before removals were bound to what plan saw, `serialForeignOnlyWhenClaimed` had a
+counterexample: a deploy still running from an older commit deactivated a meter created in
+the Dashboard after a person had released the event name.
+
 ## v2 results
 
 Alloy, scope 4 (6 prices); the fixed-rule checks and the diagnosis also at scope 5 (8 prices):
