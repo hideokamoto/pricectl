@@ -303,3 +303,100 @@ describe('names Stripe would reject', () => {
     expect(result.items[0].refusal).toBeUndefined();
   });
 });
+
+describe('the default price when several slots touch one product', () => {
+  const defaultOf = (fake: FakeStripe) => fake.productStore.get('FxStack_Pro')!.default_price as string | null;
+  const activePrices = (fake: FakeStripe) => [...fake.priceStore.values()].filter((p) => p.active);
+
+  it('keeps the declared default when the declared default price is renamed (old slot removed)', async () => {
+    const fake = new FakeStripe();
+    const named = (logicalId: string) =>
+      define((stack) => {
+        const product = new Product(stack, 'Pro', { name: 'Pro' });
+        new Price(stack, logicalId, { product, currency: 'usd', unitAmount: 1000, recurring: { interval: 'month' }, isDefault: true });
+      });
+    const first = await deploy(fake, named('Monthly'));
+
+    const { result } = await deploy(fake, named('MonthlyV2'), first.lock);
+
+    expect(result.items.filter((i) => i.error)).toEqual([]);
+    const active = activePrices(fake);
+    expect(active.map((p) => p.lookup_key)).toEqual(['FxStack_MonthlyV2']);
+    expect(defaultOf(fake)).toBe(active[0].id);
+  });
+
+  it('ends with the declared default even when another slot of the product follows the old default', async () => {
+    const fake = new FakeStripe();
+    const before = define((stack) => {
+      const product = new Product(stack, 'Pro', { name: 'Pro' });
+      new Price(stack, 'First', { product, currency: 'usd', unitAmount: 1000, recurring: { interval: 'month' } });
+      new Price(stack, 'Second', { product, currency: 'usd', unitAmount: 2000, recurring: { interval: 'month' } });
+    });
+    const first = await deploy(fake, before);
+    const firstPrice = [...fake.priceStore.values()].find((p) => p.lookup_key === 'FxStack_First')!;
+    await fake.products.update('FxStack_Pro', { default_price: firstPrice.id });
+    // First gets new terms (a new version), and Second becomes the declared default; Second is listed first
+    const after = define((stack) => {
+      const product = new Product(stack, 'Pro', { name: 'Pro' });
+      new Price(stack, 'Second', { product, currency: 'usd', unitAmount: 2000, recurring: { interval: 'month' }, isDefault: true });
+      new Price(stack, 'First', { product, currency: 'usd', unitAmount: 1500, recurring: { interval: 'month' } });
+    });
+
+    const { lock, result } = await deploy(fake, after, first.lock);
+
+    const second = [...fake.priceStore.values()].find((p) => p.lookup_key === 'FxStack_Second')!;
+    expect(result.items.filter((i) => i.error)).toEqual([]);
+    expect(defaultOf(fake)).toBe(second.id);
+    expect((await plan(fake, after, lock)).items.filter((i) => i.operation !== 'unchanged')).toEqual([]);
+  });
+});
+
+describe('objects that belong to another stack or to nobody', () => {
+  const productIn = (stackId: string) => {
+    const stack = new Stack(undefined, stackId, { apiKey: 'sk_test_dummy' });
+    new Product(stack, 'Pro', { name: 'Pro' });
+    new Coupon(stack, 'Launch', { percentOff: 10, duration: 'once' });
+    new EntitlementFeature(stack, 'Support', { name: 'Support', lookupKey: 'support' });
+    return stack.synth();
+  };
+
+  it('refuses a product, coupon or feature that carries the tag of another stack', async () => {
+    const fake = new FakeStripe();
+    const other = { pricectl_stack: 'Other', pricectl_id: 'x' };
+    await fake.products.create({ id: 'FxStack_Pro', name: 'Pro', metadata: other });
+    await fake.coupons.create({ id: 'FxStack_Launch', percent_off: 10, duration: 'once', metadata: other });
+    await fake.entitlements.features.create({ name: 'Support', lookup_key: 'support', metadata: other });
+
+    const result = await plan(fake, productIn('FxStack'));
+
+    expect(result.items.filter((i) => i.refusal).map((i) => [i.type, i.refusal])).toEqual([
+      ['Stripe::EntitlementFeature', expect.stringContaining('belongs to stack "Other"')],
+      ['Stripe::Product', expect.stringContaining('belongs to stack "Other"')],
+      ['Stripe::Coupon', expect.stringContaining('belongs to stack "Other"')],
+    ]);
+  });
+
+  it('adopts an object nobody tagged by tagging it, so the stack can later remove it', async () => {
+    const fake = new FakeStripe();
+    await fake.products.create({ id: 'FxStack_Pro', name: 'Pro' });
+
+    const result = await plan(fake, define((stack) => new Product(stack, 'Pro', { name: 'Pro' })));
+
+    expect(result.items[0].steps).toEqual([
+      { kind: 'updateProduct', productId: 'FxStack_Pro', changes: { metadata: { pricectl_stack: 'FxStack', pricectl_id: 'Pro' } } },
+    ]);
+  });
+
+  it('does not remove an object that carries the tag of another stack, even if the lock names its key', async () => {
+    const fake = new FakeStripe();
+    const other = { pricectl_stack: 'Other', pricectl_id: 'x' };
+    await fake.products.create({ id: 'FxStack_Pro', name: 'Pro', metadata: other });
+    await fake.coupons.create({ id: 'FxStack_Launch', percent_off: 10, duration: 'once', metadata: other });
+    await fake.entitlements.features.create({ name: 'Support', lookup_key: 'support', metadata: other });
+    const lock = nextLock(define(() => undefined), nextLock(productIn('FxStack'), emptyLock()));
+
+    const result = await plan(fake, define(() => undefined), lock);
+
+    expect(result.items).toEqual([]);
+  });
+});

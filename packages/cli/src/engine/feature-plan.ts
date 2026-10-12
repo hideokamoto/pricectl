@@ -1,5 +1,5 @@
 import type Stripe from 'stripe';
-import { metadataChanges, userMetadata } from './metadata';
+import { metadataChanges, ownershipTags, userMetadata } from './metadata';
 
 /** What the definition says about one entitlement feature. */
 export interface FeatureDefinition {
@@ -7,6 +7,8 @@ export interface FeatureDefinition {
   /** The feature's lookup key */
   key: string;
   params: Stripe.Entitlements.FeatureCreateParams;
+  /** Adopted by Stripe ID: an object pricectl did not create, which it does not tag */
+  adopted?: boolean;
 }
 
 /** One change to Stripe for an entitlement feature. */
@@ -57,7 +59,10 @@ export function planFeature(
 
   const changes: Stripe.Entitlements.FeatureUpdateParams = {};
   if (params.name !== existing.name) changes.name = params.name;
-  const metadata = metadataChanges(userMetadata(existing.metadata), userMetadata(params.metadata));
+  const metadata = {
+    ...metadataChanges(userMetadata(existing.metadata), userMetadata(params.metadata)),
+    ...(definition.adopted ? {} : ownershipTags(existing.metadata, stackId, definition.logicalId)),
+  };
   if (Object.keys(metadata).length > 0) changes.metadata = metadata;
   return {
     steps: Object.keys(changes).length > 0 ? [{ kind: 'updateFeature', featureId: existing.id, changes }] : [],

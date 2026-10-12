@@ -47,6 +47,31 @@ describe('planCoupon', () => {
   });
 });
 
+describe('planCoupon: the products a coupon applies to', () => {
+  const coupon = (appliesTo?: string[]) =>
+    ({ id: 'Shop_Launch', percent_off: 10, duration: 'once', name: 'Launch', metadata: { pricectl_stack: STACK, pricectl_id: 'Launch' }, amount_off: null, currency: null, duration_in_months: null, max_redemptions: null, redeem_by: null, ...(appliesTo ? { applies_to: { products: appliesTo } } : {}) }) as unknown as Stripe.Coupon;
+  const definition = (appliesTo?: string[]) => ({
+    logicalId: 'Launch',
+    key: 'Shop_Launch',
+    params: { percent_off: 10, duration: 'once' as const, name: 'Launch', ...(appliesTo ? { applies_to: { products: appliesTo } } : {}) },
+  });
+
+  it('accepts the same products in any order', () => {
+    expect(planCoupon(STACK, definition(['b', 'a']), coupon(['a', 'b'])).steps).toEqual([]);
+  });
+
+  it('refuses a change of the products, which Stripe cannot update', () => {
+    const plan = planCoupon(STACK, definition(['a', 'c']), coupon(['a', 'b']));
+
+    expect(plan.steps).toEqual([]);
+    expect(plan.refusal).toContain('applies_to');
+  });
+
+  it('refuses adding a restriction to a coupon that applies to everything', () => {
+    expect(planCoupon(STACK, definition(['a']), coupon()).refusal).toContain('applies_to');
+  });
+});
+
 describe('planCouponRemoval', () => {
   it('deletes the coupon', () => {
     expect(planCouponRemoval({ id: 'Shop_Launch' } as Stripe.Coupon)).toEqual([{ kind: 'deleteCoupon', couponId: 'Shop_Launch' }]);

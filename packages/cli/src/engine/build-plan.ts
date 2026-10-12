@@ -35,6 +35,17 @@ function idRefusal(resource: ResourceManifest): string | undefined {
   );
 }
 
+/** Why an object found by its key cannot be used: it carries the tag of another stack. */
+function ownershipRefusal(resource: ResourceManifest, existing: { id: string; metadata?: Record<string, string> | null } | undefined, stackId: string): string | undefined {
+  if (!existing || resource.physicalId) return undefined;
+  const tag = existing.metadata?.pricectl_stack;
+  if (!tag || tag === stackId) return undefined;
+  return (
+    `${existing.id} for "${resource.path}" belongs to stack "${tag}", not "${stackId}". ` +
+    'Give one of the stacks another stack ID or the resource another logical ID.'
+  );
+}
+
 /**
  * Work out what `deploy` would do, reading Stripe by key only. Nothing is changed. Deploy applies
  * the plan it shows, so every step names the Stripe objects this read found.
@@ -46,12 +57,45 @@ export async function buildPlan(stripe: Stripe, manifest: StackManifest, lock: L
 /** Combine the definition, the lock and what Stripe holds into a plan. */
 export function composePlan(manifest: StackManifest, lock: LockFile, observations: Observations): Plan {
   const resources = indexResources(manifest);
-  const defined = [...manifest.resources].sort((a, b) => APPLY_ORDER.indexOf(a.type) - APPLY_ORDER.indexOf(b.type));
-  const items = defined.map((resource) => planResource(manifest.stackId, resource, resources, observations));
+  const declared = declaredDefaultProducts(manifest, resources);
+  // A price that declares the default of its product goes first, so that the other prices
+  // of the product can be archived without being the default
+  const defined = [...manifest.resources].sort(
+    (a, b) =>
+      APPLY_ORDER.indexOf(a.type) - APPLY_ORDER.indexOf(b.type) ||
+      Number(b.type === 'Stripe::Price' && Boolean(b.isDefault)) - Number(a.type === 'Stripe::Price' && Boolean(a.isDefault)),
+  );
+  const items = defined.map((resource) => withDeclaredDefaults(resource, planResource(manifest.stackId, resource, resources, observations), declared));
 
+  const settled = new Set([...declared, ...items.flatMap((item) => item.steps.flatMap(defaultPriceProduct))]);
   const referenced = referencedStripeIds(manifest);
-  const removed = REMOVAL_ORDER.flatMap((type) => removalItems(manifest.stackId, type, lock, observations, referenced));
+  const removed = REMOVAL_ORDER.flatMap((type) => removalItems(manifest.stackId, type, lock, observations, referenced, settled));
   return { stackId: manifest.stackId, items: [...items, ...removed] };
+}
+
+/** The products whose default price a price of the definition declares. */
+function declaredDefaultProducts(manifest: StackManifest, resources: Map<string, ResourceManifest>): Set<string> {
+  return new Set(
+    manifest.resources
+      .filter((resource) => resource.type === 'Stripe::Price' && resource.isDefault)
+      .map((resource) => resolveProductRef(resources, resource.properties.product as string)),
+  );
+}
+
+/** The product a step sets or unsets the default price of, as a list of at most one. */
+function defaultPriceProduct(step: Step): string[] {
+  return step.kind === 'setDefault' || step.kind === 'unsetDefault' ? [step.productId] : [];
+}
+
+/**
+ * The price that declares the default of a product decides it. Another price of that product
+ * must not move the default on its own: it would work from the default Stripe has now, which the
+ * declaring price is about to change.
+ */
+function withDeclaredDefaults(resource: ResourceManifest, item: PlanItem, declared: Set<string>): PlanItem {
+  if (resource.type !== 'Stripe::Price' || resource.isDefault) return item;
+  const steps = item.steps.filter((step) => !defaultPriceProduct(step).some((product) => declared.has(product)));
+  return steps.length === item.steps.length ? item : { ...item, steps, operation: item.refusal ? item.operation : operationOf(steps) };
 }
 
 function item(resource: ResourceManifest, steps: Step[], extra: Partial<PlanItem> = {}): PlanItem {
@@ -104,6 +148,8 @@ function planMeterResource(resource: ResourceManifest, observations: Observation
 function planFeatureResource(stackId: string, resource: ResourceManifest, observations: Observations): PlanItem {
   const params = resource.properties as unknown as Stripe.Entitlements.FeatureCreateParams;
   const existing = observations.features.get(resource.id);
+  const foreign = ownershipRefusal(resource, existing, stackId);
+  if (foreign) return item(resource, [], { physicalId: existing?.id, refusal: foreign });
   if (resource.physicalId && existing && existing.lookup_key !== params.lookup_key) {
     return item(resource, [], {
       physicalId: existing.id,
@@ -112,7 +158,7 @@ function planFeatureResource(stackId: string, resource: ResourceManifest, observ
         'Stripe does not allow changing lookup_key.',
     });
   }
-  const plan = planFeature(stackId, { logicalId: resource.id, key: params.lookup_key, params }, existing);
+  const plan = planFeature(stackId, { logicalId: resource.id, key: params.lookup_key, params, adopted: Boolean(resource.physicalId) }, existing);
   return item(resource, plan.steps, { physicalId: existing?.id, refusal: plan.refusal });
 }
 
@@ -124,12 +170,12 @@ function planProductResource(
 ): PlanItem {
   const { features, ...params } = resource.properties;
   const observation: ProductObservation = observations.products.get(resource.id) ?? { attachedFeatures: new Map() };
-  const refusal = observation.product || resource.physicalId ? undefined : idRefusal(resource);
-  if (refusal) return item(resource, [], { refusal });
+  const refusal = observation.product || resource.physicalId ? ownershipRefusal(resource, observation.product, stackId) : idRefusal(resource);
+  if (refusal) return item(resource, [], { physicalId: observation.product?.id, refusal });
   const desiredFeatureIds = (features as string[] | undefined)?.map((ref) => resolveFeatureRef(ref, resources, observations));
   const steps = planProduct(
     stackId,
-    { logicalId: resource.id, key: resource.key, params: params as unknown as Stripe.ProductCreateParams, desiredFeatureIds },
+    { logicalId: resource.id, key: resource.key, params: params as unknown as Stripe.ProductCreateParams, desiredFeatureIds, adopted: Boolean(resource.physicalId) },
     observation,
   );
   return item(resource, steps, { physicalId: observation.product?.id });
@@ -137,8 +183,8 @@ function planProductResource(
 
 function planCouponResource(stackId: string, resource: ResourceManifest, observations: Observations): PlanItem {
   const existing = observations.coupons.get(resource.id);
-  const refusal = existing ? undefined : idRefusal(resource);
-  if (refusal) return item(resource, [], { refusal });
+  const refusal = existing ? ownershipRefusal(resource, existing, stackId) : idRefusal(resource);
+  if (refusal) return item(resource, [], { physicalId: existing?.id, refusal });
   const plan = planCoupon(
     stackId,
     { logicalId: resource.id, key: resource.key, params: resource.properties as unknown as Stripe.CouponCreateParams },
@@ -195,11 +241,18 @@ function referencedStripeIds(manifest: StackManifest): Set<string> {
   return new Set(refs.filter((ref): ref is string => typeof ref === 'string' && !logicalIds.has(ref)));
 }
 
-function removalItems(stackId: string, type: string, lock: LockFile, observations: Observations, referenced: Set<string>): PlanItem[] {
+function removalItems(
+  stackId: string,
+  type: string,
+  lock: LockFile,
+  observations: Observations,
+  referenced: Set<string>,
+  settled: Set<string>,
+): PlanItem[] {
   const items: PlanItem[] = [];
   for (const key of removingKeys(lock, stackId, type)) {
     if (removedObjectIds(type, key, observations).some((id) => referenced.has(id))) continue;
-    const steps = removalSteps(type, key, observations);
+    const steps = removalSteps(type, key, observations, settled, stackId);
     if (steps.length > 0) items.push({ id: key, path: key, type, operation: 'remove', steps });
   }
   return items;
@@ -224,21 +277,24 @@ function removedObjectIds(type: string, key: string, observations: Observations)
   }
 }
 
-function removalSteps(type: string, key: string, observations: Observations): Step[] {
+function removalSteps(type: string, key: string, observations: Observations, settled: Set<string>, stackId: string): Step[] {
+  const ours = (metadata: Record<string, string> | null | undefined) => metadata?.pricectl_stack === stackId;
   const { removed } = observations;
   switch (type) {
     case 'Stripe::Price': {
       const slot = removed.prices.get(key);
-      return slot ? planPriceRemoval(slot.versions, slot.defaultPriceIds) : [];
+      // A product whose default price the plan already settles is left alone: unsetting it here would undo that
+      const defaults = Object.fromEntries(Object.entries(slot?.defaultPriceIds ?? {}).map(([product, price]) => [product, settled.has(product) ? null : price]));
+      return slot ? planPriceRemoval(slot.versions, defaults) : [];
     }
     case 'Stripe::Coupon':
-      return planCouponRemoval(removed.coupons.get(key));
+      return planCouponRemoval(ours(removed.coupons.get(key)?.metadata) ? removed.coupons.get(key) : undefined);
     case 'Stripe::Product': {
       const found = removed.products.get(key);
-      return found ? planProductRemoval(found.product, found.hasPrices) : [];
+      return found && ours(found.product.metadata) ? planProductRemoval(found.product, found.hasPrices) : [];
     }
     case 'Stripe::EntitlementFeature':
-      return planFeatureRemoval(removed.features.get(key));
+      return planFeatureRemoval(ours(removed.features.get(key)?.metadata) ? removed.features.get(key) : undefined);
     case 'Stripe::BillingMeter':
       return planMeterRemoval(key, observations.activeMeters);
     default:

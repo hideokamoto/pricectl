@@ -43,3 +43,23 @@ Decisions 1-9 stand. These were settled in code and are recorded here:
   tax behavior in place and as a new version, feature/coupon/meter lifecycle, a changed lookup
   key, a key held outside the stack (refused, then taken with `transferLookupKey`), and the
   `plan`, `deploy` and `destroy` commands themselves (`test/e2e/`).
+
+## Found by the review of the implementation
+
+An independent review of the code found these; each was reproduced with a test first.
+
+- Renaming the price that is its product's declared default left the product without a default:
+  the removal of the old slot unset a default the plan had just set. A price that declares the
+  default of its product now goes first, removals leave a product alone when the plan already
+  settles its default, and other prices of that product do not move the default themselves.
+- A coupon's `applies_to` cannot be updated in Stripe and was silently ignored; it is refused now.
+- Products, coupons and features found by their key were used whoever had created them. An object
+  tagged for another stack is refused, an untagged one is tagged when it is adopted, and a removal
+  only touches objects tagged for the stack.
+
+Known limits, left as they are:
+
+- A removed price slot is reached through the holder of its lookup key. If someone clears the key
+  by hand, the older versions of the slot are not found and stay on sale.
+- A price is the stack's when it carries the stack's tag; which slot (`pricectl_id`) it belongs to
+  is not checked when a key moves between slots of the same stack (decision 4).

@@ -1,5 +1,5 @@
 import type Stripe from 'stripe';
-import { metadataChanges, userMetadata } from './metadata';
+import { metadataChanges, ownershipTags, userMetadata } from './metadata';
 
 /** What the definition says about one coupon. */
 export interface CouponDefinition {
@@ -32,6 +32,11 @@ const IMMUTABLE_FIELDS = [
   'redeem_by',
 ] as const;
 
+/** The product IDs a coupon applies to, sorted; empty when it applies to everything. */
+function appliesToProducts(appliesTo: { products?: string[] } | null | undefined): string[] {
+  return [...(appliesTo?.products ?? [])].sort();
+}
+
 /** Compare a coupon field from Stripe (null when unset) with the desired value (undefined when unset). */
 function isSameValue(existing: unknown, desired: unknown): boolean {
   return (existing ?? null) === (desired ?? null);
@@ -62,7 +67,10 @@ export function planCoupon(stackId: string, definition: CouponDefinition, existi
     };
   }
 
-  const immutable = IMMUTABLE_FIELDS.filter((field) => !isSameValue(existing[field], params[field]));
+  const immutable: string[] = IMMUTABLE_FIELDS.filter((field) => !isSameValue(existing[field], params[field]));
+  if (JSON.stringify(appliesToProducts(existing.applies_to)) !== JSON.stringify(appliesToProducts(params.applies_to))) {
+    immutable.push('applies_to');
+  }
   if (immutable.length > 0) {
     return {
       steps: [],
@@ -74,7 +82,10 @@ export function planCoupon(stackId: string, definition: CouponDefinition, existi
 
   const changes: Stripe.CouponUpdateParams = {};
   if (params.name !== undefined && params.name !== existing.name) changes.name = params.name;
-  const metadata = metadataChanges(userMetadata(existing.metadata), userMetadata(params.metadata));
+  const metadata = {
+    ...metadataChanges(userMetadata(existing.metadata), userMetadata(params.metadata)),
+    ...ownershipTags(existing.metadata, stackId, definition.logicalId),
+  };
   if (Object.keys(metadata).length > 0) changes.metadata = metadata;
   return {
     steps: Object.keys(changes).length > 0 ? [{ kind: 'updateCoupon', couponId: existing.id, changes }] : [],

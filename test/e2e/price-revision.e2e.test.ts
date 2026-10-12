@@ -183,6 +183,22 @@ describeWithStripe('lookup keys against Stripe test mode', () => {
     expect(old.data.map((price) => price.active)).toEqual([false]);
   });
 
+  it('keeps the declared default price when the price that is the default is renamed', async () => {
+    const named = (logicalId: string) =>
+      define((stack) => {
+        const product = new Product(stack, 'Pro', { name: `pricectl e2e ${stackId}` });
+        new Price(stack, logicalId, { product, currency: 'usd', unitAmount: 1500, recurring: { interval: 'month' }, isDefault: true });
+      });
+    await deploy(named('Default'));
+
+    const result = await deploy(named('DefaultRenamed'));
+
+    expect(result.items.filter((item) => item.error)).toEqual([]);
+    const product = await stripe.products.retrieve(`${stackId}_Pro`);
+    const price = await stripe.prices.retrieve(product.default_price as string);
+    expect(price).toMatchObject({ active: true, lookup_key: `${stackId}_DefaultRenamed` });
+  });
+
   it('refuses a lookup key held by a price outside the stack, and takes it over only when allowed', async () => {
     const key = `${stackId}_shared`;
     const outside = await stripe.prices.create({ product: `${stackId}_Pro`, currency: 'usd', unit_amount: 1, lookup_key: key });

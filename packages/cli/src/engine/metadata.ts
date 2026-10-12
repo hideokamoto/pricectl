@@ -27,3 +27,15 @@ export function metadataChanges(current: Record<string, string>, desired: Record
   }
   return changes;
 }
+
+/**
+ * The pricectl tags an existing object needs to be recognized as the stack's: nothing when it
+ * has them already, otherwise both tags. Objects found by their key may have been created by hand.
+ */
+export function ownershipTags(
+  metadata: Record<string, string> | null | undefined,
+  stackId: string,
+  logicalId: string,
+): Record<string, string> {
+  return metadata?.pricectl_stack === stackId ? {} : { pricectl_stack: stackId, pricectl_id: logicalId };
+}

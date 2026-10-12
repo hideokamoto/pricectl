@@ -1,5 +1,5 @@
 import type Stripe from 'stripe';
-import { metadataChanges, userMetadata } from './metadata';
+import { metadataChanges, ownershipTags, userMetadata } from './metadata';
 
 /** What the definition says about one product. */
 export interface ProductDefinition {
@@ -12,6 +12,8 @@ export interface ProductDefinition {
    * does not manage them: attachments are then left as they are.
    */
   desiredFeatureIds?: string[];
+  /** Adopted by Stripe ID: an object pricectl did not create, which it does not tag */
+  adopted?: boolean;
 }
 
 /** What `plan` read from Stripe for one product. */
@@ -91,6 +93,8 @@ export function planProduct(stackId: string, definition: ProductDefinition, obse
   }
 
   const changes = fieldChanges(product, definition.params);
+  const tags = definition.adopted ? {} : ownershipTags(product.metadata, stackId, definition.logicalId);
+  if (Object.keys(tags).length > 0) changes.metadata = { ...(changes.metadata as Record<string, string> | undefined), ...tags };
   const update: ProductStep[] =
     Object.keys(changes).length > 0 ? [{ kind: 'updateProduct', productId: product.id, changes }] : [];
   return [...update, ...featureSteps(product.id, definition, observation.attachedFeatures)];
