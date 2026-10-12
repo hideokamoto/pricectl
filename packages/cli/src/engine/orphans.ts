@@ -53,7 +53,13 @@ export function findOrphans(manifest: StackManifest, stateManager?: StateManager
     .filter((entry) => !referenced.has(entry.physicalId))
     .sort((a, b) => removalRank(a.type) - removalRank(b.type))
     // Lookups during removal go through the state file, so no properties are needed
-    .map((entry) => ({ id: entry.logicalId, path: entry.path, type: entry.type, properties: {} }));
+    .map((entry) => ({
+      id: entry.logicalId,
+      key: `${manifest.stackId}_${entry.logicalId}`,
+      path: entry.path,
+      type: entry.type,
+      properties: {},
+    }));
 }
 
 /**

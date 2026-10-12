@@ -23,6 +23,14 @@ export abstract class Resource extends Construct {
   public readonly stack: Stack;
 
   /**
+   * The name pricectl finds this resource by in Stripe: `{stackId}_{logicalId}`.
+   * It is the ID of a product or coupon, and the default lookup key of a price.
+   */
+  public get key(): string {
+    return `${this.stack.node.id}_${this.node.id}`;
+  }
+
+  /**
    * @param scope construct this resource belongs to; a Stack must be among its ancestors
    * @param id logical ID, unique within the stack
    * @param props resource properties

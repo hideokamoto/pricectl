@@ -582,7 +582,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
     it('reports a resource whose state cannot be read instead of failing the whole plan', async () => {
       const stack = createDestroyableStack();
       const manifest = stack.synth();
-      manifest.resources.push({ id: 'Mystery', path: 'FxStack/Mystery', type: 'Stripe::Unknown', properties: {} });
+      manifest.resources.push({ id: 'Mystery', key: 'FxStack_Mystery', path: 'FxStack/Mystery', type: 'Stripe::Unknown', properties: {} });
 
       const plan = await new StripeDeployer('sk_test_dummy').planDestroy(manifest);
 

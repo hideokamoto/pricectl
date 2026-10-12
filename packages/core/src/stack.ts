@@ -103,9 +103,10 @@ export class Stack extends Construct {
       const metadata = construct.node.getMetadata('resource') as StoredResourceMetadata | undefined;
       if (metadata) {
         // Read physicalId structurally: importing Resource here would create an import cycle
-        const physicalId = (construct as { physicalId?: string }).physicalId;
+        const { physicalId, key } = construct as unknown as { physicalId?: string; key: string };
         resources.push({
           id: construct.node.id,
+          key,
           path: construct.node.path,
           type: metadata.type,
           properties: metadata.properties,
@@ -132,6 +133,8 @@ interface StoredResourceMetadata {
 
 export interface ResourceManifest {
   id: string;
+  /** The name pricectl finds the resource by in Stripe: `{stackId}_{logicalId}` */
+  key: string;
   path: string;
   type: string;
   properties: Record<string, unknown>;

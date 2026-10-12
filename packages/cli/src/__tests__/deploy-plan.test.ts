@@ -4,7 +4,7 @@ import { describeDeployPlan } from '../engine/deploy-plan';
 const manifest: StackManifest = {
   stackId: 'Shop',
   tags: {},
-  resources: [{ id: 'Prod', path: 'Shop/Prod', type: 'Stripe::Product', properties: { name: 'Widget' } }],
+  resources: [{ id: 'Prod', key: 'Shop_Prod', path: 'Shop/Prod', type: 'Stripe::Product', properties: { name: 'Widget' } }],
 };
 
 describe('describeDeployPlan', () => {
@@ -17,7 +17,7 @@ describe('describeDeployPlan', () => {
 
   it('lists resources that are no longer defined as removed', () => {
     const removals: ResourceManifest[] = [
-      { id: 'OldPrice', path: 'Shop/OldPrice', type: 'Stripe::Price', properties: {} },
+      { id: 'OldPrice', key: 'Shop_OldPrice', path: 'Shop/OldPrice', type: 'Stripe::Price', properties: {} },
     ];
 
     const lines = describeDeployPlan(manifest, removals);

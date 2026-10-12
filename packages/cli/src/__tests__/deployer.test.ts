@@ -93,6 +93,7 @@ describe('StripeDeployer', () => {
           resources: [
             {
               id: 'MyProduct',
+              key: 'TestStack_MyProduct',
               path: 'TestStack/MyProduct',
               type: 'Stripe::Product',
               properties: { name: 'Widget', active: true },
@@ -136,6 +137,7 @@ describe('StripeDeployer', () => {
           resources: [
             {
               id: 'MyProduct',
+              key: 'TestStack_MyProduct',
               path: 'TestStack/MyProduct',
               type: 'Stripe::Product',
               properties: { name: 'Updated Widget', active: true },
@@ -176,6 +178,7 @@ describe('StripeDeployer', () => {
           resources: [
             {
               id: 'MonthlyPrice',
+              key: 'TestStack_MonthlyPrice',
               path: 'TestStack/MonthlyPrice',
               type: 'Stripe::Price',
               properties: {
@@ -225,6 +228,7 @@ describe('StripeDeployer', () => {
           resources: [
             {
               id: 'MyPrice',
+              key: 'TestStack_MyPrice',
               path: 'TestStack/MyPrice',
               type: 'Stripe::Price',
               properties: {
@@ -274,6 +278,7 @@ describe('StripeDeployer', () => {
           resources: [
             {
               id: 'MyPrice',
+              key: 'TestStack_MyPrice',
               path: 'TestStack/MyPrice',
               type: 'Stripe::Price',
               properties: {
@@ -323,6 +328,7 @@ describe('StripeDeployer', () => {
           resources: [
             {
               id: 'MyPrice',
+              key: 'TestStack_MyPrice',
               path: 'TestStack/MyPrice',
               type: 'Stripe::Price',
               properties: {
@@ -371,6 +377,7 @@ describe('StripeDeployer', () => {
           resources: [
             {
               id: 'MyPrice',
+              key: 'TestStack_MyPrice',
               path: 'TestStack/MyPrice',
               type: 'Stripe::Price',
               properties: {
@@ -411,6 +418,7 @@ describe('StripeDeployer', () => {
           resources: [
             {
               id: 'SUMMER20',
+              key: 'TestStack_SUMMER20',
               path: 'TestStack/SUMMER20',
               type: 'Stripe::Coupon',
               properties: {
@@ -452,6 +460,7 @@ describe('StripeDeployer', () => {
           resources: [
             {
               id: 'EXISTING',
+              key: 'TestStack_EXISTING',
               path: 'TestStack/EXISTING',
               type: 'Stripe::Coupon',
               properties: { duration: 'once', percent_off: 10 },
@@ -485,12 +494,14 @@ describe('StripeDeployer', () => {
           resources: [
             {
               id: 'MyProduct',
+              key: 'TestStack_MyProduct',
               path: 'TestStack/MyProduct',
               type: 'Stripe::Product',
               properties: { name: 'Widget', active: true },
             },
             {
               id: 'MyPrice',
+              key: 'TestStack_MyPrice',
               path: 'TestStack/MyPrice',
               type: 'Stripe::Price',
               properties: {
@@ -526,6 +537,7 @@ describe('StripeDeployer', () => {
           resources: [
             {
               id: 'BadProduct',
+              key: 'TestStack_BadProduct',
               path: 'TestStack/BadProduct',
               type: 'Stripe::Product',
               properties: { name: 'Widget' },
@@ -551,6 +563,7 @@ describe('StripeDeployer', () => {
           resources: [
             {
               id: 'Unknown',
+              key: 'TestStack_Unknown',
               path: 'TestStack/Unknown',
               type: 'Stripe::Unknown',
               properties: {},
@@ -578,6 +591,7 @@ describe('StripeDeployer', () => {
         resources: [
           {
             id: 'MyProduct',
+            key: 'TestStack_MyProduct',
             path: 'TestStack/MyProduct',
             type: 'Stripe::Product',
             properties: { name: 'Widget' },
@@ -605,6 +619,7 @@ describe('StripeDeployer', () => {
         resources: [
           {
             id: 'MissingProduct',
+            key: 'TestStack_MissingProduct',
             path: 'TestStack/MissingProduct',
             type: 'Stripe::Product',
             properties: { name: 'Widget' },
@@ -629,6 +644,7 @@ describe('StripeDeployer', () => {
         resources: [
           {
             id: 'MyPrice',
+            key: 'TestStack_MyPrice',
             path: 'TestStack/MyPrice',
             type: 'Stripe::Price',
             properties: { product: 'prod_123', currency: 'usd' },
@@ -658,6 +674,7 @@ describe('StripeDeployer', () => {
         resources: [
           {
             id: 'COUPON1',
+            key: 'TestStack_COUPON1',
             path: 'TestStack/COUPON1',
             type: 'Stripe::Coupon',
             properties: { duration: 'once' },
@@ -686,6 +703,7 @@ describe('StripeDeployer', () => {
         resources: [
           {
             id: 'GONE',
+            key: 'TestStack_GONE',
             path: 'TestStack/GONE',
             type: 'Stripe::Coupon',
             properties: { duration: 'once' },
@@ -713,12 +731,14 @@ describe('StripeDeployer', () => {
         resources: [
           {
             id: 'MyProduct',
+            key: 'TestStack_MyProduct',
             path: 'TestStack/MyProduct',
             type: 'Stripe::Product',
             properties: { name: 'Widget' },
           },
           {
             id: 'MyPrice',
+            key: 'TestStack_MyPrice',
             path: 'TestStack/MyPrice',
             type: 'Stripe::Price',
             properties: { product: 'prod_1', currency: 'usd' },
@@ -743,6 +763,7 @@ describe('StripeDeployer', () => {
         resources: [
           {
             id: 'BadProduct',
+            key: 'TestStack_BadProduct',
             path: 'TestStack/BadProduct',
             type: 'Stripe::Product',
             properties: { name: 'Widget' },

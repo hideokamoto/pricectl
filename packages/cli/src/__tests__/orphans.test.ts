@@ -25,11 +25,12 @@ describe('findOrphans', () => {
     const manifest = manifestWith([
       {
         id: 'Usage',
+        key: 'TestStack_Usage',
         path: 'Shop/Usage',
         type: 'Stripe::Price',
         properties: { product: 'prod_123', recurring: { interval: 'month', usage_type: 'metered', meter: 'mtr_123' } },
       },
-      { id: 'Other', path: 'Shop/Other', type: 'Stripe::Product', properties: { name: 'Other', features: ['feat_123'] } },
+      { id: 'Other', key: 'TestStack_Other', path: 'Shop/Other', type: 'Stripe::Product', properties: { name: 'Other', features: ['feat_123'] } },
     ]);
 
     expect(findOrphans(manifest, state)).toEqual([]);
