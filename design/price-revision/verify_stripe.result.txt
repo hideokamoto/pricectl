@@ -1,21 +1,21 @@
 T1 default_price: archive while default, then unset with empty string
-  [set default] HTTP 200 OK {'default_price': 'price_1UPbJ3R3gpDJbEB6FyNLYEgP'}
+  [set default] HTTP 200 OK {'default_price': 'price_1UPdJPR3gpDJbEB6lxous2jo'}
   [archive default price] HTTP 400 ERROR invalid_request_error/None: This price cannot be archived because it is the default price of its product.
   [unset default_price=''] HTTP 200 OK {'default_price': None}
   [archive after unset] HTTP 200 OK {'active': False}
 T2 default_price must be active / must belong to the product
-  [set archived price as default] HTTP 400 ERROR invalid_request_error/None: Price 'price_1UPbJ7R3gpDJbEB6Hl26JEoo' is archived. To use this price, first unarchive it by updating `active` to `true`.
-  [set another product's price as default] HTTP 400 ERROR invalid_request_error/None: Provided price ('price_1UPbJ8R3gpDJbEB69VGaTJww') belongs to a different product ('prod_VQSDyU7YqPKeuq').
+  [set archived price as default] HTTP 400 ERROR invalid_request_error/None: Price 'price_1UPdJTR3gpDJbEB67a0gIWxL' is archived. To use this price, first unarchive it by updating `active` to `true`.
+  [set another product's price as default] HTTP 400 ERROR invalid_request_error/None: Provided price ('price_1UPdJUR3gpDJbEB6j224vYUQ') belongs to a different product ('prod_VQUIggAVdszY1a').
 T3 lookup_key: update in place, conflicts, transfer on update, archived holder
-  [create X with k1] HTTP 200 OK {'lookup_key': 'pricectl-verify-1791781068-k1'}
-  [update X lookup_key k1->k2 in place] HTTP 200 OK {'lookup_key': 'pricectl-verify-1791781068-k2'}
-  [update Y to k2 (held by X) without transfer] HTTP 400 ERROR invalid_request_error/None: Price price_1UPbJ9R3gpDJbEB6Ozbx5rNp already uses this `lookup_key`. Use a unique key or transfer the key from that price.
-  [update Y to k2 with transfer] HTTP 200 OK {'lookup_key': 'pricectl-verify-1791781068-k2'}
+  [create X with k1] HTTP 200 OK {'lookup_key': 'pricectl-verify-1791788778-k1'}
+  [update X lookup_key k1->k2 in place] HTTP 200 OK {'lookup_key': 'pricectl-verify-1791788778-k2'}
+  [update Y to k2 (held by X) without transfer] HTTP 400 ERROR invalid_request_error/None: Price price_1UPdJWR3gpDJbEB6S8HZS8bJ already uses this `lookup_key`. Use a unique key or transfer the key from that price.
+  [update Y to k2 with transfer] HTTP 200 OK {'lookup_key': 'pricectl-verify-1791788778-k2'}
   [X after transfer] HTTP 200 OK {'lookup_key': None}
   [unset Y lookup_key=''] HTTP 200 OK {'lookup_key': None}
-  [create Z with k1] HTTP 200 OK {'lookup_key': 'pricectl-verify-1791781068-k1'}
-  [archive Z] HTTP 200 OK {'active': False, 'lookup_key': 'pricectl-verify-1791781068-k1'}
-  [create W with k1 (held by archived Z) without transfer] HTTP 400 ERROR invalid_request_error/None: Price price_1UPbJDR3gpDJbEB6PqyMvKzZ already uses this `lookup_key`. Use a unique key or transfer the key from that price.
+  [create Z with k1] HTTP 200 OK {'lookup_key': 'pricectl-verify-1791788778-k1'}
+  [archive Z] HTTP 200 OK {'active': False, 'lookup_key': 'pricectl-verify-1791788778-k1'}
+  [create W with k1 (held by archived Z) without transfer] HTTP 400 ERROR invalid_request_error/None: Price price_1UPdJaR3gpDJbEB6fLpOQj8P already uses this `lookup_key`. Use a unique key or transfer the key from that price.
 T4 tax_behavior transitions
   [create without tax_behavior (account default inferred_by_currency)] HTTP 200 OK {'tax_behavior': 'unspecified'}
   [unspecified -> inclusive] HTTP 200 OK {'tax_behavior': 'inclusive'}
@@ -25,4 +25,11 @@ T4 tax_behavior transitions
   [create with tax_behavior='unspecified'] HTTP 200 OK {'tax_behavior': 'unspecified'}
 T5 nickname update (control)
   [update nickname] HTTP 200 OK {'nickname': 'renamed'}
-created {'products': 5, 'prices': 8} run pricectl-verify-1791781068
+T6 meters: event_name uniqueness
+  [create meter A] HTTP 200 OK {'event_name': 'pricectl_verify_1791788778', 'status': 'active'}
+  [create meter B with the same event_name while A is active] HTTP 400 ERROR invalid_request_error/None: An active meter already exists for event name 'pricectl_verify_1791788778'. To create a new meter with the same event name, first deactivate the currently active meter.
+  [deactivate A] HTTP 200 OK {'status': 'inactive'}
+  [create meter C with the same event_name after A was deactivated] HTTP 200 OK {'status': 'active'}
+  [reactivate A while C is active] HTTP 400 ERROR invalid_request_error/None: This meter cannot be reactivated because an active meter already exists with the same event name.
+  [A has no metadata field] HTTP 200 OK {'metadata': None}
+created {'products': 5, 'prices': 8, 'meters': 2} run pricectl-verify-1791788778

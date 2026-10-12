@@ -4,7 +4,7 @@ import base64, json, sys, time, urllib.parse, urllib.request, urllib.error
 KEY = open(sys.argv[1]).read().strip()
 VERSION = '2026-09-30.endive'
 RUN = f'pricectl-verify-{int(time.time())}'
-created = {'products': [], 'prices': []}
+created = {'products': [], 'prices': [], 'meters': []}
 
 
 def call(method, path, params=None):
@@ -96,6 +96,27 @@ s, u = price(p5, 2000, tax_behavior='unspecified'); report("create with tax_beha
 
 print('T5 nickname update (control)')
 s, b = call('POST', f'prices/{t["id"]}', {'nickname': 'renamed'}); report('update nickname', s, b, ['nickname'])
+
+print('T6 meters: event_name uniqueness')
+ev = RUN.replace('-', '_')
+
+
+def meter(label):
+    s, b = call('POST', 'billing/meters', {'display_name': f'{RUN} {label}', 'event_name': ev,
+                                           'default_aggregation[formula]': 'count'})
+    if ok(s, b):
+        created['meters'].append(b['id'])
+    return s, b
+
+
+s, m1 = meter('A'); report('create meter A', s, m1, ['event_name', 'status'])
+s, b = meter('B'); report('create meter B with the same event_name while A is active', s, b, ['event_name'])
+s, b = call('POST', f'billing/meters/{m1["id"]}/deactivate'); report('deactivate A', s, b, ['status'])
+s, m3 = meter('C'); report('create meter C with the same event_name after A was deactivated', s, m3, ['status'])
+s, b = call('POST', f'billing/meters/{m1["id"]}/reactivate'); report('reactivate A while C is active', s, b, ['status'])
+s, b = call('GET', 'billing/meters/' + m1['id']); report('A has no metadata field', s, b, ['metadata'])
+for m in created['meters']:
+    call('POST', f'billing/meters/{m}/deactivate')
 
 json.dump({'run': RUN, **created}, open(sys.argv[2], 'w'))
 print('created', {k: len(v) for k, v in created.items()}, 'run', RUN)

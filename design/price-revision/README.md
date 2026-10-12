@@ -5,7 +5,29 @@ before any implementation. `DECISIONS.md` records the decisions and the Stripe b
 verified in test mode (`verify_stripe.py`).
 
 - v1 (`price_revision.als`, `price_revision.qnt`): the first To-be design; found gaps G1-G8 and R1-R3.
-- v2 (`price_revision_v2.als`, `price_revision_v2.qnt`): the decisions; results below.
+- v2 (`price_revision_v2.als`, `price_revision_v2.qnt`): decisions 1-7 with a state file; found G9.
+- v3 (`price_revision_v3.als`, `meter_lock_v3.qnt`): the current design, without a state file (decision 8).
+
+## v3 results
+
+`price_revision_v3.als` (Alloy, scope 4, 6 prices), ownership from metadata only:
+
+| Check | Result |
+|---|---|
+| StripeAcceptsResult, TaxTransitionsLegal, ForeignPricesUntouched, NewPriceOnlyWhenNeeded, Realizes, OneVersionOnSale, PlanRefusesOnlyForeignWithoutFlag | hold |
+| runs: reuse an archived version, move a followed default, unset a removed default, key from a removed price, key from outside with the flag, two versions on sale collapse to one | instance found for each |
+
+`meter_lock_v3.qnt` (Quint, Apalache, 18 steps), meters and `pricectl.lock.json` across
+commits (with and without the lock), CI deploys with failures (including a create that
+fails after Stripe created the meter), people dropping lock entries, and Dashboard changes:
+
+| Invariant | Result |
+|---|---|
+| oneActiveMeter | holds |
+| noFloatingMeter (an active meter pricectl created is defined or in the lock, unless a person released it) | holds |
+| foreignDeactivatedOnlyWhenClaimed (a Dashboard meter is deactivated only if it was active while the lock listed its event name) | holds |
+| cleanDeployConverges (a deploy without failures or outside changes during it ends as defined) | holds |
+| witnesses: CI refuses an out-of-date lock, a removed meter is added again, a Dashboard meter is taken over, a meter is adopted | reachable |
 
 ## v2 results
 
@@ -61,11 +83,13 @@ Quint, Apalache, 14 steps:
 
 ```bash
 # Alloy 6.2.0 (https://github.com/AlloyTools/org.alloytools.alloy/releases)
-java -jar org.alloytools.alloy.dist.jar exec -f -o out price_revision_v2.als
+java -jar org.alloytools.alloy.dist.jar exec -f -o out price_revision_v3.als
 
 # Quint 0.33.0 with Apalache (bounded model checking); set MAX_RUNS to 2 for the 2-deploy check
 quint verify --max-steps 22 --invariant cleanDeployConverges price_revision_v2.qnt
 quint run --backend typescript --max-samples 30000 --max-steps 45 --invariant cleanDeployConverges price_revision_v2.qnt
+
+quint verify --max-steps 18 --invariant noFloatingMeter meter_lock_v3.qnt
 
 # Stripe test mode (key read from a file, never committed)
 python3 verify_stripe.py path/to/key-file created.json
@@ -83,4 +107,8 @@ change) comes from the API spec.
 - Reading the default price and writing it as two calls (Quint treats them as one).
 - Several products, and more than one replacement per deploy, in the Quint models.
 - Declared default prices (`isDefault`) in Quint; only Alloy covers them.
+- Several event names, and deploys of one stack running at the same time, in `meter_lock_v3.qnt`
+  (deploys are assumed serialized).
+- How long listing every tagged resource takes on a large account (v3 lists instead of
+  reading IDs from a state file).
 - Exhaustive checking of three or more deploys in a row (simulation only).
