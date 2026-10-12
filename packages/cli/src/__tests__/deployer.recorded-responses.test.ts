@@ -548,9 +548,9 @@ describe('StripeDeployer against recorded Stripe responses', () => {
 
       expect(plan.errors).toEqual([]);
       expect(plan.resources).toEqual([
-        { id: 'NewMeter', path: 'FxStack/NewMeter', type: 'Stripe::BillingMeter', status: 'deactivated' },
-        { id: 'NewMonthly', path: 'FxStack/NewMonthly', type: 'Stripe::Price', status: 'deactivated' },
-        { id: 'NewProd', path: 'FxStack/NewProd', type: 'Stripe::Product', status: 'deactivated' },
+        { id: 'NewMeter', path: 'FxStack/NewMeter', type: 'Stripe::BillingMeter', status: 'deactivated', physicalId: expect.any(String) },
+        { id: 'NewMonthly', path: 'FxStack/NewMonthly', type: 'Stripe::Price', status: 'deactivated', physicalId: expect.any(String) },
+        { id: 'NewProd', path: 'FxStack/NewProd', type: 'Stripe::Product', status: 'deactivated', physicalId: expect.any(String) },
       ]);
       expect(mockFakeStripe.productsFor('NewProd')).toEqual([expect.objectContaining({ active: true })]);
     });
@@ -575,7 +575,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       const plan = await new StripeDeployer('sk_test_dummy', undefined, state).planDestroy(createStack().synth());
 
       expect(plan.resources).toEqual([
-        { id: 'PricectlOldCoupon', path: 'FxStack/PricectlOldCoupon', type: 'Stripe::Coupon', status: 'deleted' },
+        { id: 'PricectlOldCoupon', path: 'FxStack/PricectlOldCoupon', type: 'Stripe::Coupon', status: 'deleted', physicalId: 'PricectlOldCoupon' },
       ]);
     });
 
@@ -636,10 +636,38 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(state.getResource('FxStack', 'NewProd')).toBeDefined();
     });
 
+    it('does not destroy a different Stripe object that took over the logical ID after the plan was made', async () => {
+      const state = new StateManager(new InMemoryStateStore());
+      const stackWithPrice = (unitAmount: number): Stack => {
+        const stack = createStack();
+        new Price(stack, 'NewMonthly', { product: PRODUCT_ID, currency: 'usd', unitAmount, recurring: { interval: 'month' } });
+        return stack;
+      };
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(stackWithPrice(1000).synth());
+      const plan = await new StripeDeployer('sk_test_dummy', undefined, state).planDestroy(stackWithPrice(1000).synth());
+      // A deploy replaces the price after the plan was made: the new price is not what was approved
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(stackWithPrice(2000).synth());
+
+      const result = await new StripeDeployer('sk_test_dummy', undefined, state).destroy(stackWithPrice(2000).synth(), plan);
+
+      expect(result.destroyed).toEqual([]);
+      expect(result.errors).toEqual([expect.objectContaining({ id: 'NewMonthly' })]);
+      expect(mockFakeStripe.pricesFor('NewMonthly').filter((price) => price.active)).toHaveLength(1);
+      expect(state.getResource('FxStack', 'NewMonthly')).toBeDefined();
+    });
+
     it('reports a resource the plan could not read and keeps it in the state file', async () => {
       const state = new StateManager(new InMemoryStateStore());
       const manifest = createStackWith().synth();
       manifest.resources.push({ id: 'Mystery', path: 'FxStack/Mystery', type: 'Stripe::Unknown', properties: {} });
+      state.setResource('FxStack', {
+        logicalId: 'Mystery',
+        physicalId: 'mystery_1',
+        type: 'Stripe::Unknown',
+        path: 'FxStack/Mystery',
+        lastDeployedAt: new Date().toISOString(),
+        propertiesHash: 'hash',
+      });
       const deployer = new StripeDeployer('sk_test_dummy', undefined, state);
       const plan = await deployer.planDestroy(manifest);
 
@@ -648,6 +676,7 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(result.errors).toEqual([
         { id: 'Mystery', type: 'Stripe::Unknown', error: 'Unknown resource type: Stripe::Unknown' },
       ]);
+      expect(state.getResource('FxStack', 'Mystery')).toBeDefined();
     });
   });
 
