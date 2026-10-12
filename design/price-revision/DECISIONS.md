@@ -72,9 +72,8 @@ existing subscriptions.
    - Deploys of one stack must not run at the same time (one CI job per stack).
    - Without the lock, the meter case is the same as a resource never deployed: defined
      meters are found by event name; nothing is known about removed ones.
-   - Migration: resources from older versions carry `pricectl_path` starting with the stack
-     ID; they count as the stack's and get `pricectl_stack` on their next update. Meters in
-     an existing `pricectl.state.json` seed the lock once.
+   - No migration: pricectl has no users yet, so resources and state files from earlier
+     versions are not supported.
 
 ## How we got here
 
