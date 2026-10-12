@@ -372,10 +372,13 @@ export class StripeDeployer {
             pricectl_path: resource.path,
           },
         });
+        // Stripe refuses to archive a product's default price, so the default moves along
+        let defaultOf: string | null = null;
         try {
+          defaultOf = await this.moveDefaultPrice(existing, created.id, props.product as string);
           await this.stripe.prices.update(existing.id, { active: false });
         } catch (error: unknown) {
-          await this.undoPriceReplacement(existing.id, created.id, props.lookup_key);
+          await this.undoPriceReplacement(existing.id, created.id, props.lookup_key, defaultOf);
           throw error;
         }
         return {
@@ -404,11 +407,41 @@ export class StripeDeployer {
   }
 
   /**
-   * Undo a price replacement whose old price could not be deactivated, so that the old
-   * price stays the only active one: give its lookup key back, then deactivate the
-   * replacement. Each step is best effort; this is not an atomic rollback.
+   * Make the replacement the default price of the product when the old price is it.
+   * Returns the ID of the product whose default price was moved, or null when nothing moved.
+   * When the replacement belongs to another product, nothing is moved; Stripe then refuses
+   * to archive the old price and the deploy reports that error.
    */
-  private async undoPriceReplacement(oldPriceId: string, newPriceId: string, lookupKey?: string): Promise<void> {
+  private async moveDefaultPrice(oldPrice: Stripe.Price, newPriceId: string, newProductId: string): Promise<string | null> {
+    const productId = typeof oldPrice.product === 'string' ? oldPrice.product : oldPrice.product.id;
+    if (productId !== newProductId) return null;
+    const product = await this.stripe.products.retrieve(productId);
+    const defaultPrice = product.default_price;
+    const defaultPriceId = typeof defaultPrice === 'string' ? defaultPrice : defaultPrice?.id;
+    if (defaultPriceId !== oldPrice.id) return null;
+    await this.stripe.products.update(productId, { default_price: newPriceId });
+    return productId;
+  }
+
+  /**
+   * Undo a price replacement whose old price could not be deactivated, so that the old
+   * price stays the only active one: make it the default price again when it was moved,
+   * give its lookup key back, then deactivate the replacement (Stripe refuses to archive a
+   * default price, hence this order). Each step is best effort; this is not an atomic rollback.
+   */
+  private async undoPriceReplacement(
+    oldPriceId: string,
+    newPriceId: string,
+    lookupKey?: string,
+    defaultOf?: string | null,
+  ): Promise<void> {
+    if (defaultOf) {
+      try {
+        await this.stripe.products.update(defaultOf, { default_price: oldPriceId });
+      } catch {
+        // The caller reports the original error
+      }
+    }
     if (lookupKey) {
       try {
         await this.stripe.prices.update(oldPriceId, { lookup_key: lookupKey, transfer_lookup_key: true });

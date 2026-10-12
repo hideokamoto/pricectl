@@ -10,6 +10,7 @@ jest.mock('stripe', () => {
 const mockStripeInstance = {
   products: {
     create: jest.fn(),
+    retrieve: jest.fn(),
     update: jest.fn(),
     del: jest.fn(),
     list: jest.fn(),
@@ -76,6 +77,8 @@ describe('StripeDeployer', () => {
     resetMocks();
     // No entitlement features are attached to products unless a test says otherwise
     mockStripeInstance.products.listFeatures.mockReturnValue(listOf([]));
+    // Products have no default price unless a test says otherwise
+    mockStripeInstance.products.retrieve.mockResolvedValue({ default_price: null });
     deployer = new StripeDeployer('sk_test_dummy');
   });
 

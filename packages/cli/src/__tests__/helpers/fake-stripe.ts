@@ -21,6 +21,8 @@ import { asSdkPrice } from './sdk-shapes';
  * - The Search API is eventually consistent: newly created objects are not
  *   searchable until indexSearch() is called.
  * - Products reject parameters that are not product fields.
+ * - A price that is its product's default_price cannot be archived. (Message observed in
+ *   Stripe test mode and quoted in issue #44; not a recorded fixture.)
  *
  * Product features (products.createFeature/listFeatures/deleteFeature) return the
  * shape recorded in ../fixtures/stripe/product-features-list.json.
@@ -92,7 +94,7 @@ function metadataQueryValue(query: string): string | undefined {
 
 const PRODUCT_PARAMS = new Set([
   'name', 'active', 'description', 'images', 'metadata', 'url',
-  'unit_label', 'statement_descriptor', 'tax_code',
+  'unit_label', 'statement_descriptor', 'tax_code', 'default_price',
 ]);
 
 function rejectUnknownProductParams(params: StripeObject): void {
@@ -335,6 +337,11 @@ export class FakeStripe {
       const price = this.priceStore.get(id);
       if (!price) throw resourceMissing('price', id);
       const { metadata, transfer_lookup_key: transfer, ...rest } = params;
+      if (rest.active === false && this.productStore.get(price.product)?.default_price === id) {
+        throw new FakeStripeError({
+          message: 'This price cannot be archived because it is the default price of its product.',
+        });
+      }
       if (rest.lookup_key) this.claimLookupKey(rest.lookup_key, Boolean(transfer), id);
       Object.assign(price, rest, { metadata: mergeMetadata(price.metadata, metadata) });
       return this.priceView(price);
