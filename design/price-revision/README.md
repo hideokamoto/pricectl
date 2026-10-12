@@ -39,9 +39,9 @@ keys. Apalache at the step shown; simulation 3,000 samples of 30 steps:
 
 | Invariant | Apalache | Simulation |
 |---|---|---|
-| noUntrackedPriceOnSale (every price on sale is reached from a key in the lock, unless a person released it) | (running) | no violation |
-| oneHolderPerKey | (running) | no violation |
-| cleanDeployConverges (apart from released prices) | (running) | no violation |
+| noUntrackedPriceOnSale (every price on sale is reached from a key in the lock, unless a person released it) | holds up to 12 steps (stopped after 2 h) | no violation |
+| oneHolderPerKey | holds up to 14 steps | no violation |
+| cleanDeployConverges (apart from released prices) | holds up to 14 steps | no violation |
 | witnesses: key changed (old archived, new on sale), key changed back (old price reused), released price stays on sale | reachable (14 steps) | reachable |
 
 Before plan adopted the prices of a claimed key, `cleanDeployConverges` had a counterexample:
