@@ -7,7 +7,7 @@ verified in test mode (`verify_stripe.py`).
 - v1 (`price_revision.als`, `price_revision.qnt`): the first To-be design; found gaps G1-G8 and R1-R3.
 - v2 (`price_revision_v2.als`, `price_revision_v2.qnt`): decisions 1-7 with a state file; found G9.
 - v3 (`price_revision_v3.als`, `meter_lock_v3.qnt`): without a state file (decision 8).
-- v4 (`price_revision_v4.als`, `price_keys_v4.qnt`): proposed; every resource located by a key, no listing.
+- v4 (`price_revision_v4.als`, `price_keys_v4.qnt`, `price_keys_v5.qnt`): the current design (decision 9); every resource located by a key, no listing.
 
 ## v4 results
 
@@ -31,6 +31,22 @@ removal and failing calls (including a create that fails after Stripe created th
 | noUnreachablePriceOnSale (every price on sale is reached from the key holder) | holds |
 | cleanDeployConverges | holds |
 | witnesses: recovery after a failure, two versions on sale after a failed create | reachable |
+
+`price_keys_v5.qnt` (Quint), the same slot with two lookup keys and `pricectl.lock.json`
+holding the stack's keys (`managed` / `removing`): the definition can change its key, a
+person can drop a `removing` entry (release), and deploys archive the versions of removing
+keys. Apalache at the step shown; simulation 3,000 samples of 30 steps:
+
+| Invariant | Apalache | Simulation |
+|---|---|---|
+| noUntrackedPriceOnSale (every price on sale is reached from a key in the lock, unless a person released it) | (running) | no violation |
+| oneHolderPerKey | (running) | no violation |
+| cleanDeployConverges (apart from released prices) | (running) | no violation |
+| witnesses: key changed (old archived, new on sale), key changed back (old price reused), released price stays on sale | reachable (14 steps) | reachable |
+
+Before plan adopted the prices of a claimed key, `cleanDeployConverges` had a counterexample:
+a person released a key, the definition claimed it again, and the deploy reused the released
+price while the model still counted it as released. The design now says plan adopts it.
 
 ## v3 results
 
@@ -136,10 +152,12 @@ quint run --backend typescript --max-samples 30000 --max-steps 45 --invariant cl
 
 quint verify --max-steps 18 --invariant noFloatingMeter meter_lock_v3.qnt
 quint verify --max-steps 16 --invariant noUnreachablePriceOnSale price_keys_v4.qnt
+quint verify --max-steps 14 --invariant noUntrackedPriceOnSale price_keys_v5.qnt
 
 # Stripe test mode (key read from a file, never committed)
 python3 verify_stripe.py path/to/key-file created.json
 python3 verify_keys.py path/to/key-file
+python3 verify_meters.py path/to/key-file
 ```
 
 ## Assumptions
@@ -159,4 +177,5 @@ change) comes from the API spec.
 - Listing time was measured, not modeled: 10,083 prices take 41.9-45.6 s in test mode
   (`measure_listing.py`, see DECISIONS.md).
 - Exhaustive checking of three or more deploys in a row (simulation only), except v4's one slot.
-- v4: several slots, lookup-key changes, and meters (no lookup by event name) in the models.
+- v4/v5: several slots in one model, and prices outside the stack holding a claimed key (v3 Alloy covers those).
+- Meters found through the active-meter list: `meter_lock_v3b.qnt` already finds a meter by its event name among active meters, which is what the list does.

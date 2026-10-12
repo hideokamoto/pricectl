@@ -1,7 +1,7 @@
 # Price revision: decisions
 
-Decisions for issue #44. The current design is v3: no state file. v1 and v2 models are
-kept as the record of the gaps that led here.
+Decisions for issue #44. The current design is v4: no state file, no listing; every
+resource is located by a key. Earlier models are kept as the record of the gaps that led here.
 
 ## User's mental model
 
@@ -41,7 +41,7 @@ existing subscriptions.
    archived). `plan` warns when a new price and a removed price of the same type appear in
    one deploy ("looks like a rename; the price ID changes"). README says not to change
    logical IDs. A rename-only `pricectl refactor` (like `cdk refactor`) is #51.
-7. **Versions of a slot**: every price tagged with the slot's logical ID is a version of it.
+7. **Versions of a slot** (superseded by decision 9): every price tagged with the slot's logical ID is a version of it.
    `plan` picks a version that can be updated in place into the definition (one on sale
    first), and only otherwise creates a price. All other versions of the slot are archived.
    This also cleans up after a deploy that failed part way: undo stays best effort.
@@ -80,7 +80,7 @@ existing subscriptions.
      older commit would otherwise deactivate a meter created in the Dashboard after a person
      had released the name). A create that meets a meter created after the plan is rejected
      by Stripe (one active meter per event name), and the deploy reports it.
-   - `plan` lists each resource type once and indexes it by metadata (the current code lists
+   - (Superseded by decision 9.) `plan` lists each resource type once and indexes it by metadata (the current code lists
      every price again for each price it looks up). Measured in test mode
      (`measure_listing.py`, three runs each): 1,083 prices take 3.9-4.5 s (11 pages of 100);
      10,083 prices take 41.9-45.6 s (101 pages, about 0.42 s per page). Time grows with the
@@ -92,40 +92,49 @@ existing subscriptions.
    - No migration: pricectl has no users yet, so resources and state files from earlier
      versions are not supported.
 
-## Proposed: v4, every resource located by a key (not yet approved)
+9. **Every resource is located by a key; `plan` lists nothing** (v4, replaces the listing
+   in decision 8). plan reads only what the definition and the lock name.
 
-Replaces the listing in decision 8 (`plan` lists each type and indexes it by metadata).
-plan reads only what the definition and the lock name.
+   | Resource | Key | Verified in test mode (`verify_keys.py`) |
+   |---|---|---|
+   | Product | ID `{stackId}_{logicalId}` | `[A-Za-z0-9_-]`, at most 200 characters; a second create with the same ID is rejected; the ID of a deleted product can be used again |
+   | Coupon | ID `{stackId}_{logicalId}` | same character set; duplicate rejected; retrieve by ID works; reusable after delete |
+   | Entitlement feature | `lookup_key` | unique among active features; reusable after deactivation; `list?lookup_key=` returns active and inactive, `archived=false` only the active one |
+   | Price | `lookup_key` (the definition's, or `{stackId}_{logicalId}`) | at most 200 characters; a new price takes the key from an archived price with `transfer_lookup_key`, and the archived one loses it; `list?lookup_keys[]=` takes at most 10 keys per call |
+   | Billing meter | event name, matched in the list of **active** meters | see below |
 
-| Resource | Key pricectl looks it up by | Verified in test mode (`verify_keys.py`) |
-|---|---|---|
-| Product | ID chosen by pricectl | `[A-Za-z0-9_-]`, at most 200 characters; a second create with the same ID is rejected; the ID of a deleted product can be used again |
-| Coupon | ID chosen by pricectl | same character set; duplicate rejected; retrieve by ID works; reusable after delete |
-| Entitlement feature | `lookup_key` | unique among active features; reusable after deactivation; `list?lookup_key=` returns active and inactive, `archived=false` only the active one |
-| Price | `lookup_key` (the definition's, or one derived from stack and logical ID) | at most 200 characters; a new price takes the key from an archived price with `transfer_lookup_key`, and the archived one loses it; `list?lookup_keys[]=` takes at most 10 keys per call |
-| Billing meter | event name | **no lookup**: `billing/meters` rejects `event_name` (`parameter_unknown`); only `status` filters. Open point below |
-
-- `pricectl.lock.json` lists the keys of every type (`managed` / `removing`), as decision 8
-  does for meters. It still depends only on the definition.
-- Versions of a price slot: the holder of its lookup key, then the chain of
-  `pricectl_previous` metadata written when each version is created. No listing.
-- Deploy moves forward only: when the holder does not match the definition, a new price is
-  created with `transfer_lookup_key` and `pricectl_previous` = the holder. There is no undo;
-  a deploy that fails part way is finished by the next one.
-- Consequence: an archived old version that no longer holds the key is never reused
-  (decision 7 reused any version of the slot). A change back to earlier terms creates a
-  new price.
-- Checked: `price_revision_v4.als` (one deploy) and `price_keys_v4.qnt` (several deploys
-  with failures), results in README.md.
-
-Open points:
-1. Meters cannot be looked up by event name. Options: list active meters
-   (`status=active`; one per event name, so the list is bounded by the account's event
-   names, not by history), or another key.
-2. When a definition changes its lookup key, the lock has to remember the old key, or the
-   versions holding it are no longer reached.
-3. The scheme for derived IDs and keys (stack + logical ID within 200 characters and
-   `[A-Za-z0-9_-]` for IDs).
+   - **Derived IDs and keys** are `{stackId}_{logicalId}`, nothing else. No character rule in
+     synth: an ID Stripe rejects (a space, say) is reported by `plan` with Stripe's error.
+   - **Versions of a price slot** (replaces decision 7): the holder of the slot's key, then the
+     chain of `pricectl_previous` metadata written when each version is created. Deploy moves
+     forward only: when the holder does not match the definition, a new price is created with
+     `transfer_lookup_key` and `pricectl_previous` = the holder. There is no undo; a deploy
+     that fails part way is finished by the next one. An archived version that no longer
+     holds the key is never reused: a change back to earlier terms creates a new price.
+   - **The lock holds the stack's keys of every type** (`managed` / `removing`), as decision 8
+     already does for event names. An entry claims the key. A price of the stack (metadata
+     `pricectl_stack`) holding a `managed` key is the slot's current version, including one a
+     person released earlier by dropping its entry; `plan` shows that it adopts it. A key held
+     by a price outside the stack still needs `transferLookupKey` (decision 4). The lock still
+     depends only on the definition.
+   - **Changing a definition's lookup key is a removal plus an addition**, like changing a
+     logical ID (decision 6): the old key becomes `removing` and its versions are archived,
+     a price with the new key is created. `plan` shows the removal (approval as for other
+     removals) and the rename warning of decision 6. Nothing is kept in metadata. Stripe can
+     move a key in place; that optimization is not used.
+   - **Billing meters cannot be looked up by event name** (`verify_meters.py`: the list
+     endpoint rejects `event_name`; there is no search, no chosen ID, no metadata, no v2 meter
+     endpoint; meter events and expands return no meter ID). `plan` lists active meters
+     (`status=active`, paged) and matches the event name. Stripe allows one active meter per
+     event name, so the match is exact and the list holds one meter per event name in use,
+     whatever the account's history. A deactivated meter is never reused (Stripe refuses to
+     reactivate it while another is active), so inactive meters do not matter to `plan`.
+     Finding the meter through a price's `recurring.meter` was rejected: it misses meters
+     without a price (a create that failed before its price, a removed meter) and keeps
+     pointing at a deactivated meter.
+   - Checked: `price_revision_v4.als` (one deploy), `price_keys_v4.qnt` (one slot, several
+     deploys with failures) and `price_keys_v5.qnt` (the lock's keys, key changes, releases).
+     Results in README.md.
 
 ## How we got here
 
@@ -144,6 +153,11 @@ Open points:
 - **v3** models decision 8: `price_revision_v3.als` (prices, ownership from metadata) and
   `meter_lock_v3.qnt` (meters and the lock across commits, CI deploys, failures and
   Dashboard changes).
+- v3 found resources by listing every price of the account and indexing by metadata. The
+  listing grows with the account's history (measured: 10,083 prices take 42-46 s), and the
+  "search only active prices" patch was ad hoc. Decision 9 removes listing: every resource
+  is found by a key, which was then checked against Stripe for every type. Meters are the
+  one exception Stripe forces (no lookup by event name), bounded by the active-meter rule.
 
 ## Stripe behavior verified in test mode
 
