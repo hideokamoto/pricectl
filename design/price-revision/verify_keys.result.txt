@@ -1,0 +1,33 @@
+K1 product IDs chosen by pricectl
+  [create with id] HTTP 200 OK {'id': 'pcv1791802317_Stack_ProPlan'}
+  [create the same id again] HTTP 400 ERROR resource_already_exists: Product already exists.
+  [id with '.', ':', '-', '/'] HTTP 400 ERROR None: This value must match the regex pattern. (/\A[a-zA-Z0-9_\-]+\z/ does not match for the value pcv1791802317.stack:pro-plan/1).
+  [id of 64 characters] HTTP 200 OK 
+  [id of 100 characters] HTTP 200 OK 
+  [id of 255 characters] HTTP 400 ERROR None: Invalid string: pcv1791802...xxxxxxxxxx; must be at most 200 characters
+  [id of 256 characters] HTTP 400 ERROR None: Invalid string: pcv1791802...xxxxxxxxxx; must be at most 200 characters
+K2 reuse the id of a deleted product
+  [create] HTTP 200 OK {'id': 'pcv1791802317_del'}
+  [delete] HTTP 200 OK {'deleted': True}
+  [create the same id after delete] HTTP 200 OK {'id': 'pcv1791802317_del'}
+K3 lookup keys
+  [create A with key] HTTP 200 OK {'lookup_key': 'pcv1791802317.Stack.ProMonthly'}
+  [archive A] HTTP 200 OK {'active': False, 'lookup_key': 'pcv1791802317.Stack.ProMonthly'}
+  [create B with transfer from archived A] HTTP 200 OK {'lookup_key': 'pcv1791802317.Stack.ProMonthly', 'active': True}
+  [A after the transfer] HTTP 200 OK {'lookup_key': None}
+  [list by key] HTTP 200 OK 
+     [(True, True)]
+  [lookup_key of 200 characters] HTTP 200 OK 
+  [lookup_key of 201 characters] HTTP 400 ERROR None: Invalid string: kkkk...kkkk; must be at most 200 characters
+  [list with 10 keys] HTTP 200 OK 
+  [list with 11 keys] HTTP 400 ERROR None: Array lookup_keys exceeded maximum 10 allowed elements.
+K4 entitlement feature lookup keys
+  [create F1] HTTP 200 OK {'lookup_key': 'pcv1791802317.feature'}
+  [create F2 with the same key while F1 is active] HTTP 400 ERROR None: You are already using the feature lookup_key `pcv1791802317.feature`. Ensure `lookup_key` is unique for each of your features.
+  [deactivate F1] HTTP 200 OK {'active': False}
+  [create F2 with the same key after F1 was deactivated] HTTP 200 OK {'lookup_key': 'pcv1791802317.feature'}
+  [list by lookup_key] HTTP 200 OK 
+     [('F2', True), ('F1', False)]
+  [list by lookup_key, archived=false] HTTP 200 OK 
+     [('F2', True)]
+cleaned up {'products': 4, 'prices': 3, 'features': 2}
