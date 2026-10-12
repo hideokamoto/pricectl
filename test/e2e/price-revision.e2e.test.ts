@@ -134,3 +134,67 @@ describeWithStripe('price revision against Stripe test mode', () => {
     expect(prices.data.every((price) => !price.active)).toBe(true);
   });
 });
+
+describeWithStripe('lookup keys against Stripe test mode', () => {
+  const stripe = new Stripe(apiKey ?? 'unset', { apiVersion: DEFAULT_STRIPE_API_VERSION as Stripe.LatestApiVersion });
+  const stackId = `E2eKeys${Date.now()}`;
+  let lock: LockFile = emptyLock();
+
+  function define(build: (stack: Stack) => void): StackManifest {
+    const stack = new Stack(undefined, stackId, { apiKey: apiKey ?? 'unset' });
+    build(stack);
+    return stack.synth();
+  }
+
+  async function plan(manifest: StackManifest) {
+    lock = nextLock(manifest, lock);
+    return buildPlan(stripe, manifest, lock);
+  }
+
+  async function deploy(manifest: StackManifest) {
+    const built = await plan(manifest);
+    return applyPlan(stripe, built);
+  }
+
+  const priceWithKey = (lookupKey: string, transferLookupKey = false) =>
+    define((stack) => {
+      const product = new Product(stack, 'Pro', { name: `pricectl e2e ${stackId}` });
+      new Price(stack, 'Monthly', { product, currency: 'usd', unitAmount: 1000, lookupKey, transferLookupKey });
+    });
+
+  afterAll(async () => {
+    try {
+      await deploy(define(() => undefined));
+    } catch (error) {
+      console.warn('Cleanup failed:', error);
+    }
+  });
+
+  it('follows a changed lookup key: the old price is archived and the new one holds the new key', async () => {
+    await deploy(priceWithKey(`${stackId}_v1`));
+
+    const result = await deploy(priceWithKey(`${stackId}_v2`));
+
+    expect(result.items.filter((item) => item.error)).toEqual([]);
+    const active = await stripe.prices.list({ product: `${stackId}_Pro`, active: true });
+    expect(active.data.map((price) => price.lookup_key)).toEqual([`${stackId}_v2`]);
+    // An archived price keeps its lookup key; it is off sale
+    const old = await stripe.prices.list({ lookup_keys: [`${stackId}_v1`] });
+    expect(old.data.map((price) => price.active)).toEqual([false]);
+  });
+
+  it('refuses a lookup key held by a price outside the stack, and takes it over only when allowed', async () => {
+    const key = `${stackId}_shared`;
+    const outside = await stripe.prices.create({ product: `${stackId}_Pro`, currency: 'usd', unit_amount: 1, lookup_key: key });
+
+    const refused = await plan(priceWithKey(key));
+    const taken = await deploy(priceWithKey(key, true));
+
+    expect(refused.items.find((item) => item.id === 'Monthly')!.refusal).toContain(outside.id);
+    expect(taken.items.filter((item) => item.error)).toEqual([]);
+    const holder = await stripe.prices.list({ lookup_keys: [key] });
+    expect(holder.data[0].id).not.toBe(outside.id);
+    expect((await stripe.prices.retrieve(outside.id)).active).toBe(true);
+    await stripe.prices.update(outside.id, { active: false });
+  });
+});
