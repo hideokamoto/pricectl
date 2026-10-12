@@ -130,6 +130,6 @@ change) comes from the API spec.
 - Declared default prices (`isDefault`) in Quint; only Alloy covers them.
 - Several event names, and deploys of one stack running at the same time, in `meter_lock_v3.qnt`
   (deploys are assumed serialized).
-- How long listing every tagged resource takes on a large account (v3 lists instead of
-  reading IDs from a state file).
+- Listing time was measured, not modeled: 10,083 prices take 41.9-45.6 s in test mode
+  (`measure_listing.py`, see DECISIONS.md).
 - Exhaustive checking of three or more deploys in a row (simulation only).

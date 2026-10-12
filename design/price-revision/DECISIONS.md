@@ -81,9 +81,12 @@ existing subscriptions.
      had released the name). A create that meets a meter created after the plan is rejected
      by Stripe (one active meter per event name), and the deploy reports it.
    - `plan` lists each resource type once and indexes it by metadata (the current code lists
-     every price again for each price it looks up). Measured in test mode: listing 1,083
-     prices takes 3.9-4.5 s (11 pages of 100, about 0.37 s per page, three runs); by pages,
-     about 40 s for 10,000 prices. Only up to about 1,000 prices was measured.
+     every price again for each price it looks up). Measured in test mode
+     (`measure_listing.py`, three runs each): 1,083 prices take 3.9-4.5 s (11 pages of 100);
+     10,083 prices take 41.9-45.6 s (101 pages, about 0.42 s per page). Time grows with the
+     number of prices in the account, not in the stack. Not decided: listing only the prices
+     of the stack's products (`prices.list?product=`) would bound it by the stack's size,
+     except for prices on products outside the stack.
    - Without the lock, the meter case is the same as a resource never deployed: defined
      meters are found by event name; nothing is known about removed ones.
    - No migration: pricectl has no users yet, so resources and state files from earlier
