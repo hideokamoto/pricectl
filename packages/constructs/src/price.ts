@@ -33,7 +33,7 @@ export interface RecurringProps {
   readonly meter?: Meter | string;
 }
 
-export interface PriceProps extends ResourceProps {
+interface PriceBaseProps extends ResourceProps {
   /**
    * The product this price belongs to
    */
@@ -53,12 +53,6 @@ export interface PriceProps extends ResourceProps {
    * Same as unit_amount, but accepts a decimal value.
    */
   readonly unitAmountDecimal?: string;
-
-  /**
-   * Whether the price can be used for new purchases.
-   * @default true
-   */
-  readonly active?: boolean;
 
   /**
    * A brief description of the price.
@@ -114,6 +108,31 @@ export interface PriceProps extends ResourceProps {
   }>;
 }
 
+/**
+ * Properties of a Price. A price declared as its product's default (`isDefault: true`) must
+ * be on sale, so `active: false` is rejected by the type.
+ */
+export type PriceProps = PriceBaseProps &
+  (
+    | {
+        /**
+         * Make this price the default price of its product. Without it, pricectl follows
+         * what is set in Stripe.
+         */
+        readonly isDefault: true;
+        /** A default price is always on sale. */
+        readonly active?: true;
+      }
+    | {
+        readonly isDefault?: false;
+        /**
+         * Whether the price can be used for new purchases.
+         * @default true
+         */
+        readonly active?: boolean;
+      }
+  );
+
 /** Stripe rejects metered prices without a meter since this API version. */
 const METER_REQUIRED_SINCE = '2025-03-31.basil';
 
@@ -147,6 +166,8 @@ export class Price extends Resource {
   public readonly unitAmount?: number;
   public readonly unitAmountDecimal?: string;
   public readonly active: boolean;
+  /** Whether this price is declared as the default price of its product. */
+  public readonly isDefault: boolean;
   public readonly nickname?: string;
   public readonly recurring?: RecurringProps;
   public readonly metadata?: Record<string, string>;
@@ -177,6 +198,7 @@ export class Price extends Resource {
     this.unitAmount = props.unitAmount;
     this.unitAmountDecimal = props.unitAmountDecimal;
     this.active = props.active ?? true;
+    this.isDefault = props.isDefault ?? false;
     this.nickname = props.nickname;
     this.recurring = props.recurring;
     this.metadata = props.metadata;

@@ -42,6 +42,50 @@ describe('Price', () => {
     });
   });
 
+  describe('isDefault', () => {
+    it('既定ではデフォルト価格として宣言されない', () => {
+      const stack = createStack();
+      const price = new Price(stack, 'P', { product: 'prod_123', currency: 'usd' });
+
+      expect(price.isDefault).toBe(false);
+    });
+
+    it('isDefaultを指定するとmanifestのリソースにisDefaultが付く', () => {
+      const stack = createStack();
+      new Price(stack, 'P', { product: 'prod_123', currency: 'usd', isDefault: true });
+
+      const resource = stack.synth().resources.find(r => r.id === 'P')!;
+
+      expect(resource.isDefault).toBe(true);
+    });
+
+    it('isDefaultはStripeに渡すプロパティには含まれない', () => {
+      const stack = createStack();
+      new Price(stack, 'P', { product: 'prod_123', currency: 'usd', isDefault: true });
+
+      const resource = stack.synth().resources.find(r => r.id === 'P')!;
+
+      expect(resource.properties).not.toHaveProperty('isDefault');
+      expect(resource.properties).not.toHaveProperty('is_default');
+    });
+
+    it('宣言していない価格のmanifestにはisDefaultが付かない', () => {
+      const stack = createStack();
+      new Price(stack, 'P', { product: 'prod_123', currency: 'usd' });
+
+      const resource = stack.synth().resources.find(r => r.id === 'P')!;
+
+      expect(resource).not.toHaveProperty('isDefault');
+    });
+
+    it('isDefaultとactive: falseの組み合わせは型で拒否される', () => {
+      const stack = createStack();
+
+      // @ts-expect-error a default price must be on sale
+      new Price(stack, 'P', { product: 'prod_123', currency: 'usd', isDefault: true, active: false });
+    });
+  });
+
   describe('synthesizeProperties（synth経由）', () => {
     it('Productオブジェクト参照時にidが使われる', () => {
       const stack = createStack();
