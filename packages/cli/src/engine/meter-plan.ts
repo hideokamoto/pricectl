@@ -15,18 +15,54 @@ function activeMeterFor(eventName: string, activeMeters: Stripe.Billing.Meter[])
   return activeMeters.find((meter) => meter.event_name === eventName && meter.status === 'active');
 }
 
+export interface MeterPlan {
+  steps: MeterStep[];
+  /** Why no step may be taken, when the plan has to be refused */
+  refusal?: string;
+}
+
+/** The fields the definition sets that differ from the meter's, which Stripe cannot change. */
+function immutableDifferences(params: Stripe.Billing.MeterCreateParams, meter: Stripe.Billing.Meter): string[] {
+  const differences: string[] = [];
+  if (meter.default_aggregation.formula !== params.default_aggregation.formula) differences.push('default_aggregation');
+  if (
+    params.customer_mapping &&
+    (meter.customer_mapping.event_payload_key !== params.customer_mapping.event_payload_key ||
+      meter.customer_mapping.type !== (params.customer_mapping.type ?? 'by_id'))
+  ) {
+    differences.push('customer_mapping');
+  }
+  if (params.event_time_window !== undefined && (meter.event_time_window ?? null) !== params.event_time_window) {
+    differences.push('event_time_window');
+  }
+  if (params.value_settings && meter.value_settings.event_payload_key !== params.value_settings.event_payload_key) {
+    differences.push('value_settings');
+  }
+  return differences;
+}
+
 /**
  * The steps that bring a meter in line with its definition. The active meter with the event
- * name is used even when it was created outside pricectl (the lock claims the event name);
- * its display name is the only field Stripe lets you change.
+ * name is used even when it was created outside pricectl (the lock claims the event name).
+ * Its display name is the only field Stripe lets you change, so a difference in another field
+ * the definition sets is refused rather than ignored. Fields the definition leaves unset keep
+ * Stripe's defaults.
  */
-export function planMeter(params: Stripe.Billing.MeterCreateParams, activeMeters: Stripe.Billing.Meter[]): MeterStep[] {
+export function planMeter(params: Stripe.Billing.MeterCreateParams, activeMeters: Stripe.Billing.Meter[]): MeterPlan {
   const existing = activeMeterFor(params.event_name, activeMeters);
-  if (!existing) return [{ kind: 'createMeter', params }];
-  if (existing.display_name !== params.display_name) {
-    return [{ kind: 'updateMeter', meterId: existing.id, displayName: params.display_name }];
+  if (!existing) return { steps: [{ kind: 'createMeter', params }] };
+
+  const differences = immutableDifferences(params, existing);
+  if (differences.length > 0) {
+    return {
+      steps: [],
+      refusal: `Meter ${existing.id} cannot be updated: Stripe does not allow changing ${differences.join(', ')}.`,
+    };
   }
-  return [];
+  if (existing.display_name !== params.display_name) {
+    return { steps: [{ kind: 'updateMeter', meterId: existing.id, displayName: params.display_name }] };
+  }
+  return { steps: [] };
 }
 
 /**

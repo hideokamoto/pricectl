@@ -139,10 +139,12 @@ function planMeterResource(resource: ResourceManifest, observations: Observation
     if (adopted.status !== 'active') {
       return item(resource, [], { physicalId: adopted.id, refusal: `Meter ${adopted.id} is inactive, and Stripe does not allow reactivating it while it is adopted.` });
     }
-    return item(resource, planMeter(params, [adopted]), { physicalId: adopted.id });
+    const plan = planMeter(params, [adopted]);
+    return item(resource, plan.steps, { physicalId: adopted.id, refusal: plan.refusal });
   }
   const existing = observations.activeMeters.find((meter) => meter.event_name === params.event_name);
-  return item(resource, planMeter(params, observations.activeMeters), { physicalId: existing?.id });
+  const plan = planMeter(params, observations.activeMeters);
+  return item(resource, plan.steps, { physicalId: existing?.id, refusal: plan.refusal });
 }
 
 function planFeatureResource(stackId: string, resource: ResourceManifest, observations: Observations): PlanItem {
@@ -233,6 +235,8 @@ function referencedStripeIds(manifest: StackManifest): Set<string> {
   const refs: unknown[] = [];
   for (const resource of manifest.resources) {
     const { properties } = resource;
+    // An object the definition adopts by Stripe ID is its own to keep, whatever the lock says about its old key
+    if (resource.physicalId) refs.push(resource.physicalId);
     if (resource.type === 'Stripe::Price') {
       refs.push(properties.product, (properties.recurring as { meter?: unknown } | undefined)?.meter);
     }

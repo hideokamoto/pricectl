@@ -61,6 +61,39 @@ describe('checkManifest', () => {
     });
   });
 
+  describe('features and meters', () => {
+    const feature = (id: string, lookupKey: string): ResourceManifest => ({
+      id,
+      key: `Shop_${id}`,
+      path: `Shop/${id}`,
+      type: 'Stripe::EntitlementFeature',
+      properties: { name: id, lookup_key: lookupKey },
+    });
+    const meter = (id: string, eventName: string): ResourceManifest => ({
+      id,
+      key: `Shop_${id}`,
+      path: `Shop/${id}`,
+      type: 'Stripe::BillingMeter',
+      properties: { display_name: id, event_name: eventName },
+    });
+
+    it('reports two features with the same lookup key', () => {
+      expect(checkManifest(manifestOf(feature('A', 'support'), feature('B', 'support')))).toEqual([
+        'Features "Shop/A" and "Shop/B" both use the lookup key "support". A lookup key belongs to one feature.',
+      ]);
+    });
+
+    it('reports two meters with the same event name', () => {
+      expect(checkManifest(manifestOf(meter('A', 'calls'), meter('B', 'calls')))).toEqual([
+        'Meters "Shop/A" and "Shop/B" both use the event name "calls". An event name belongs to one active meter.',
+      ]);
+    });
+
+    it('accepts different keys and event names', () => {
+      expect(checkManifest(manifestOf(feature('A', 'a'), feature('B', 'b'), meter('A2', 'x'), meter('B2', 'y')))).toEqual([]);
+    });
+  });
+
   describe('default prices', () => {
     it('reports two default prices for one product', () => {
       const problems = checkManifest(manifestOf(price('A', {}, true), price('B', {}, true)));

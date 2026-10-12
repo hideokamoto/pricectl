@@ -400,3 +400,23 @@ describe('objects that belong to another stack or to nobody', () => {
     expect(result.items).toEqual([]);
   });
 });
+
+describe('switching a resource to adoption by physicalId', () => {
+  it('does not remove the adopted object because its old key left the lock', async () => {
+    const fake = new FakeStripe();
+    const claimed = define((stack) => {
+      new EntitlementFeature(stack, 'Support', { name: 'Support', lookupKey: 'support' });
+      new Product(stack, 'Pro', { name: 'Pro' });
+    });
+    const { lock } = await deploy(fake, claimed);
+    const feature = [...fake.featureStore.values()][0];
+    const adopted = define((stack) => {
+      new EntitlementFeature(stack, 'Support', { physicalId: feature.id, name: 'Support', lookupKey: 'support' });
+      new Product(stack, 'Pro', { physicalId: 'FxStack_Pro', name: 'Pro' });
+    });
+
+    const result = await plan(fake, adopted, lock);
+
+    expect(result.items.filter((i) => i.operation === 'remove')).toEqual([]);
+  });
+});

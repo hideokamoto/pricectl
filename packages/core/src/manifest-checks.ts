@@ -9,7 +9,20 @@ const PRICE = 'Stripe::Price';
  */
 export function checkManifest(manifest: StackManifest): string[] {
   const prices = manifest.resources.filter((r) => r.type === PRICE);
-  return [...sharedPriceLookupKeys(prices), ...defaultPriceProblems(prices)];
+  return [
+    ...sharedPriceLookupKeys(prices),
+    ...sharedKeys(manifest.resources, 'Stripe::EntitlementFeature', (r) => stringOrUndefined(r.properties.lookup_key), {
+      plural: 'Features',
+      what: 'the lookup key',
+      rule: 'A lookup key belongs to one feature.',
+    }),
+    ...sharedKeys(manifest.resources, 'Stripe::BillingMeter', (r) => stringOrUndefined(r.properties.event_name), {
+      plural: 'Meters',
+      what: 'the event name',
+      rule: 'An event name belongs to one active meter.',
+    }),
+    ...defaultPriceProblems(prices),
+  ];
 }
 
 /** The lookup key a price has: the one its definition sets, or its derived key. */
@@ -31,6 +44,32 @@ function sharedPriceLookupKeys(prices: ResourceManifest[]): string[] {
       );
     } else {
       seen.set(key, price);
+    }
+  }
+  return problems;
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+/** Two resources of one type that use the same key would plan changes to the same Stripe object. */
+function sharedKeys(
+  resources: ResourceManifest[],
+  type: string,
+  keyOf: (resource: ResourceManifest) => string | undefined,
+  words: { plural: string; what: string; rule: string },
+): string[] {
+  const problems: string[] = [];
+  const seen = new Map<string, ResourceManifest>();
+  for (const resource of resources.filter((r) => r.type === type)) {
+    const key = keyOf(resource);
+    if (key === undefined) continue;
+    const other = seen.get(key);
+    if (other) {
+      problems.push(`${words.plural} "${other.path}" and "${resource.path}" both use ${words.what} "${key}". ${words.rule}`);
+    } else {
+      seen.set(key, resource);
     }
   }
   return problems;
