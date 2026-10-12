@@ -1,4 +1,5 @@
 import type Stripe from 'stripe';
+import { metadataChanges, userMetadata } from './metadata';
 import { arePriceTermsEqual } from './price-comparison';
 
 /** What the definition says about one price slot. */
@@ -42,8 +43,6 @@ export interface PricePlan {
   refusal?: string;
 }
 
-const PRICECTL_PREFIX = 'pricectl_';
-
 function productIdOf(price: Stripe.Price): string {
   const product = price.product as string | { id: string };
   return typeof product === 'string' ? product : product.id;
@@ -51,27 +50,6 @@ function productIdOf(price: Stripe.Price): string {
 
 function taxOf(price: Stripe.Price): string {
   return price.tax_behavior ?? 'unspecified';
-}
-
-/** User metadata: everything but pricectl's own tags, with values as Stripe stores them (strings). */
-function userMetadata(metadata: Record<string, string | number | null> | null | undefined): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(metadata ?? {})
-      .filter(([key, value]) => !key.startsWith(PRICECTL_PREFIX) && value !== null)
-      .map(([key, value]) => [key, String(value)]),
-  );
-}
-
-/** Metadata update that turns `current` into `desired`: removed keys are unset with an empty string. */
-function metadataChanges(current: Record<string, string>, desired: Record<string, string>): Record<string, string> {
-  const changes: Record<string, string> = {};
-  for (const [key, value] of Object.entries(desired)) {
-    if (current[key] !== value) changes[key] = value;
-  }
-  for (const key of Object.keys(current)) {
-    if (!(key in desired)) changes[key] = '';
-  }
-  return changes;
 }
 
 /** Whether an existing version can be updated in place into the definition. */
