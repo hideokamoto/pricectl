@@ -66,7 +66,7 @@ function describeItem(item: PlanItem): string[] {
  * Lines that `plan` prints, and that `deploy` shows before it changes anything: refusals and
  * warnings first, then each resource that changes with its steps, then a summary.
  */
-export function describePlan(plan: Plan): string[] {
+export function describePlan(plan: Plan, options: { nothingToDo?: string } = {}): string[] {
   const lines = [`Stack: ${plan.stackId}`, ''];
 
   const refused = plan.items.filter((item) => item.refusal);
@@ -86,7 +86,7 @@ export function describePlan(plan: Plan): string[] {
 
   const count = (operation: PlanItem['operation']) => plan.items.filter((item) => item.operation === operation && !item.refusal).length;
   if (changed.length === 0 && refused.length === 0) {
-    lines.push('Nothing to do: Stripe matches the definition.');
+    lines.push(options.nothingToDo ?? 'Nothing to do: Stripe matches the definition.');
   } else if (changed.length > 0) {
     lines.push(
       `Plan: ${count('create')} to create, ${count('update')} to update, ${count('remove')} to remove, ${count('unchanged')} unchanged.` +

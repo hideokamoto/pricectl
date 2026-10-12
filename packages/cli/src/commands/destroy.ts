@@ -62,7 +62,8 @@ export default class Destroy extends Command {
         this.log(chalk.bold.yellow(`⚠️  You are about to destroy stack: ${app.manifest.stackId}`));
         this.log('');
       }
-      for (const line of describePlan(plan)) this.log(line);
+      const nothingToDo = `Nothing to destroy: no resource of stack ${app.manifest.stackId} is claimed by the lock or defined, or all are already removed.`;
+      for (const line of describePlan(plan, { nothingToDo })) this.log(line);
       if (flags['dry-run']) return;
       if (refusals(plan).length > 0) {
         this.error('Nothing was changed. Fix the problems above and try again.', { exit: 1 });

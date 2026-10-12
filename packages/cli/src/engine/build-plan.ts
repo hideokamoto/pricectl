@@ -22,6 +22,19 @@ const APPLY_ORDER = [
 /** The order removed resources are taken out in: the reverse, so references go before their targets. */
 const REMOVAL_ORDER = [...APPLY_ORDER].reverse();
 
+/** What Stripe accepts as the ID of a product or coupon chosen by the caller (observed in test mode). */
+const STRIPE_ID = /^[A-Za-z0-9_-]{1,200}$/;
+const MAX_LOOKUP_KEY_LENGTH = 200;
+
+/** Why Stripe would reject the ID pricectl derives for a new product or coupon, found before anything is changed. */
+function idRefusal(resource: ResourceManifest): string | undefined {
+  if (STRIPE_ID.test(resource.key)) return undefined;
+  return (
+    `The ID "${resource.key}" that pricectl derives for "${resource.path}" is not accepted by Stripe: ` +
+    'use letters, digits, "_" and "-" (up to 200 characters) in the stack ID and the logical ID.'
+  );
+}
+
 /**
  * Work out what `deploy` would do, reading Stripe by key only. Nothing is changed. Deploy applies
  * the plan it shows, so every step names the Stripe objects this read found.
@@ -111,6 +124,8 @@ function planProductResource(
 ): PlanItem {
   const { features, ...params } = resource.properties;
   const observation: ProductObservation = observations.products.get(resource.id) ?? { attachedFeatures: new Map() };
+  const refusal = observation.product || resource.physicalId ? undefined : idRefusal(resource);
+  if (refusal) return item(resource, [], { refusal });
   const desiredFeatureIds = (features as string[] | undefined)?.map((ref) => resolveFeatureRef(ref, resources, observations));
   const steps = planProduct(
     stackId,
@@ -122,6 +137,8 @@ function planProductResource(
 
 function planCouponResource(stackId: string, resource: ResourceManifest, observations: Observations): PlanItem {
   const existing = observations.coupons.get(resource.id);
+  const refusal = existing ? undefined : idRefusal(resource);
+  if (refusal) return item(resource, [], { refusal });
   const plan = planCoupon(
     stackId,
     { logicalId: resource.id, key: resource.key, params: resource.properties as unknown as Stripe.CouponCreateParams },
@@ -146,6 +163,12 @@ function planPriceResource(
     params.recurring = { ...params.recurring, meter: resolveMeterRef(meterRef, resources, observations) };
   }
   const observation = observations.prices.get(resource.id) ?? { versions: [], defaultPriceIds: {} };
+  const lookupKey = priceLookupKeyOf(resource);
+  if (lookupKey.length > MAX_LOOKUP_KEY_LENGTH) {
+    return item(resource, [], {
+      refusal: `The lookup key "${lookupKey.slice(0, 40)}..." of "${resource.path}" is longer than the ${MAX_LOOKUP_KEY_LENGTH} characters Stripe allows.`,
+    });
+  }
   const plan = planPrice(
     stackId,
     { logicalId: resource.id, key: priceLookupKeyOf(resource), isDefault: Boolean(resource.isDefault), params },

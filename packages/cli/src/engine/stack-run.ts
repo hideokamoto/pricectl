@@ -30,12 +30,15 @@ function withoutResources(manifest: StackManifest): StackManifest {
 }
 
 /**
- * Work out what destroying the stack would do: remove every key the lock claims for it. The lock
- * is not written yet; `finishDestroy` does that once the plan has been applied.
+ * Work out what destroying the stack would do: remove every key the lock claims for it and every
+ * key the definition defines (the lock may not list a resource that was deployed from a machine
+ * that did not commit it). The lock is not written yet; `finishDestroy` does that once the plan
+ * has been applied.
  */
 export async function planDestroy(stripe: Stripe, manifest: StackManifest, store: LockStore): Promise<Plan> {
+  const claimed = nextLock(manifest, parseLock(store.read()));
   const empty = withoutResources(manifest);
-  return buildPlan(stripe, empty, nextLock(empty, parseLock(store.read())));
+  return buildPlan(stripe, empty, nextLock(empty, claimed));
 }
 
 /**

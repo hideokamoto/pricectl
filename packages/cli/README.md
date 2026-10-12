@@ -51,7 +51,7 @@ Creates the following files if they don't already exist:
 | File | Description |
 |------|-------------|
 | `pricectl.ts` | Example stack definition |
-| `package.json` | Project manifest with `synth`, `diff`, and `deploy` scripts |
+| `package.json` | Project manifest with `synth`, `plan`, `diff`, and `deploy` scripts |
 | `tsconfig.json` | TypeScript compiler configuration |
 | `.env.example` | Template for your Stripe API key |
 | `.gitignore` | Sensible defaults (`.env`, `pricectl.out/`, `node_modules/`) |

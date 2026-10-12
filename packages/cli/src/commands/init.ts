@@ -49,6 +49,7 @@ export default class Init extends Command {
         scripts: {
           build: 'tsc',
           synth: 'pricectl synth',
+          plan: 'pricectl plan',
           deploy: 'pricectl deploy',
           diff: 'pricectl diff',
         },

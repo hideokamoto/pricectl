@@ -255,3 +255,51 @@ describe('changing the lookup key of a price', () => {
     expect(result.items.map((i) => i.operation)).toEqual(['unchanged', 'create', 'remove']);
   });
 });
+
+describe('names Stripe would reject', () => {
+  const inStack = (stackId: string, build: (stack: Stack) => void) => {
+    const stack = new Stack(undefined, stackId, { apiKey: 'sk_test_dummy' });
+    build(stack);
+    return stack.synth();
+  };
+
+  it('refuses a new product whose derived ID has characters Stripe does not accept, before anything is changed', async () => {
+    const manifest = inStack('My Shop', (stack) => {
+      new Coupon(stack, 'Launch', { percentOff: 10, duration: 'once' });
+      new Product(stack, 'Pro', { name: 'Pro' });
+    });
+
+    const result = await plan(new FakeStripe(), manifest);
+
+    expect(result.items.find((i) => i.id === 'Pro')!.refusal).toBe(
+      'The ID "My Shop_Pro" that pricectl derives for "My Shop/Pro" is not accepted by Stripe: ' +
+        'use letters, digits, "_" and "-" (up to 200 characters) in the stack ID and the logical ID.',
+    );
+    await expect(deploy(new FakeStripe(), manifest)).rejects.toThrow(/not accepted by Stripe/);
+  });
+
+  it('refuses a new coupon in the same way', async () => {
+    const manifest = inStack('Shop', (stack) => new Coupon(stack, 'Launch.2024', { percentOff: 10, duration: 'once' }));
+
+    const result = await plan(new FakeStripe(), manifest);
+
+    expect(result.items[0].refusal).toContain('"Shop_Launch.2024"');
+  });
+
+  it('refuses a price whose lookup key is longer than Stripe allows', async () => {
+    const manifest = inStack('Shop', (stack) => new Price(stack, 'Monthly', { product: 'prod_1', currency: 'usd', unitAmount: 1, lookupKey: 'k'.repeat(201) }));
+
+    const result = await plan(new FakeStripe(), manifest);
+
+    expect(result.items[0].refusal).toContain('lookup key');
+    expect(result.items[0].refusal).toContain('200 characters');
+  });
+
+  it('accepts an ID of exactly 200 characters', async () => {
+    const manifest = inStack('S', (stack) => new Product(stack, 'p'.repeat(198), { name: 'Pro' }));
+
+    const result = await plan(new FakeStripe(), manifest);
+
+    expect(result.items[0].refusal).toBeUndefined();
+  });
+});

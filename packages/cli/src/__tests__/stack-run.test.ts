@@ -96,8 +96,18 @@ describe('planDestroy and finishDestroy', () => {
     expect(parseLock(store.read()).stacks.Shop['Stripe::Product']).toEqual({ Shop_Pro: 'removing' });
   });
 
-  it('reads a missing lock as nothing claimed, so destroy has nothing to do', async () => {
-    const plan = await planDestroy(asStripe(new FakeStripe()), withProduct(), new InMemoryLockStore());
+  it('also removes what the definition defines when the lock does not list it yet', async () => {
+    const fake = new FakeStripe();
+    const deployed = await planDeploy(asStripe(fake), withProduct(), new InMemoryLockStore(), { frozen: false });
+    if (deployed.ok) await applyPlan(asStripe(fake), deployed.plan);
+
+    const plan = await planDestroy(asStripe(fake), withProduct(), new InMemoryLockStore());
+
+    expect(plan.items.map((i) => [i.operation, i.id])).toEqual([['remove', 'Shop_Pro']]);
+  });
+
+  it('has nothing to do when neither the lock nor the definition claims anything', async () => {
+    const plan = await planDestroy(asStripe(new FakeStripe()), shop(), new InMemoryLockStore());
 
     expect(plan.items).toEqual([]);
   });

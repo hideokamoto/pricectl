@@ -61,6 +61,12 @@ describe('describePlan', () => {
     expect(describePlan(planOf(item({})))).toEqual(['Stack: Shop', '', 'Nothing to do: Stripe matches the definition.']);
   });
 
+  it('says what the caller wants said when there is nothing to do', () => {
+    const lines = describePlan(planOf(item({})), { nothingToDo: 'Nothing to destroy.' });
+
+    expect(lines).toEqual(['Stack: Shop', '', 'Nothing to destroy.']);
+  });
+
   it('marks removals and mentions that they need approval', () => {
     const lines = describePlan(
       planOf(item({ id: 'Shop_Old', path: 'Shop_Old', operation: 'remove', steps: [{ kind: 'archive', priceId: 'price_1' }] })),
