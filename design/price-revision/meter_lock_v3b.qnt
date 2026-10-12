@@ -1,4 +1,5 @@
 // pricectl: meters and pricectl.lock.json (v3), two event names and two CI deploys.
+// A removal deactivates only the meters plan saw (by Stripe ID), as in plan/apply.
 //
 // Extends meter_lock_v3.qnt: event names E1 and E2, and deploys D1, D2 that each use the
 // commit they started from. `concurrent` (chosen at init) allows both deploys to run at the
@@ -22,7 +23,9 @@ module meter_lock_v3b {
     defined: Set[str],
     lock: str -> str,
     todo: Set[str],            // "ensure:E1", "remove:E2", ...
+    planned: Set[str],         // meters seen at plan time that a removal may deactivate
     failed: bool,
+    sawOutsideChange: bool,    // a Dashboard change happened while it ran
   }
 
   type St = {
@@ -48,7 +51,7 @@ module meter_lock_v3b {
 
   def idleDeploy: Deploy = {
     phase: "idle", seq: 0, defined: Set(), lock: NAMES.mapBy(n => "none"),
-    todo: Set(), failed: false,
+    todo: Set(), planned: Set(), failed: false, sawOutsideChange: false,
   }
 
   action init = {
@@ -91,6 +94,8 @@ module meter_lock_v3b {
     s' = { ...s,
       exists: s.exists.union(Set(FOREIGN)), active: s.active.union(Set(FOREIGN)),
       foreignClaimed: s.foreignClaimed or s.lock.get("E1") != "none",
+      deploys: s.deploys.keys().mapBy(d => { ...s.deploys.get(d),
+        sawOutsideChange: s.deploys.get(d).sawOutsideChange or s.deploys.get(d).phase == "run" }),
       latestOk: false,
     },
   }
@@ -107,7 +112,8 @@ module meter_lock_v3b {
       upToDate,
       s' = { ...s, deploys: s.deploys.set(d, {
         phase: "run", seq: s.seq, defined: s.defined, lock: s.lock, todo: todo,
-        failed: false,
+        planned: s.active.filter(m => s.lock.get(nameOf(m)) == "removing"),
+        failed: false, sawOutsideChange: false,
       }) },
     }
   }
@@ -121,6 +127,8 @@ module meter_lock_v3b {
     val n = if (task.in(Set("ensure:E1", "remove:E1"))) "E1" else "E2"
     val isEnsure = task.in(Set("ensure:E1", "ensure:E2"))
     val act = activeWith(s, n)
+    // a removal deactivates only the meter plan saw, never one created after the plan
+    val toDeactivate = act.intersect(dp.planned)
     val free = OURS.get(n).exclude(s.exists)
     val newId = if (free.contains(FIRST_ID.get(n))) FIRST_ID.get(n)
       else if (free.contains(SECOND_ID.get(n))) SECOND_ID.get(n) else ""
@@ -140,14 +148,14 @@ module meter_lock_v3b {
               todo: if (outcome == "ok") rest else Set(), failed: outcome != "ok" }),
           }
       else
-        if (act.size() == 0)
+        if (toDeactivate.size() == 0)
           s' = { ...s, deploys: s.deploys.set(d, { ...dp, todo: rest }) }
         else if (outcome != "ok")
           s' = { ...s, deploys: s.deploys.set(d, { ...dp, todo: Set(), failed: true }) }
         else
           s' = { ...s,
-            active: s.active.exclude(act),
-            foreignDeactivated: s.foreignDeactivated or act.contains(FOREIGN),
+            active: s.active.exclude(toDeactivate),
+            foreignDeactivated: s.foreignDeactivated or toDeactivate.contains(FOREIGN),
             deploys: s.deploys.set(d, { ...dp, todo: rest }),
           },
     }
@@ -161,7 +169,7 @@ module meter_lock_v3b {
       dp.todo.size() == 0,
       s' = { ...s,
         deploys: s.deploys.set(d, idleDeploy),
-        latestOk: s.latestOk or (dp.seq == s.seq and not(dp.failed)),
+        latestOk: s.latestOk or (dp.seq == s.seq and not(dp.failed) and not(dp.sawOutsideChange)),
       },
     }
   }
@@ -178,8 +186,9 @@ module meter_lock_v3b {
 
   val foreignDeactivatedOnlyWhenClaimed: bool = not(s.foreignDeactivated) or s.foreignClaimed
 
-  // When no deploy runs and a deploy of the latest commit finished without failures, with no
-  // commit or Dashboard change since, the meters are as defined.
+  // When no deploy runs and a deploy of the latest commit finished without failures and
+  // without Dashboard changes while it ran, with no commit or Dashboard change since, the
+  // meters are as defined (other pricectl deploys may have run in between).
   val quiescentConverges: bool =
     not(running(s).size() == 0 and s.latestOk) or
       NAMES.forall(n =>

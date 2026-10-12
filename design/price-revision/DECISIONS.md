@@ -69,7 +69,16 @@ existing subscriptions.
      A meter with a `removing` name is deactivated, including one created in the Dashboard
      while the entry was there; `plan` shows it and removal needs approval as for other
      resources.
-   - Deploys of one stack must not run at the same time (one CI job per stack).
+   - **deploy applies the plan it showed**: every change targets the Stripe IDs `plan` saw.
+     A removal deactivates the meter `plan` found for a `removing` name, never a meter
+     created after the plan (found by `meter_lock_v3b.qnt`: a deploy still running from an
+     older commit would otherwise deactivate a meter created in the Dashboard after a person
+     had released the name). A create that meets a meter created after the plan is rejected
+     by Stripe (one active meter per event name), and the deploy reports it.
+   - `plan` lists each resource type once and indexes it by metadata (the current code lists
+     every price again for each price it looks up). Measured in test mode: listing 1,083
+     prices takes 3.9-4.5 s (11 pages of 100, about 0.37 s per page, three runs); by pages,
+     about 40 s for 10,000 prices. Only up to about 1,000 prices was measured.
    - Without the lock, the meter case is the same as a resource never deployed: defined
      meters are found by event name; nothing is known about removed ones.
    - No migration: pricectl has no users yet, so resources and state files from earlier
