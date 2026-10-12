@@ -215,6 +215,7 @@ export class FakeStripe {
       return clone(product);
     },
     retrieve: async (id: string) => {
+      this.checkFailure('products.retrieve');
       const product = this.productStore.get(id);
       if (!product) throw resourceMissing('product', id);
       return clone(product);
@@ -229,6 +230,7 @@ export class FakeStripe {
       return clone(product);
     },
     del: async (id: string) => {
+      this.checkFailure('products.del');
       if (!this.productStore.has(id)) throw resourceMissing('product', id);
       if ([...this.priceStore.values()].some((p) => p.product === id)) {
         throw new FakeStripeError({
