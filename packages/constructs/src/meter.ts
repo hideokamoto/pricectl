@@ -86,6 +86,11 @@ export class Meter extends Resource {
   public readonly eventTimeWindow?: 'day' | 'hour';
   public readonly valueSettings?: MeterValueSettings;
 
+  /**
+   * @param scope construct this meter belongs to
+   * @param id logical ID, unique within the stack
+   * @param props meter properties
+   */
   constructor(scope: Construct, id: string, props: MeterProps) {
     super(scope, id, props);
 
@@ -100,6 +105,7 @@ export class Meter extends Resource {
     this.registerResourceMetadata();
   }
 
+  /** The Stripe resource type of this construct. */
   protected get resourceType(): string {
     return 'Stripe::BillingMeter';
   }
@@ -109,6 +115,7 @@ export class Meter extends Resource {
     return false;
   }
 
+  /** The Stripe billing meter create params for this meter. */
   protected synthesizeProperties(): Record<string, unknown> {
     const params: Stripe.Billing.MeterCreateParams = {
       display_name: this.displayName,

@@ -9,10 +9,12 @@ export const EMPTY_LOGICAL_ID_ERROR =
   'Construct id must not be an empty string. ' +
   'Provide a unique non-empty identifier as the second argument.';
 
+/** Error for a construct ID that a sibling already uses. */
 export const DUPLICATE_LOGICAL_ID_ERROR = (id: string, path: string) =>
   `There is already a child construct with id "${id}" under "${path}". ` +
   'Each construct within the same scope must have a unique id.';
 
+/** Error for a resource ID that another resource in the stack already uses. */
 export const DUPLICATE_RESOURCE_ID_ERROR = (id: string, existingPath: string, newPath: string) =>
   `Resource id "${id}" at "${newPath}" is already used by "${existingPath}". ` +
   'Resource ids must be unique within a stack because pricectl identifies resources in Stripe by id.';

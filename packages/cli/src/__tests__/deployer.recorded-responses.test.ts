@@ -396,6 +396,19 @@ describe('StripeDeployer against recorded Stripe responses', () => {
     });
   });
 
+  describe('metadata from before the pricectl rename', () => {
+    it('does not treat an object tagged only with the old fillet_id key as managed', async () => {
+      mockFakeStripe.seed('products', { ...productFixture, id: 'prod_legacy', metadata: { fillet_id: 'Legacy' } });
+      const stack = createStack();
+      new Product(stack, 'Legacy', { name: 'Legacy product' });
+
+      const result = await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      expect(result.deployed[0].status).toBe('created');
+      expect(mockFakeStripe.productStore.get('prod_legacy')?.name).toBe(productFixture.name);
+    });
+  });
+
   describe('deploying without a state file', () => {
     it('does not duplicate resources that Stripe search has not indexed yet', async () => {
       const stack = createStack();
@@ -488,8 +501,10 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(mockFakeStripe.productsFor('NewProd')).toEqual([expect.objectContaining({ active: false })]);
     });
 
-    it('can be run again after everything was destroyed', async () => {
+    it('can be run again after everything was destroyed, without reporting anything again', async () => {
       const stack = createStack();
+      const product = new Product(stack, 'NewProd', { name: 'New product' });
+      new Price(stack, 'NewMonthly', { product, currency: 'usd', unitAmount: 1000, recurring: { interval: 'month' } });
       new Meter(stack, 'NewMeter', { displayName: 'New meter', eventName: 'new_event', defaultAggregation: { formula: 'count' } });
       const deployer = new StripeDeployer('sk_test_dummy');
       await deployer.deploy(stack.synth());
@@ -513,6 +528,67 @@ describe('StripeDeployer against recorded Stripe responses', () => {
 
       expect(redeploy.errors).toEqual([]);
       expect(mockFakeStripe.productsFor('NewProd')).toEqual([expect.objectContaining({ active: true })]);
+    });
+  });
+
+  describe('planDestroy', () => {
+    function createDestroyableStack(): Stack {
+      const stack = createStack();
+      const product = new Product(stack, 'NewProd', { name: 'New product' });
+      new Price(stack, 'NewMonthly', { product, currency: 'usd', unitAmount: 1000, recurring: { interval: 'month' } });
+      new Meter(stack, 'NewMeter', { displayName: 'New meter', eventName: 'new_event', defaultAggregation: { formula: 'count' } });
+      return stack;
+    }
+
+    it('lists what destroy would do to each deployed resource, in destroy order, without changing Stripe', async () => {
+      const stack = createDestroyableStack();
+      await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      const plan = await new StripeDeployer('sk_test_dummy').planDestroy(stack.synth());
+
+      expect(plan.errors).toEqual([]);
+      expect(plan.resources).toEqual([
+        { id: 'NewMeter', path: 'FxStack/NewMeter', type: 'Stripe::BillingMeter', status: 'deactivated' },
+        { id: 'NewMonthly', path: 'FxStack/NewMonthly', type: 'Stripe::Price', status: 'deactivated' },
+        { id: 'NewProd', path: 'FxStack/NewProd', type: 'Stripe::Product', status: 'deactivated' },
+      ]);
+      expect(mockFakeStripe.productsFor('NewProd')).toEqual([expect.objectContaining({ active: true })]);
+    });
+
+    it('is empty once everything was destroyed', async () => {
+      const stack = createDestroyableStack();
+      const deployer = new StripeDeployer('sk_test_dummy');
+      await deployer.deploy(stack.synth());
+      await deployer.destroy(stack.synth());
+
+      const plan = await new StripeDeployer('sk_test_dummy').planDestroy(stack.synth());
+
+      expect(plan).toEqual({ stackId: 'FxStack', resources: [], errors: [] });
+    });
+
+    it('includes a resource that is only left in the state file', async () => {
+      const state = new StateManager(new InMemoryStateStore());
+      const stack = createStack();
+      new Coupon(stack, 'PricectlOldCoupon', { percentOff: 5, duration: 'once' });
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(stack.synth());
+
+      const plan = await new StripeDeployer('sk_test_dummy', undefined, state).planDestroy(createStack().synth());
+
+      expect(plan.resources).toEqual([
+        { id: 'PricectlOldCoupon', path: 'FxStack/PricectlOldCoupon', type: 'Stripe::Coupon', status: 'deleted' },
+      ]);
+    });
+
+    it('reports a resource whose state cannot be read instead of failing the whole plan', async () => {
+      const stack = createDestroyableStack();
+      const manifest = stack.synth();
+      manifest.resources.push({ id: 'Mystery', path: 'FxStack/Mystery', type: 'Stripe::Unknown', properties: {} });
+
+      const plan = await new StripeDeployer('sk_test_dummy').planDestroy(manifest);
+
+      expect(plan.errors).toEqual([
+        { id: 'Mystery', type: 'Stripe::Unknown', error: 'Unknown resource type: Stripe::Unknown' },
+      ]);
     });
   });
 

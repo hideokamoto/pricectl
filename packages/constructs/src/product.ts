@@ -80,6 +80,11 @@ export class Product extends Resource {
   public readonly taxCode?: string;
   public readonly features?: Array<EntitlementFeature | string>;
 
+  /**
+   * @param scope construct this product belongs to
+   * @param id logical ID, unique within the stack
+   * @param props product properties
+   */
   constructor(scope: Construct, id: string, props: ProductProps) {
     super(scope, id, props);
 
@@ -98,10 +103,12 @@ export class Product extends Resource {
     this.registerResourceMetadata();
   }
 
+  /** The Stripe resource type of this construct. */
   protected get resourceType(): string {
     return 'Stripe::Product';
   }
 
+  /** The Stripe product create params for this product, plus `features` for the deployer to attach. */
   protected synthesizeProperties(): Record<string, unknown> {
     const params: Stripe.ProductCreateParams = {
       name: this.name,

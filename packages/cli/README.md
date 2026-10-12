@@ -125,6 +125,11 @@ Remove all resources defined in your stack from Stripe.
 pricectl destroy --force
 ```
 
+Before changing anything, destroy reads the current state of each resource from Stripe and
+lists only the ones it would delete or deactivate. Resources that are already deleted or
+inactive are left out, and when nothing is left the command ends without asking.
+`pricectl destroy --dry-run` shows the same list without changing Stripe.
+
 > **Warning:** This action is irreversible. Use `--force` to skip the confirmation prompt.
 
 **Flags**

@@ -44,10 +44,16 @@ export class Stack extends Construct {
   /** Path of each resource in this stack, by resource id */
   private readonly resourcePaths = new Map<string, string>();
 
+  /** The Stripe API key; not included in toJSON(). */
   get apiKey(): string | undefined {
     return this._apiKey;
   }
 
+  /**
+   * @param scope parent construct, or undefined for a root stack
+   * @param id stack ID
+   * @param props stack properties
+   */
   constructor(scope: Construct | undefined, id: string, props: StackProps = {}) {
     super(scope, id);
 
@@ -74,6 +80,7 @@ export class Stack extends Construct {
     this.resourcePaths.set(id, path);
   }
 
+  /** Stack settings for serialization, without the API key. */
   toJSON(): object {
     return {
       id: this.node.id,

@@ -82,6 +82,11 @@ export class Coupon extends Resource {
     products?: string[];
   };
 
+  /**
+   * @param scope construct this coupon belongs to
+   * @param id logical ID, unique within the stack; also used as the Stripe coupon ID
+   * @param props coupon properties
+   */
   constructor(scope: Construct, id: string, props: CouponProps) {
     super(scope, id, props);
 
@@ -115,10 +120,12 @@ export class Coupon extends Resource {
     this.registerResourceMetadata();
   }
 
+  /** The Stripe resource type of this construct. */
   protected get resourceType(): string {
     return 'Stripe::Coupon';
   }
 
+  /** The Stripe coupon create params for this coupon. */
   protected synthesizeProperties(): Record<string, unknown> {
     const params: Stripe.CouponCreateParams = {
       duration: this.duration,

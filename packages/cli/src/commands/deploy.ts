@@ -40,6 +40,7 @@ export default class Deploy extends Command {
     }),
   };
 
+  /** Deploy the stack, asking before removing resources that are no longer defined. */
   async run(): Promise<void> {
     const { flags } = await this.parse(Deploy);
 

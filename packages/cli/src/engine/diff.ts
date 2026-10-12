@@ -28,6 +28,7 @@ const STRIPE_DEFAULTS: Record<string, Plain> = {
 
 const RECURRING_DEFAULTS: Plain = { interval_count: 1, usage_type: 'licensed' };
 
+/** Whether two values serialize to the same JSON. */
 function isSame(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -46,6 +47,7 @@ function compact(value: unknown): unknown {
   return result;
 }
 
+/** Drop the properties whose value equals the given Stripe default. */
 function withoutDefaults(properties: Plain, defaults: Plain): Plain {
   const result: Plain = {};
   for (const [key, value] of Object.entries(properties)) {
@@ -64,6 +66,7 @@ function withoutRedundantDecimal(amounts: Plain, amountKey: string): Plain {
   return redundant ? rest : amounts;
 }
 
+/** Canonical product properties: attached features in a stable order. */
 function canonicalProduct(properties: Plain): Plain {
   // Attachment order carries no meaning
   return Array.isArray(properties.features)
@@ -71,6 +74,7 @@ function canonicalProduct(properties: Plain): Plain {
     : properties;
 }
 
+/** Canonical price properties: recurring defaults, `inf` tiers and redundant decimal amounts normalized. */
 function canonicalPrice(properties: Plain): Plain {
   let price = withoutRedundantDecimal(properties, 'unit_amount');
   if (price.recurring && typeof price.recurring === 'object') {
@@ -128,6 +132,7 @@ export function resolveReferencesFromState(
     return desired;
   }
 
+  /** Physical ID recorded in the state file for a logical ID of the given type. */
   const physicalIdOf = (logicalId: unknown, type: string): string | undefined => {
     if (typeof logicalId !== 'string') return undefined;
     const entry = stateManager.getResource(stackId, logicalId);

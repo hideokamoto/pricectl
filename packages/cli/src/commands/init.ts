@@ -27,6 +27,7 @@ export default class Init extends Command {
     }),
   };
 
+  /** Create the files of a new pricectl project. */
   async run(): Promise<void> {
     const { flags } = await this.parse(Init);
 

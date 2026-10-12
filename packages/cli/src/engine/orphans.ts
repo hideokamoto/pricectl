@@ -19,6 +19,7 @@ function removalRank(type: string): number {
 /** Stripe IDs that the defined resources refer to directly. */
 function referencedPhysicalIds(manifest: StackManifest): Set<string> {
   const ids = new Set<string>();
+  /** Record a value when it is a Stripe ID string. */
   const add = (value: unknown) => {
     if (typeof value === 'string') ids.add(value);
   };
