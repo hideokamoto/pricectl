@@ -7,7 +7,7 @@ import { planMeter, planMeterRemoval } from './meter-plan';
 import { operationOf, Plan, PlanItem, Step } from './plan';
 import { planPrice, planPriceRemoval } from './price-plan';
 import { planProduct, planProductRemoval, ProductObservation } from './product-plan';
-import { indexResources, priceLookupKeyOf, resolveProductRef } from './refs';
+import { indexResources, priceLookupKeyOf, resolveFeatureRef, resolveMeterRef, resolveProductRef } from './refs';
 import { Observations, readObservations, removingKeys } from './read-stripe';
 
 /** The order resources are created in: what others refer to comes first. */
@@ -102,13 +102,6 @@ function planFeatureResource(stackId: string, resource: ResourceManifest, observ
   return item(resource, plan.steps, { physicalId: existing?.id, refusal: plan.refusal });
 }
 
-/** A feature reference in a product: a feature of the definition becomes its Stripe ID when it exists, otherwise it stays a logical ID until applied. */
-function resolveFeatureRef(ref: string, resources: Map<string, ResourceManifest>, observations: Observations): string {
-  const target = resources.get(ref);
-  if (target?.type !== 'Stripe::EntitlementFeature') return ref;
-  return observations.features.get(target.id)?.id ?? target.physicalId ?? ref;
-}
-
 function planProductResource(
   stackId: string,
   resource: ResourceManifest,
@@ -149,9 +142,7 @@ function planPriceResource(
   };
   const meterRef = properties.recurring?.meter;
   if (params.recurring && meterRef) {
-    const meter = resources.get(meterRef);
-    const existing = meter && (observations.adoptedMeters.get(meter.id) ?? observations.activeMeters.find((m) => m.event_name === meter.properties.event_name));
-    params.recurring = { ...params.recurring, meter: existing?.id ?? meter?.physicalId ?? meterRef };
+    params.recurring = { ...params.recurring, meter: resolveMeterRef(meterRef, resources, observations) };
   }
   const observation = observations.prices.get(resource.id) ?? { versions: [], defaultPriceIds: {} };
   const plan = planPrice(
