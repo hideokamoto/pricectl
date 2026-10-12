@@ -48,3 +48,27 @@ export function resolveMeterRef(ref: string, resources: Map<string, ResourceMani
     observations.activeMeters.find((meter) => meter.event_name === target.properties.event_name);
   return existing?.id ?? target.physicalId ?? ref;
 }
+
+/**
+ * Replace the logical IDs that a resource uses to refer to other resources with their Stripe
+ * IDs, so desired properties can be compared with what Stripe returns.
+ */
+export function resolveReferences(
+  resource: ResourceManifest,
+  resources: Map<string, ResourceManifest>,
+  observations: Observations,
+): Record<string, unknown> {
+  const desired = { ...resource.properties };
+
+  if (resource.type === 'Stripe::Product' && Array.isArray(desired.features)) {
+    desired.features = (desired.features as string[]).map((ref) => resolveFeatureRef(ref, resources, observations));
+  }
+  if (resource.type === 'Stripe::Price') {
+    if (typeof desired.product === 'string') desired.product = resolveProductRef(resources, desired.product);
+    const recurring = desired.recurring as Record<string, unknown> | undefined;
+    if (recurring && typeof recurring.meter === 'string') {
+      desired.recurring = { ...recurring, meter: resolveMeterRef(recurring.meter, resources, observations) };
+    }
+  }
+  return desired;
+}

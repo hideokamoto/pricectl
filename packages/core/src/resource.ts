@@ -87,7 +87,7 @@ export abstract class Resource extends Construct {
   protected abstract synthesizeProperties(): Record<string, unknown>;
 
   /**
-   * Resources are identified in Stripe and in the state file by their id alone,
+   * Resources are identified in Stripe and in pricectl.lock.json by their id alone,
    * so the id must be unique within the whole stack, not only within its scope.
    */
   private assertUniqueLogicalId(): void {

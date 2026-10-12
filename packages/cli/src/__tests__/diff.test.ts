@@ -1,9 +1,14 @@
 import { Stack } from '@pricectl/core';
 import { Coupon, EntitlementFeature, Meter, Price, Product } from '@pricectl/constructs';
-import { diffResource, resolveReferencesFromState } from '../engine/diff';
-import { StateManager } from '../engine/state';
+import type Stripe from 'stripe';
+import { StackManifest } from '@pricectl/core';
+import { currentResource } from '../engine/current';
+import { diffResource } from '../engine/diff';
+import { emptyLock, nextLock } from '../engine/lock';
+import { readObservations } from '../engine/read-stripe';
+import { indexResources, resolveReferences } from '../engine/refs';
+import { FakeStripe } from './helpers/fake-stripe';
 import { asSdkPrice } from './helpers/sdk-shapes';
-import { InMemoryStateStore } from './helpers/in-memory-state-store';
 import productFixture from './fixtures/stripe/product.json';
 import recurringPriceFixture from './fixtures/stripe/price-recurring.json';
 import lookupPriceFixture from './fixtures/stripe/price-one-time-lookup.json';
@@ -218,44 +223,65 @@ describe('diffResource', () => {
   });
 });
 
-describe('resolveReferencesFromState', () => {
-  /** State kept in memory, so the test does not touch the filesystem. */
-  function stateWith(...entries: Array<{ logicalId: string; physicalId: string; type: string }>): StateManager {
-    const state = new StateManager(new InMemoryStateStore());
-    for (const entry of entries) {
-      state.setResource('FxStack', { ...entry, path: `FxStack/${entry.logicalId}`, lastDeployedAt: '', propertiesHash: '' });
-    }
-    return state;
+describe('resolveReferences', () => {
+  const asStripe = (fake: FakeStripe) => fake as unknown as Stripe;
+
+  async function observed(fake: FakeStripe, manifest: StackManifest) {
+    return readObservations(asStripe(fake), manifest, nextLock(manifest, emptyLock()));
   }
 
-  it('resolves the product and the meter of a metered price to their Stripe IDs', () => {
-    const state = stateWith(
-      { logicalId: 'NewProd', physicalId: 'prod_123', type: 'Stripe::Product' },
-      { logicalId: 'NewMeter', physicalId: 'mtr_456', type: 'Stripe::BillingMeter' },
-    );
+  it('resolves the product of a price to the ID pricectl derived for it, and the meter to its Stripe ID', async () => {
+    const fake = new FakeStripe();
+    const meter = await fake.billing.meters.create({ display_name: 'Calls', event_name: 'api_calls', default_aggregation: { formula: 'count' } });
+    const manifest = (() => {
+      const stack = new Stack(undefined, 'FxStack', { apiKey: 'sk_test_dummy' });
+      const m = new Meter(stack, 'NewMeter', { displayName: 'Calls', eventName: 'api_calls', defaultAggregation: { formula: 'count' } });
+      const product = new Product(stack, 'NewProd', { name: 'Widget' });
+      new Price(stack, 'Usage', { product, currency: 'usd', recurring: { interval: 'month', usageType: 'metered', meter: m } });
+      return stack.synth();
+    })();
+    const price = manifest.resources.find((r) => r.id === 'Usage')!;
 
-    const resolved = resolveReferencesFromState(
-      {
-        type: 'Stripe::Price',
-        properties: { product: 'NewProd', recurring: { interval: 'month', usage_type: 'metered', meter: 'NewMeter' } },
-      },
-      'FxStack',
-      state,
-    );
+    const resolved = resolveReferences(price, indexResources(manifest), await observed(fake, manifest));
 
-    expect(resolved).toMatchObject({ product: 'prod_123', recurring: { meter: 'mtr_456' } });
+    expect(resolved).toMatchObject({ product: 'FxStack_NewProd', recurring: { meter: meter.id } });
   });
 
-  it('resolves the entitlement features of a product to their Stripe IDs', () => {
-    const state = stateWith({ logicalId: 'Support', physicalId: 'feat_123', type: 'Stripe::EntitlementFeature' });
+  it('resolves the entitlement features of a product to their Stripe IDs, leaving Stripe IDs as they are', async () => {
+    const fake = new FakeStripe();
+    const feature = await fake.entitlements.features.create({ name: 'Support', lookup_key: 'support' });
+    const manifest = (() => {
+      const stack = new Stack(undefined, 'FxStack', { apiKey: 'sk_test_dummy' });
+      const support = new EntitlementFeature(stack, 'Support', { name: 'Support', lookupKey: 'support' });
+      new Product(stack, 'Widget', { name: 'Widget', features: [support, 'feat_existing'] });
+      return stack.synth();
+    })();
+    const product = manifest.resources.find((r) => r.id === 'Widget')!;
 
-    const resolved = resolveReferencesFromState(
-      { type: 'Stripe::Product', properties: { name: 'Widget', features: ['Support', 'feat_existing'] } },
-      'FxStack',
-      state,
-    );
+    const resolved = resolveReferences(product, indexResources(manifest), await observed(fake, manifest));
 
-    expect(resolved.features).toEqual(['feat_123', 'feat_existing']);
+    expect(resolved.features).toEqual([feature.id, 'feat_existing']);
   });
 });
 
+describe('currentResource', () => {
+  it('finds the object a resource is deployed as, with the features attached to a product', async () => {
+    const fake = new FakeStripe();
+    const feature = await fake.entitlements.features.create({ name: 'Support', lookup_key: 'support' });
+    await fake.products.create({ id: 'FxStack_Widget', name: 'Widget' });
+    await fake.products.createFeature('FxStack_Widget', { entitlement_feature: feature.id });
+    const manifest = (() => {
+      const stack = new Stack(undefined, 'FxStack', { apiKey: 'sk_test_dummy' });
+      new Product(stack, 'Widget', { name: 'Widget', features: [] });
+      new Coupon(stack, 'Missing', { percentOff: 5, duration: 'once' });
+      return stack.synth();
+    })();
+    const observations = await readObservations(fake as unknown as Stripe, manifest, nextLock(manifest, emptyLock()));
+
+    const product = currentResource(manifest.resources.find((r) => r.id === 'Widget')!, observations);
+    const coupon = currentResource(manifest.resources.find((r) => r.id === 'Missing')!, observations);
+
+    expect(product).toMatchObject({ id: 'FxStack_Widget', features: [feature.id] });
+    expect(coupon).toBeUndefined();
+  });
+});

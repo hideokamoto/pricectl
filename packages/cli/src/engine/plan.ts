@@ -51,3 +51,27 @@ export function refusals(plan: Plan): string[] {
 export function removals(plan: Plan): PlanItem[] {
   return plan.items.filter((item) => item.operation === 'remove');
 }
+
+/**
+ * Warnings for a deploy that looks like a rename: a new resource and a removed resource of one
+ * type in the same plan. pricectl cannot tell a rename from a removal plus an addition, and a
+ * rename replaces the Stripe object (the logical ID names the resource, the lookup key names a price).
+ */
+export function renameWarnings(plan: Plan): string[] {
+  const warnings: string[] = [];
+  for (const type of new Set(plan.items.map((item) => item.type))) {
+    const added = plan.items.filter((item) => item.type === type && item.operation === 'create' && !item.physicalId);
+    const gone = plan.items.filter((item) => item.type === type && item.operation === 'remove');
+    if (added.length === 0 || gone.length === 0) continue;
+    warnings.push(
+      `${type}: ${list(added.map((item) => item.path))} ${added.length === 1 ? 'is' : 'are'} new and ` +
+        `${list(gone.map((item) => item.path))} ${gone.length === 1 ? 'is' : 'are'} removed in the same deploy. ` +
+        'If this is a rename, the Stripe object is replaced: logical IDs and lookup keys are permanent.',
+    );
+  }
+  return warnings;
+}
+
+function list(paths: string[]): string {
+  return paths.map((path) => `"${path}"`).join(', ');
+}

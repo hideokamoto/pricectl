@@ -1,5 +1,4 @@
 import { normalizeResource } from './stripe-utils';
-import type { StateManager } from './state';
 
 type StripeResource = Parameters<typeof normalizeResource>[0];
 type Plain = Record<string, unknown>;
@@ -115,47 +114,4 @@ export function diffResource(
   const desired = JSON.stringify(canonical(type, desiredProperties), null, 2);
   const existing = JSON.stringify(canonical(type, currentProperties), null, 2);
   return { changed: desired !== existing, current: existing, desired };
-}
-
-/**
- * Replace logical IDs that reference other resources with their physical IDs from
- * the state file, so desired properties can be compared with what Stripe returns.
- */
-export function resolveReferencesFromState(
-  resource: { type: string; properties: Record<string, unknown> },
-  stackId: string,
-  stateManager?: StateManager,
-): Record<string, unknown> {
-  const desired = { ...resource.properties };
-
-  if (!stateManager) {
-    return desired;
-  }
-
-  /** Physical ID recorded in the state file for a logical ID of the given type. */
-  const physicalIdOf = (logicalId: unknown, type: string): string | undefined => {
-    if (typeof logicalId !== 'string') return undefined;
-    const entry = stateManager.getResource(stackId, logicalId);
-    return entry?.type === type ? entry.physicalId : undefined;
-  };
-
-  if (resource.type === 'Stripe::Product') {
-    if (Array.isArray(desired.features)) {
-      desired.features = desired.features.map((id) => physicalIdOf(id, 'Stripe::EntitlementFeature') ?? id);
-    }
-    return desired;
-  }
-
-  if (resource.type !== 'Stripe::Price') {
-    return desired;
-  }
-
-  const productId = physicalIdOf(desired.product, 'Stripe::Product');
-  if (productId) desired.product = productId;
-
-  const recurring = desired.recurring as Record<string, unknown> | undefined;
-  const meterId = physicalIdOf(recurring?.meter, 'Stripe::BillingMeter');
-  if (recurring && meterId) desired.recurring = { ...recurring, meter: meterId };
-
-  return desired;
 }

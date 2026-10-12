@@ -70,7 +70,7 @@ export class Stack extends Construct {
 
   /**
    * Record a resource id, which must be unique within the stack because resources are
-   * identified in Stripe and in the state file by id alone. Called by Resource.
+   * identified in Stripe and in pricectl.lock.json by id alone. Called by Resource.
    * @internal
    */
   public registerResourceId(id: string, path: string): void {

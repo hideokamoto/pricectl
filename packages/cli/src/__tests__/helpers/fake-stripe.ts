@@ -291,6 +291,7 @@ export class FakeStripe {
       return clone(product);
     },
     del: async (id: string) => {
+      this.checkFailure('products.del');
       if (!this.productStore.has(id)) throw resourceMissing('product', id);
       if ([...this.priceStore.values()].some((p) => p.product === id)) {
         throw new FakeStripeError({
