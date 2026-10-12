@@ -30,7 +30,7 @@ export default class Deploy extends Command {
       description: 'Path to the state file directory',
     }),
     'dry-run': Flags.boolean({
-      description: 'Preview the API calls that would be made without actually deploying',
+      description: 'Preview what would be created, updated or removed, read from Stripe, without changing anything',
       default: false,
     }),
     force: Flags.boolean({
@@ -64,14 +64,6 @@ export default class Deploy extends Command {
 
     const manifest: StackManifest = stack.synth();
 
-    if (flags['dry-run']) {
-      const removals = findOrphans(manifest, new StateManager(flags['state-file']));
-      for (const line of describeDeployPlan(manifest, removals)) {
-        this.log(line);
-      }
-      return;
-    }
-
     // Get Stripe API key
     const apiKey = stack.apiKey || process.env.STRIPE_SECRET_KEY;
     if (!apiKey) {
@@ -79,6 +71,11 @@ export default class Deploy extends Command {
     }
 
     const stateManager = new StateManager(flags['state-file']);
+
+    if (flags['dry-run']) {
+      await this.previewDeploy(manifest, apiKey, stateManager);
+      return;
+    }
 
     // Removing resources is destructive, so it needs approval before anything is changed
     const removals = findOrphans(manifest, stateManager);
@@ -179,6 +176,23 @@ export default class Deploy extends Command {
 
     if (failed) {
       this.error('Some resources could not be deployed. See errors above.', { exit: 1 });
+    }
+  }
+
+  /** Print what a deploy would do to each resource, read from Stripe, and fail when a resource cannot be read. */
+  private async previewDeploy(manifest: StackManifest, apiKey: string, stateManager: StateManager): Promise<void> {
+    let plan;
+    try {
+      const apiVersion = manifest.apiVersion || DEFAULT_STRIPE_API_VERSION;
+      plan = await new StripeDeployer(apiKey, apiVersion, stateManager).planDeploy(manifest);
+    } catch (error: unknown) {
+      this.error(`Dry run failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    for (const line of describeDeployPlan(manifest, plan, findOrphans(manifest, stateManager))) {
+      this.log(line);
+    }
+    if (plan.errors.length > 0) {
+      this.error('Some resources could not be read from Stripe. See errors above.', { exit: 1 });
     }
   }
 }

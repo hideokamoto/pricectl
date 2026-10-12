@@ -680,6 +680,69 @@ describe('StripeDeployer against recorded Stripe responses', () => {
     });
   });
 
+  describe('planDeploy', () => {
+    function createDeployableStack(): Stack {
+      const stack = createStack();
+      const product = new Product(stack, 'NewProd', { name: 'New product' });
+      new Price(stack, 'NewMonthly', { product, currency: 'usd', unitAmount: 1000, recurring: { interval: 'month' } });
+      return stack;
+    }
+
+    it('plans to create every resource that does not exist in Stripe yet, without changing Stripe', async () => {
+      const plan = await new StripeDeployer('sk_test_dummy').planDeploy(createDeployableStack().synth());
+
+      expect(plan.errors).toEqual([]);
+      expect(plan.resources).toEqual([
+        { id: 'NewProd', path: 'FxStack/NewProd', type: 'Stripe::Product', action: 'create' },
+        { id: 'NewMonthly', path: 'FxStack/NewMonthly', type: 'Stripe::Price', action: 'create' },
+      ]);
+      expect(mockFakeStripe.productsFor('NewProd')).toEqual([]);
+    });
+
+    it('plans nothing to change for a stack that was just deployed', async () => {
+      const stack = createDeployableStack();
+      await new StripeDeployer('sk_test_dummy').deploy(stack.synth());
+
+      const plan = await new StripeDeployer('sk_test_dummy').planDeploy(stack.synth());
+
+      expect(plan.resources.map((r) => r.action)).toEqual(['unchanged', 'unchanged']);
+    });
+
+    it('plans an update for a product whose definition changed', async () => {
+      await new StripeDeployer('sk_test_dummy').deploy(createDeployableStack().synth());
+      const changed = createStack();
+      new Product(changed, 'NewProd', { name: 'Renamed product' });
+
+      const plan = await new StripeDeployer('sk_test_dummy').planDeploy(changed.synth());
+
+      expect(plan.resources).toEqual([
+        { id: 'NewProd', path: 'FxStack/NewProd', type: 'Stripe::Product', action: 'update' },
+      ]);
+    });
+
+    it('plans a replacement for a price whose amount changed, because prices cannot be edited', async () => {
+      await new StripeDeployer('sk_test_dummy').deploy(createDeployableStack().synth());
+      const changed = createStack();
+      const product = new Product(changed, 'NewProd', { name: 'New product' });
+      new Price(changed, 'NewMonthly', { product, currency: 'usd', unitAmount: 2000, recurring: { interval: 'month' } });
+
+      const plan = await new StripeDeployer('sk_test_dummy').planDeploy(changed.synth());
+
+      expect(plan.resources.map((r) => r.action)).toEqual(['unchanged', 'replace']);
+    });
+
+    it('reports a resource whose state cannot be read instead of failing the whole plan', async () => {
+      const manifest = createDeployableStack().synth();
+      manifest.resources.push({ id: 'Mystery', path: 'FxStack/Mystery', type: 'Stripe::Unknown', properties: {} });
+
+      const plan = await new StripeDeployer('sk_test_dummy').planDeploy(manifest);
+
+      expect(plan.errors).toEqual([
+        { id: 'Mystery', type: 'Stripe::Unknown', error: 'Unsupported resource type: Stripe::Unknown' },
+      ]);
+    });
+  });
+
   describe('EntitlementFeature and Meter', () => {
     function createFeatureAndMeterStack(): Stack {
       const stack = createStack();
