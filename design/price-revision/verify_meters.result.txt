@@ -1,0 +1,72 @@
+run tag mtr1791804732
+M1 choose the meter id at creation
+  [create with id] HTTP 400 ERROR invalid_request_error/parameter_unknown: Received unknown parameter: id
+  [create with id prefixed mtr_] HTTP 400 ERROR invalid_request_error/parameter_unknown: Received unknown parameter: id
+M2 search endpoints for meters
+  [GET /v1/billing/meters/search] HTTP 400 ERROR invalid_request_error/parameter_unknown: Received unknown parameter: query
+  [GET /v1/billing/meters?query=] HTTP 400 ERROR invalid_request_error/parameter_unknown: Received unknown parameter: query
+setup: meter A for mtr1791804732_api_calls
+  [create meter A] HTTP 200 OK {'id': 'mtr_test_61VZ5Q7K2JkNzp9db41R3gpDJbEB6PJI', 'event_name': 'mtr1791804732_api_calls', 'status': 'active'}
+  [create a second active meter with the same event name] HTTP 400 ERROR invalid_request_error/None: An active meter already exists for event name 'mtr1791804732_api_calls'. To create a new meter with the same event name, first deactivate the currently active meter.
+M9 retrieve by event name in the id slot
+  [GET /v1/billing/meters/<event_name>] HTTP 404 ERROR invalid_request_error/resource_missing: No such billing_meter: 'mtr1791804732_api_calls'
+M3 v2 meter endpoints
+  [GET /v2/billing/meters] HTTP 404 ERROR None/not_found: The API method cannot be found.
+  [GET /v2/billing/meters?event_name=] HTTP 404 ERROR None/not_found: The API method cannot be found.
+  [GET /v2/billing/meters/{id}] HTTP 404 ERROR None/not_found: The API method cannot be found.
+  [POST /v2/billing/meters with metadata] HTTP 404 ERROR None/not_found: The API method cannot be found.
+M4 metadata on meters (v1)
+  [create with metadata] HTTP 400 ERROR invalid_request_error/parameter_unknown: Received unknown parameter: metadata
+  [update with metadata] HTTP 400 ERROR invalid_request_error/parameter_unknown: Received unknown parameter: metadata
+  [retrieve A] HTTP 200 OK {'metadata': None}
+     fields on meter object: ['created', 'customer_mapping', 'default_aggregation', 'display_name', 'event_name', 'event_time_window', 'id', 'livemode', 'object', 'status', 'status_transitions', 'updated', 'value_settings']
+M8 expand on meter
+  [retrieve A expand[]=prices] HTTP 400 ERROR invalid_request_error/None: This property cannot be expanded (prices).
+M5 find the meter through a price
+  [create product] HTTP 200 OK {'id': 'prod_VQYaj4CYSNEY0B'}
+  [create metered price on A with lookup_key] HTTP 200 OK {'id': 'price_1UPhSrR3gpDJbEB6XXn1BtSC', 'lookup_key': 'mtr1791804732.Stack.ApiCalls'}
+     recurring: {'interval': 'month', 'interval_count': 1, 'meter': 'mtr_test_61VZ5Q7K2JkNzp9db41R3gpDJbEB6PJI', 'trial_period_days': None, 'usage_type': 'metered'}
+  [list prices by lookup_key] HTTP 200 OK 
+     n = 1 recurring.meter == A: [True]
+  [list by lookup_key expand data.recurring.meter] HTTP 400 ERROR invalid_request_error/None: This property cannot be expanded (data.recurring.meter).
+  [list prices recurring[meter]=A] HTTP 200 OK 
+     ids: [True]
+  [price search recurring.meter] HTTP 400 ERROR invalid_request_error/None: Field `recurring.meter` is an unsupported search field for resource `prices`. See http://stripe.com/docs/search#query-fields-for-prices for a list of supported fields.
+M6 meter events
+  [create customer] HTTP 200 OK {'id': 'cus_VQYaImXpHfZUzt'}
+  [v1 meter event to A] HTTP 200 OK 
+     response keys: ['created', 'event_name', 'identifier', 'livemode', 'object', 'payload', 'timestamp']
+  [v1 meter event to unknown event name] HTTP 400 ERROR invalid_request_error/None: No active meter found for event name "mtr1791804732_nomtr".
+  [v2 meter event to A] HTTP 200 OK 
+     response: {'object': 'v2.billing.meter_event', 'created': '2026-10-12T11:32:25.318Z', 'event_name': 'mtr1791804732_api_calls', 'identifier': 'mtr1791804732_e2', 'payload': {'stripe_customer_id': 'cus_VQYaImXpHfZUzt', 'value': '1'}, 'timestamp': '2026-10-12T11:32:25.238Z', 'livemode': False}
+  [v2 meter event to unknown event name] HTTP 400 ERROR None/invalid_fields: Some fields in the request were invalid: 'event_name: No active meter found for the given event_name.'
+  [v2 meter_event_session] HTTP 200 OK {'object': 'v2.billing.meter_event_session', 'expires_at': '2026-10-12T11:47:26.000Z'}
+M7 status=active listing
+  [list status=active limit=100] HTTP 200 OK 
+     pages=1 active meters=1 all status active=True
+     event names unique among active: True
+     A found: True
+  [list limit=101] HTTP 200 OK 
+     returned 1
+  [list status=inactive limit=1] HTTP 200 OK {'has_more': True}
+  [list status=inactive limit=1 starting_after] HTTP 200 OK {'has_more': True}
+     next page differs: [True] statuses: ['inactive']
+M5b deactivate A; what happens to its price
+  [deactivate A] HTTP 200 OK {'status': 'inactive'}
+  [retrieve price after A deactivated] HTTP 200 OK {'active': True, 'lookup_key': 'mtr1791804732.Stack.ApiCalls'}
+     recurring.meter == A: True
+  [list by lookup_key after A deactivated] HTTP 200 OK 
+     n = 1
+  [create a new price on deactivated A] HTTP 400 ERROR invalid_request_error/None: Cannot attach a deactivated meter to a price
+  [v1 meter event while no active meter] HTTP 400 ERROR invalid_request_error/None: No active meter found for event name "mtr1791804732_api_calls".
+  [list status=inactive] HTTP 200 OK 
+     A in first inactive page: True
+     A in active list after deactivate: False
+M5c new meter B with the same event name
+  [create B with event name of deactivated A] HTTP 200 OK {'id': 'mtr_test_61VZ5QNC2PKUnvIZI41R3gpDJbEB6Gvw', 'status': 'active'}
+     price by lookup_key still points to A (not B): [True]
+  [reactivate A while B is active] HTTP 400 ERROR invalid_request_error/None: This meter cannot be reactivated because an active meter already exists with the same event name.
+M8b account events
+  [GET /v1/events type=billing.meter.created] HTTP 200 OK 
+     first event object event_name: ['mtr1791804732_api_calls', 'mtr1791804732_api_calls', 'mtr1791804697_api_calls']
+cleaned up {'meters': 2, 'prices': 1, 'products': 1, 'customers': 1} meters still active: []
