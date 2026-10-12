@@ -59,13 +59,31 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
 
-/** List results are both awaitable (first page) and async-iterable (auto-pagination), like the SDK. */
-function listResult(items: StripeObject[]) {
-  const page = { object: 'list', data: items, has_more: false };
+interface ListPage {
+  object: 'list';
+  data: StripeObject[];
+  has_more: boolean;
+}
+
+/** A list result is awaitable (first page) and async-iterable (auto-pagination), like the SDK's. */
+type ListResult = PromiseLike<ListPage> & AsyncIterable<StripeObject>;
+
+/** A list call Stripe rejects: awaiting it or iterating it throws. */
+function failingListResult(error: FakeStripeError): ListResult {
   return {
-    then(resolve: (value: typeof page) => unknown, reject?: (reason: unknown) => unknown) {
-      return Promise.resolve(page).then(resolve, reject);
+    then: (onfulfilled, onrejected) => Promise.reject(error).then(onfulfilled, onrejected),
+    // eslint-disable-next-line require-yield
+    async *[Symbol.asyncIterator](): AsyncGenerator<StripeObject> {
+      throw error;
     },
+  };
+}
+
+/** List results are both awaitable (first page) and async-iterable (auto-pagination), like the SDK. */
+function listResult(items: StripeObject[]): ListResult {
+  const page: ListPage = { object: 'list', data: items, has_more: false };
+  return {
+    then: (onfulfilled, onrejected) => Promise.resolve(page).then(onfulfilled, onrejected),
     async *[Symbol.asyncIterator]() {
       for (const item of items) {
         yield item;
@@ -95,8 +113,8 @@ const PRODUCT_PARAMS = new Set([
   'unit_label', 'statement_descriptor', 'tax_code',
 ]);
 
-function rejectUnknownProductParams(params: StripeObject): void {
-  const unknown = Object.keys(params).find((key) => !PRODUCT_PARAMS.has(key));
+function rejectUnknownProductParams(params: StripeObject, extra: string[] = []): void {
+  const unknown = Object.keys(params).find((key) => !PRODUCT_PARAMS.has(key) && !extra.includes(key));
   if (unknown) {
     throw new FakeStripeError({ message: `Received unknown parameter: ${unknown}`, param: unknown });
   }
@@ -177,6 +195,17 @@ export class FakeStripe {
     holder.lookup_key = null;
   }
 
+  /** Stripe allows one active meter per event name. */
+  private assertNoActiveMeter(eventName: string, action: 'create' | 'reactivate'): void {
+    if (![...this.meterStore.values()].some((m) => m.status === 'active' && m.event_name === eventName)) return;
+    throw new FakeStripeError({
+      message:
+        action === 'create'
+          ? `An active meter already exists for event name '${eventName}'. To create a new meter with the same event name, first deactivate the currently active meter.`
+          : 'This meter cannot be reactivated because an active meter already exists with the same event name.',
+    });
+  }
+
   /** A stored price as the SDK hands it to callers (decimal fields as Stripe.Decimal). */
   private priceView(price: StripeObject, expand?: string[]): StripeObject {
     const view = clone(price);
@@ -184,17 +213,49 @@ export class FakeStripe {
     return asSdkPrice(view);
   }
 
+  /** A product ID chosen by the caller: Stripe accepts [A-Za-z0-9_-] up to 200 characters, once. */
+  private checkedProductId(id: string): string {
+    if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+      throw new FakeStripeError({
+        message: `This value must match the regex pattern. (/\\A[a-zA-Z0-9_\\-]+\\z/ does not match for the value ${id}).`,
+        param: 'id',
+      });
+    }
+    if (id.length > 200) {
+      throw new FakeStripeError({ message: `Invalid string: ${id.slice(0, 8)}...; must be at most 200 characters`, param: 'id' });
+    }
+    if (this.productStore.has(id)) {
+      throw new FakeStripeError({ message: 'Product already exists.', code: 'resource_already_exists', param: 'id' });
+    }
+    return id;
+  }
+
+  /** A default price must be an active price of the product; an empty string unsets it. */
+  private checkedDefaultPrice(productId: string, priceId: string): string | null {
+    if (priceId === '') return null;
+    const price = this.priceStore.get(priceId);
+    if (!price) throw resourceMissing('price', priceId);
+    if (price.product !== productId) {
+      throw new FakeStripeError({ message: `Provided price (${priceId}) belongs to a different product`, param: 'default_price' });
+    }
+    if (!price.active) {
+      throw new FakeStripeError({ message: `The price ${priceId} is not active and cannot be the default price`, param: 'default_price' });
+    }
+    return priceId;
+  }
+
   readonly products = {
     create: async (params: StripeObject) => {
       this.checkFailure('products.create');
-      rejectUnknownProductParams(params);
+      rejectUnknownProductParams(params, ['id']);
+      const id = params.id === undefined ? this.nextId('prod') : this.checkedProductId(params.id);
       const product = {
         active: params.active ?? true,
         attributes: [],
         created: this.now(),
         default_price: null,
         description: params.description ?? null,
-        id: this.nextId('prod'),
+        id,
         images: params.images ?? [],
         livemode: false,
         marketing_features: [],
@@ -221,10 +282,11 @@ export class FakeStripe {
     },
     update: async (id: string, params: StripeObject) => {
       this.checkFailure('products.update');
-      rejectUnknownProductParams(params);
+      rejectUnknownProductParams(params, ['default_price']);
       const product = this.productStore.get(id);
       if (!product) throw resourceMissing('product', id);
-      const { metadata, ...rest } = params;
+      const { metadata, default_price: defaultPrice, ...rest } = params;
+      if (defaultPrice !== undefined) product.default_price = this.checkedDefaultPrice(id, defaultPrice);
       Object.assign(product, rest, { metadata: mergeMetadata(product.metadata, metadata), updated: this.now() });
       return clone(product);
     },
@@ -335,8 +397,15 @@ export class FakeStripe {
       const price = this.priceStore.get(id);
       if (!price) throw resourceMissing('price', id);
       const { metadata, transfer_lookup_key: transfer, ...rest } = params;
+      if (rest.active === false && [...this.productStore.values()].some((p) => p.default_price === id)) {
+        throw new FakeStripeError({
+          message: 'This price cannot be archived because it is the default price of its product.',
+          param: 'active',
+        });
+      }
       if (rest.lookup_key) this.claimLookupKey(rest.lookup_key, Boolean(transfer), id);
       Object.assign(price, rest, { metadata: mergeMetadata(price.metadata, metadata) });
+      if (price.lookup_key === '') price.lookup_key = null;
       return this.priceView(price);
     },
     search: async (params: { query: string; limit?: number; expand?: string[] }) => {
@@ -347,10 +416,15 @@ export class FakeStripe {
         .map((p) => this.priceView(p, params.expand));
       return { object: 'search_result', data, has_more: false };
     },
-    list: (params: { product?: string; active?: boolean; expand?: string[] } = {}) => {
+    list: (params: { product?: string; active?: boolean; lookup_keys?: string[]; limit?: number; expand?: string[] } = {}) => {
+      if ((params.lookup_keys?.length ?? 0) > 10) {
+        return failingListResult(new FakeStripeError({ message: 'Array lookup_keys exceeded maximum 10 allowed elements.', param: 'lookup_keys' }));
+      }
       const data = [...this.priceStore.values()]
+        .filter((p) => params.lookup_keys === undefined || params.lookup_keys.includes(p.lookup_key))
         .filter((p) => params.product === undefined || p.product === params.product)
         .filter((p) => params.active === undefined || p.active === params.active)
+        .slice(0, params.limit ?? Infinity)
         .map((p) => this.priceView(p, params.expand));
       return listResult(data);
     },
@@ -404,6 +478,12 @@ export class FakeStripe {
   readonly entitlements = {
     features: {
       create: async (params: StripeObject) => {
+        if ([...this.featureStore.values()].some((f) => f.active && f.lookup_key === params.lookup_key)) {
+          throw new FakeStripeError({
+            message: `You are already using the feature lookup_key \`${params.lookup_key}\`. Ensure \`lookup_key\` is unique for each of your features.`,
+            param: 'lookup_key',
+          });
+        }
         const feature = {
           active: true,
           id: this.nextId('feat_test'),
@@ -431,13 +511,21 @@ export class FakeStripe {
         Object.assign(feature, rest, { metadata: mergeMetadata(feature.metadata, metadata) });
         return clone(feature);
       },
-      list: () => listResult([...this.featureStore.values()].map(clone)),
+      /** Like Stripe, the list returns inactive features too unless `archived: false` is given. */
+      list: (params: { lookup_key?: string; archived?: boolean } = {}) =>
+        listResult(
+          [...this.featureStore.values()]
+            .filter((f) => params.lookup_key === undefined || f.lookup_key === params.lookup_key)
+            .filter((f) => params.archived !== false || f.active)
+            .map(clone),
+        ),
     },
   };
 
   readonly billing = {
     meters: {
       create: async (params: StripeObject) => {
+        this.assertNoActiveMeter(params.event_name, 'create');
         const meter = {
           created: this.now(),
           customer_mapping: params.customer_mapping ?? { event_payload_key: 'stripe_customer_id', type: 'by_id' },
@@ -481,11 +569,13 @@ export class FakeStripe {
       reactivate: async (id: string) => {
         const meter = this.meterStore.get(id);
         if (!meter) throw resourceMissing('billing.meter', id);
+        this.assertNoActiveMeter(meter.event_name, 'reactivate');
         meter.status = 'active';
         meter.status_transitions = { deactivated_at: null };
         return clone(meter);
       },
-      list: () => listResult([...this.meterStore.values()].map(clone)),
+      list: (params: { status?: string } = {}) =>
+        listResult([...this.meterStore.values()].filter((m) => params.status === undefined || m.status === params.status).map(clone)),
     },
   };
 
