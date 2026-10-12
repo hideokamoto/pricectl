@@ -6,7 +6,9 @@ import {
   findProductForResource,
   listAttachedFeatures,
   stripInternalMetadata,
+  fetchCurrentResource,
 } from './stripe-utils';
+import { diffResource, resolveReferencesFromState } from './diff';
 import { StateManager } from './state';
 import { findOrphans, findReleased } from './orphans';
 import { isPriceEquivalent } from './price-comparison';
@@ -57,6 +59,25 @@ export interface DestroyPlan {
     path: string;
     type: string;
     status: 'deleted' | 'deactivated';
+  }>;
+  /** Resources whose current state in Stripe could not be read */
+  errors: Array<{
+    id: string;
+    type: string;
+    error: string;
+  }>;
+}
+
+/** What `deploy` would do to Stripe, worked out by reading the current state without changing anything. */
+export interface DeployPlan {
+  stackId: string;
+  /** Every defined resource and what deploy would do to it, in deploy order */
+  resources: Array<{
+    id: string;
+    path: string;
+    type: string;
+    /** `replace` is a price that cannot be edited: a new one is created and the old one deactivated */
+    action: 'create' | 'update' | 'replace' | 'unchanged';
   }>;
   /** Resources whose current state in Stripe could not be read */
   errors: Array<{
@@ -187,6 +208,45 @@ export class StripeDeployer {
     }
 
     return result;
+  }
+
+  /**
+   * What deploy would do to each defined resource, read from Stripe without changing anything.
+   * Compares the way `diff` does, so the two commands agree.
+   */
+  async planDeploy(manifest: StackManifest): Promise<DeployPlan> {
+    const plan: DeployPlan = { stackId: manifest.stackId, resources: [], errors: [] };
+    this.logicalToPhysicalId.clear();
+
+    for (const resource of manifest.resources) {
+      try {
+        const current = await fetchCurrentResource(this.stripe, resource, this.stateManager, manifest.stackId);
+        let action: DeployPlan['resources'][number]['action'] = 'create';
+        if (current) {
+          this.logicalToPhysicalId.set(resource.id, current.id);
+          const desired = this.resolvePlannedReferences(resource, manifest.stackId);
+          const changed = diffResource(resource.type, desired, current).changed;
+          action = !changed ? 'unchanged' : resource.type === 'Stripe::Price' ? 'replace' : 'update';
+        }
+        plan.resources.push({ id: resource.id, path: resource.path, type: resource.type, action });
+      } catch (error: unknown) {
+        plan.errors.push({
+          id: resource.id,
+          type: resource.type,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return plan;
+  }
+
+  /** Desired properties with references to other resources replaced by the IDs found in Stripe or the state file. */
+  private resolvePlannedReferences(resource: ResourceManifest, stackId: string): Record<string, unknown> {
+    const resolved = this.resolveDependencies(resource.properties);
+    if (Array.isArray(resolved.features)) {
+      resolved.features = resolved.features.map((id: string) => this.logicalToPhysicalId.get(id) ?? id);
+    }
+    return resolveReferencesFromState({ type: resource.type, properties: resolved }, stackId, this.stateManager);
   }
 
   /** Remove resources that were deleted from the definition since the last deploy. */
