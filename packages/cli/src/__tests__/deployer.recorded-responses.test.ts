@@ -759,12 +759,13 @@ describe('StripeDeployer against recorded Stripe responses', () => {
     it('keeps resources that are no longer defined when deploying the defined ones failed', async () => {
       const state = inMemoryState();
       const v1 = createStack();
-      new Price(v1, 'Monthly', { product: PRODUCT_ID, currency: 'usd', unitAmount: 1000, lookupKey: 'pro_monthly' });
+      new Price(v1, 'Monthly', { product: PRODUCT_ID, currency: 'usd', unitAmount: 1000 });
       await new StripeDeployer('sk_test_dummy', undefined, state).deploy(v1.synth());
 
-      // Renaming the logical ID makes the old price an orphan, and the new one cannot take its lookup key
+      // Renaming the logical ID makes the old price an orphan, and its replacement cannot be created
       const v2 = createStack();
-      new Price(v2, 'MonthlyV2', { product: PRODUCT_ID, currency: 'usd', unitAmount: 1000, lookupKey: 'pro_monthly' });
+      new Price(v2, 'MonthlyV2', { product: PRODUCT_ID, currency: 'usd', unitAmount: 1000 });
+      mockFakeStripe.failNext('prices.create', { message: 'Stripe is unavailable' });
       const result = await new StripeDeployer('sk_test_dummy', undefined, state).deploy(v2.synth());
 
       expect(result.errors).toEqual([expect.objectContaining({ id: 'MonthlyV2' })]);
@@ -772,6 +773,36 @@ describe('StripeDeployer against recorded Stripe responses', () => {
       expect(result.removalSkipped).toBe(true);
       expect(mockFakeStripe.pricesFor('Monthly')).toEqual([expect.objectContaining({ active: true })]);
       expect(state.getResource('FxStack', 'Monthly')).toBeDefined();
+    });
+
+    it('moves the lookup key of a price removed from the definition to the price defined under a new logical ID', async () => {
+      const state = inMemoryState();
+      const v1 = createStack();
+      new Price(v1, 'Monthly', { product: PRODUCT_ID, currency: 'usd', unitAmount: 1000, lookupKey: 'pro_monthly' });
+      await new StripeDeployer('sk_test_dummy', undefined, state).deploy(v1.synth());
+
+      const v2 = createStack();
+      new Price(v2, 'MonthlyV2', { product: PRODUCT_ID, currency: 'usd', unitAmount: 1000, lookupKey: 'pro_monthly' });
+      const result = await new StripeDeployer('sk_test_dummy', undefined, state).deploy(v2.synth());
+
+      expect(result.errors).toEqual([]);
+      expect(result.removed).toEqual([{ id: 'Monthly', type: 'Stripe::Price', status: 'deactivated' }]);
+      expect(mockFakeStripe.pricesFor('MonthlyV2')).toEqual([
+        expect.objectContaining({ active: true, lookup_key: 'pro_monthly' }),
+      ]);
+      expect(mockFakeStripe.pricesFor('Monthly')).toEqual([expect.objectContaining({ active: false, lookup_key: null })]);
+    });
+
+    it('does not take a lookup key from a price that is not part of the stack', async () => {
+      mockFakeStripe.seed('prices', lookupPriceFixture);
+      const state = inMemoryState();
+      const stack = createStack();
+      new Price(stack, 'Other', { product: PRODUCT_ID, currency: 'usd', unitAmount: 900, lookupKey: lookupPriceFixture.lookup_key });
+
+      const result = await new StripeDeployer('sk_test_dummy', undefined, state).deploy(stack.synth());
+
+      expect(result.errors).toEqual([expect.objectContaining({ id: 'Other', error: expect.stringContaining('lookup_key') })]);
+      expect(mockFakeStripe.priceStore.get(lookupPriceFixture.id)?.lookup_key).toBe(lookupPriceFixture.lookup_key);
     });
 
     it('deactivates a feature and a meter that were removed from the definition', async () => {

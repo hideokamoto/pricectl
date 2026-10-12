@@ -123,6 +123,8 @@ function validateProductCreateParams(properties: unknown): Stripe.ProductCreateP
 export class StripeDeployer {
   private stripe: Stripe;
   private logicalToPhysicalId: Map<string, string> = new Map();
+  /** Stripe IDs of the prices in the state file that the manifest being deployed no longer defines */
+  private orphanPriceIds: string[] = [];
   private stateManager: StateManager | undefined;
 
   /**
@@ -149,6 +151,10 @@ export class StripeDeployer {
 
     // Reset the ID mapping for this deployment
     this.logicalToPhysicalId.clear();
+    this.orphanPriceIds = findOrphans(manifest, this.stateManager)
+      .filter((orphan) => orphan.type === 'Stripe::Price')
+      .map((orphan) => this.stateManager?.getResource(manifest.stackId, orphan.id)?.physicalId)
+      .filter((id): id is string => Boolean(id));
 
     for (const resource of manifest.resources) {
       try {
@@ -389,8 +395,12 @@ export class StripeDeployer {
         };
       }
     } else {
+      // A price that is no longer defined, e.g. after its logical ID was renamed, hands its
+      // lookup key over; a key held by any other price is still rejected by Stripe.
+      const takeOverLookupKey = props.lookup_key ? await this.isLookupKeyOfOrphanPrice(props.lookup_key) : false;
       const created = await this.stripe.prices.create({
         ...props,
+        ...(takeOverLookupKey ? { transfer_lookup_key: true } : {}),
         metadata: {
           ...props.metadata,
           pricectl_id: resource.id,
@@ -404,6 +414,19 @@ export class StripeDeployer {
         status: 'created' as const,
       };
     }
+  }
+
+  /** Whether a price that the manifest being deployed no longer defines holds the lookup key. */
+  private async isLookupKeyOfOrphanPrice(lookupKey: string): Promise<boolean> {
+    for (const priceId of this.orphanPriceIds) {
+      try {
+        const price = await this.stripe.prices.retrieve(priceId);
+        if (price.lookup_key === lookupKey) return true;
+      } catch (error: unknown) {
+        if (!isResourceNotFoundError(error)) throw error;
+      }
+    }
+    return false;
   }
 
   /**
