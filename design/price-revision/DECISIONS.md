@@ -27,12 +27,18 @@ existing subscriptions.
    change (product, currency, amounts, recurring, tiers, transform_quantity, or a
    `tax_behavior` change once it is `inclusive` or `exclusive`, including back to
    `unspecified` or removing the property) makes a new version.
-4. **Lookup keys**: taken over automatically from any price of the stack (tagged with a
-   logical ID of the stack or recorded in the state file). Taken from a price outside the
-   stack only when the definition sets `transferLookupKey: true`; `plan` shows which price
-   it is taken from. Otherwise `plan` refuses. Without a state file every price counts as
-   outside the stack. synth rejects two definitions with the same key, so definitions
-   never compete for one. (Widened after the v2 verification, see G9 below.)
+4. **Lookup keys**: taken over automatically from any price of the stack. Taken from a
+   price outside the stack only when the definition sets `transferLookupKey: true`; `plan`
+   shows which price it is taken from. Otherwise `plan` refuses. synth rejects two
+   definitions with the same key, so definitions never compete for one. (Widened after
+   the v2 verification, see G9 below.)
+   - A price belongs to the stack when its metadata `pricectl_id` is a logical ID the
+     definition uses, or a logical ID recorded in the state file. Ownership is read from
+     the object itself, as kubectl does, rather than only from the state file, as
+     Terraform and CloudFormation do.
+   - So without a state file, prices tagged with a defined logical ID still belong to the
+     stack. Prices of logical IDs no longer defined are only known from the state file;
+     without it they count as outside the stack (and, as today, nothing is removed).
 5. **Default price**
    - Declared with `isDefault: true` on a `Price`: pricectl makes it the product's default.
    - Not declared: pricectl follows what is set in Stripe. When a new version replaces the
