@@ -6,7 +6,31 @@ verified in test mode (`verify_stripe.py`).
 
 - v1 (`price_revision.als`, `price_revision.qnt`): the first To-be design; found gaps G1-G8 and R1-R3.
 - v2 (`price_revision_v2.als`, `price_revision_v2.qnt`): decisions 1-7 with a state file; found G9.
-- v3 (`price_revision_v3.als`, `meter_lock_v3.qnt`): the current design, without a state file (decision 8).
+- v3 (`price_revision_v3.als`, `meter_lock_v3.qnt`): without a state file (decision 8).
+- v4 (`price_revision_v4.als`, `price_keys_v4.qnt`): proposed; every resource located by a key, no listing.
+
+## v4 results
+
+`price_revision_v4.als` (Alloy, scope 4, 6 prices), one deploy; versions are the lookup-key
+holder and its `previous` chain:
+
+| Check | Result |
+|---|---|
+| StripeAcceptsResult, TaxTransitionsLegal, ForeignPricesUntouched, NewPriceOnlyWhenNeeded, Realizes, OneVersionOnSale, NextPlanReachesEverything | hold |
+| runs: new version moves a followed default, stray from a failed deploy archived, removed slot archived, key taken from outside with the flag, tax set in place, inactive default unset | instance found for each |
+
+`NewPriceOnlyWhenNeeded` restates the deploy rule, so it only guards the model against
+contradictions. `NextPlanReachesEverything` checks that every price of the stack on sale
+after the deploy is reached from a key holder again, the precondition of the next plan.
+
+`price_keys_v4.qnt` (Quint, Apalache, 16 steps, 3 deploys), one slot across commits,
+removal and failing calls (including a create that fails after Stripe created the price):
+
+| Invariant | Result |
+|---|---|
+| noUnreachablePriceOnSale (every price on sale is reached from the key holder) | holds |
+| cleanDeployConverges | holds |
+| witnesses: recovery after a failure, two versions on sale after a failed create | reachable |
 
 ## v3 results
 
@@ -111,9 +135,11 @@ quint verify --max-steps 22 --invariant cleanDeployConverges price_revision_v2.q
 quint run --backend typescript --max-samples 30000 --max-steps 45 --invariant cleanDeployConverges price_revision_v2.qnt
 
 quint verify --max-steps 18 --invariant noFloatingMeter meter_lock_v3.qnt
+quint verify --max-steps 16 --invariant noUnreachablePriceOnSale price_keys_v4.qnt
 
 # Stripe test mode (key read from a file, never committed)
 python3 verify_stripe.py path/to/key-file created.json
+python3 verify_keys.py path/to/key-file
 ```
 
 ## Assumptions
@@ -132,4 +158,5 @@ change) comes from the API spec.
   (deploys are assumed serialized).
 - Listing time was measured, not modeled: 10,083 prices take 41.9-45.6 s in test mode
   (`measure_listing.py`, see DECISIONS.md).
-- Exhaustive checking of three or more deploys in a row (simulation only).
+- Exhaustive checking of three or more deploys in a row (simulation only), except v4's one slot.
+- v4: several slots, lookup-key changes, and meters (no lookup by event name) in the models.

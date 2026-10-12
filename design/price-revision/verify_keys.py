@@ -8,7 +8,7 @@ import base64, json, sys, time, urllib.parse, urllib.request, urllib.error
 KEY = open(sys.argv[1]).read().strip()
 VERSION = '2026-09-30.endive'
 RUN = f'pcv{int(time.time())}'
-created = {'products': [], 'prices': [], 'features': []}
+created = {'products': [], 'prices': [], 'features': [], 'coupons': []}
 
 
 def call(method, path, params=None):
@@ -46,7 +46,7 @@ s, b = product(f'{RUN}_Stack_ProPlan'); report('create with id', s, b, ['id'])
 s, b = product(f'{RUN}_Stack_ProPlan'); report('create the same id again', s, b)
 s, b = product(f'{RUN}.stack:pro-plan/1'); report("id with '.', ':', '-', '/'", s, b, ['id'])
 long_id = (RUN + '_') + 'x' * 300
-for n in (64, 100, 255, 256):
+for n in (64, 200, 201):
     s, b = product(long_id[:n], f'len{n}'); report(f'id of {n} characters', s, b, [])
 print('K2 reuse the id of a deleted product')
 s, b = call('POST', 'products', {'id': f'{RUN}_del', 'name': 'del'})
@@ -71,7 +71,7 @@ s, b = call('GET', f'prices/{a["id"]}'); report('A after the transfer', s, b, ['
 s, b = call('GET', 'prices', {'lookup_keys[]': k}); report('list by key', s, b)
 print('    ', [(p['id'] == c.get('id'), p['active']) for p in b.get('data', [])])
 for n in (200, 201):
-    s, b = price(lookup_key=('k' * n)); report(f'lookup_key of {n} characters', s, b, [])
+    s, b = price(lookup_key=(RUN + 'k' * 300)[:n]); report(f'lookup_key of {n} characters', s, b, [])
 keys = [f'{RUN}.k{i}' for i in range(11)]
 s, b = call('GET', 'prices', {'lookup_keys[]': keys[:10]}); report('list with 10 keys', s, b)
 s, b = call('GET', 'prices', {'lookup_keys[]': keys}); report('list with 11 keys', s, b)
@@ -89,10 +89,30 @@ print('    ', [(x['id'] == f1.get('id') and 'F1' or 'F2', x['active']) for x in 
 s, b = call('GET', 'entitlements/features', {'lookup_key': fk, 'archived': 'false'}); report('list by lookup_key, archived=false', s, b)
 print('    ', [(x['id'] == f1.get('id') and 'F1' or 'F2', x['active']) for x in b.get('data', [])])
 
+print('K5 coupon IDs chosen by pricectl')
+def coupon(cid):
+    s, b = call('POST', 'coupons', {'id': cid, 'percent_off': 10, 'duration': 'once'})
+    if s == 200:
+        created['coupons'].append(b['id'])
+    return s, b
+s, b = coupon(f'{RUN}_Stack_Launch'); report('create with id', s, b, ['id'])
+s, b = coupon(f'{RUN}_Stack_Launch'); report('create the same id again', s, b)
+s, b = coupon(f'{RUN}.stack:launch/1'); report("id with '.', ':', '/'", s, b, ['id'])
+s, b = call('GET', f'coupons/{RUN}_Stack_Launch'); report('retrieve by id', s, b, ['id', 'valid'])
+s, b = call('DELETE', f'coupons/{RUN}_Stack_Launch'); report('delete', s, b, ['deleted'])
+if s == 200: created['coupons'].remove(f'{RUN}_Stack_Launch')
+s, b = coupon(f'{RUN}_Stack_Launch'); report('create the same id after delete', s, b, ['id'])
+
+print('K6 billing meters by event name')
+s, b = call('GET', 'billing/meters', {'event_name': f'{RUN}_meter'}); report('list with event_name', s, b)
+s, b = call('GET', 'billing/meters', {'status': 'active'}); report('list with status=active', s, b)
+
 for p in created['prices']:
     call('POST', f'prices/{p}', {'active': 'false'})
 for p in created['products']:
     call('POST', f'products/{p}', {'active': 'false'})
 for f in created['features']:
     call('POST', f'entitlements/features/{f}', {'active': 'false'})
+for c in created['coupons']:
+    call('DELETE', f'coupons/{c}')
 print('cleaned up', {k: len(v) for k, v in created.items()})

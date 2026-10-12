@@ -92,6 +92,41 @@ existing subscriptions.
    - No migration: pricectl has no users yet, so resources and state files from earlier
      versions are not supported.
 
+## Proposed: v4, every resource located by a key (not yet approved)
+
+Replaces the listing in decision 8 (`plan` lists each type and indexes it by metadata).
+plan reads only what the definition and the lock name.
+
+| Resource | Key pricectl looks it up by | Verified in test mode (`verify_keys.py`) |
+|---|---|---|
+| Product | ID chosen by pricectl | `[A-Za-z0-9_-]`, at most 200 characters; a second create with the same ID is rejected; the ID of a deleted product can be used again |
+| Coupon | ID chosen by pricectl | same character set; duplicate rejected; retrieve by ID works; reusable after delete |
+| Entitlement feature | `lookup_key` | unique among active features; reusable after deactivation; `list?lookup_key=` returns active and inactive, `archived=false` only the active one |
+| Price | `lookup_key` (the definition's, or one derived from stack and logical ID) | at most 200 characters; a new price takes the key from an archived price with `transfer_lookup_key`, and the archived one loses it; `list?lookup_keys[]=` takes at most 10 keys per call |
+| Billing meter | event name | **no lookup**: `billing/meters` rejects `event_name` (`parameter_unknown`); only `status` filters. Open point below |
+
+- `pricectl.lock.json` lists the keys of every type (`managed` / `removing`), as decision 8
+  does for meters. It still depends only on the definition.
+- Versions of a price slot: the holder of its lookup key, then the chain of
+  `pricectl_previous` metadata written when each version is created. No listing.
+- Deploy moves forward only: when the holder does not match the definition, a new price is
+  created with `transfer_lookup_key` and `pricectl_previous` = the holder. There is no undo;
+  a deploy that fails part way is finished by the next one.
+- Consequence: an archived old version that no longer holds the key is never reused
+  (decision 7 reused any version of the slot). A change back to earlier terms creates a
+  new price.
+- Checked: `price_revision_v4.als` (one deploy) and `price_keys_v4.qnt` (several deploys
+  with failures), results in README.md.
+
+Open points:
+1. Meters cannot be looked up by event name. Options: list active meters
+   (`status=active`; one per event name, so the list is bounded by the account's event
+   names, not by history), or another key.
+2. When a definition changes its lookup key, the lock has to remember the old key, or the
+   versions holding it are no longer reached.
+3. The scheme for derived IDs and keys (stack + logical ID within 200 characters and
+   `[A-Za-z0-9_-]` for IDs).
+
 ## How we got here
 
 - **v1** modeled the first To-be table and found G1-G8 (one deploy) and R1-R3 (failures
