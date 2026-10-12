@@ -15,7 +15,7 @@ Alloy, scope 4 (6 prices); the fixed-rule checks and the diagnosis also at scope
 |---|---|
 | StripeAcceptsResult, TaxTransitionsLegal, ForeignPricesUntouched, NewPriceOnlyWhenNeeded, Realizes, NoStrayVersionOnSale | hold |
 | PlanRefusesOnlyRealConflicts | counterexample: G9 (key held by an unused version of another definition); no other cause (`PlanRefusesExplainedByH1` holds) |
-| `*Ext` checks (proposed rule for G9 in DECISIONS.md) | all hold; plan then refuses only for a key held outside the stack without `transferLookupKey` |
+| `*Ext` checks (rule for G9, now decision 4 in DECISIONS.md) | all hold; plan then refuses only for a key held outside the stack without `transferLookupKey` |
 | 11 runs of the decided behaviors (default moved, default unset, declared default, stray reused/archived, key from orphan/foreign/other definition, tax in place/new version, inactive default) | instance found for each, so the checks are not vacuous |
 
 Quint (`price_revision_v2.qnt`), deploys repeated after failures:

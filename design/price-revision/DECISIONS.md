@@ -27,11 +27,12 @@ existing subscriptions.
    change (product, currency, amounts, recurring, tiers, transform_quantity, or a
    `tax_behavior` change once it is `inclusive` or `exclusive`, including back to
    `unspecified` or removing the property) makes a new version.
-4. **Lookup keys**: taken over automatically from the slot's own versions and from prices of
-   the stack that are no longer defined (known from the state file). Taken from a price
-   outside the stack only when the definition sets `transferLookupKey: true`; `plan` shows
-   which price it is taken from. Otherwise `plan` refuses. Without a state file every price
-   counts as outside the stack.
+4. **Lookup keys**: taken over automatically from any price of the stack (tagged with a
+   logical ID of the stack or recorded in the state file). Taken from a price outside the
+   stack only when the definition sets `transferLookupKey: true`; `plan` shows which price
+   it is taken from. Otherwise `plan` refuses. Without a state file every price counts as
+   outside the stack. synth rejects two definitions with the same key, so definitions
+   never compete for one. (Widened after the v2 verification, see G9 below.)
 5. **Default price**
    - Declared with `isDefault: true` on a `Price`: pricectl makes it the product's default.
    - Not declared: pricectl follows what is set in Stripe. When a new version replaces the
@@ -46,20 +47,16 @@ existing subscriptions.
    (prices tagged with a slot's logical ID that the state file does not point to): one that
    matches the definition is reused instead of creating another, the others are archived.
 
-## Proposed change from the v2 verification (not decided yet)
+## Gap found by the v2 verification
 
-**G9.** Under decision 4, `plan` refuses when the lookup key is held by a price of another
-definition that is not in use: an archived old version or a stray. Example: deploy 1
-changes price A's key from `k` to `k2` together with its amount, so the archived old
-version of A keeps `k` (archived prices keep their key, verified); deploy 2 gives `k` to
-price B, and `plan` refuses although nothing uses the old version.
-
-Proposed rule: a key is taken over automatically from any price of the stack (tagged with
-a logical ID of the stack or recorded in the state file), and from a price outside the
-stack only with `transferLookupKey: true`. synth already rejects two definitions with the
-same key, so definitions never compete for one. The v2 Alloy model checks this rule
-(`*Ext` checks): every property holds, and `plan` then refuses only for a key held outside
-the stack without `transferLookupKey`.
+**G9** (resolved by decision 4 as written above). The first version of decision 4 only
+took keys from the slot's own versions and from prices no longer defined. `plan` then
+refused a key held by an unused price of another definition: an archived old version or a
+stray. Example: deploy 1 changes price A's key from `k` to `k2` together with its amount,
+so the archived old version of A keeps `k` (archived prices keep their key, verified);
+deploy 2 gives `k` to price B, and `plan` refused although nothing uses the old version.
+The v2 Alloy model checks the widened rule (`*Ext` checks): every property holds, and
+`plan` refuses only for a key held outside the stack without `transferLookupKey`.
 
 ## Stripe behavior verified in test mode
 
