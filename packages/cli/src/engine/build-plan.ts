@@ -36,7 +36,8 @@ export function composePlan(manifest: StackManifest, lock: LockFile, observation
   const defined = [...manifest.resources].sort((a, b) => APPLY_ORDER.indexOf(a.type) - APPLY_ORDER.indexOf(b.type));
   const items = defined.map((resource) => planResource(manifest.stackId, resource, resources, observations));
 
-  const removed = REMOVAL_ORDER.flatMap((type) => removalItems(manifest.stackId, type, lock, observations));
+  const referenced = referencedStripeIds(manifest);
+  const removed = REMOVAL_ORDER.flatMap((type) => removalItems(manifest.stackId, type, lock, observations, referenced));
   return { stackId: manifest.stackId, items: [...items, ...removed] };
 }
 
@@ -153,13 +154,51 @@ function planPriceResource(
   return item(resource, plan.steps, { physicalId: observation.holder?.id, refusal: plan.refusal });
 }
 
-function removalItems(stackId: string, type: string, lock: LockFile, observations: Observations): PlanItem[] {
+/**
+ * Stripe IDs that defined resources refer to directly (a price on a product, a product with a
+ * feature, a price on a meter) instead of through a resource of the definition. Such an object is
+ * no longer the stack's to remove, even though the lock still names it.
+ */
+function referencedStripeIds(manifest: StackManifest): Set<string> {
+  const logicalIds = new Set(manifest.resources.map((resource) => resource.id));
+  const refs: unknown[] = [];
+  for (const resource of manifest.resources) {
+    const { properties } = resource;
+    if (resource.type === 'Stripe::Price') {
+      refs.push(properties.product, (properties.recurring as { meter?: unknown } | undefined)?.meter);
+    }
+    if (resource.type === 'Stripe::Product' && Array.isArray(properties.features)) refs.push(...properties.features);
+  }
+  return new Set(refs.filter((ref): ref is string => typeof ref === 'string' && !logicalIds.has(ref)));
+}
+
+function removalItems(stackId: string, type: string, lock: LockFile, observations: Observations, referenced: Set<string>): PlanItem[] {
   const items: PlanItem[] = [];
   for (const key of removingKeys(lock, stackId, type)) {
+    if (removedObjectIds(type, key, observations).some((id) => referenced.has(id))) continue;
     const steps = removalSteps(type, key, observations);
     if (steps.length > 0) items.push({ id: key, path: key, type, operation: 'remove', steps });
   }
   return items;
+}
+
+/** The Stripe IDs of the objects a removed key stands for, as far as other resources can refer to them. */
+function removedObjectIds(type: string, key: string, observations: Observations): string[] {
+  const { removed } = observations;
+  switch (type) {
+    case 'Stripe::Product': {
+      const found = removed.products.get(key);
+      return found ? [found.product.id] : [];
+    }
+    case 'Stripe::EntitlementFeature': {
+      const feature = removed.features.get(key);
+      return feature ? [feature.id] : [];
+    }
+    case 'Stripe::BillingMeter':
+      return observations.activeMeters.filter((meter) => meter.event_name === key).map((meter) => meter.id);
+    default:
+      return [];
+  }
 }
 
 function removalSteps(type: string, key: string, observations: Observations): Step[] {
