@@ -86,6 +86,26 @@ describe('Price', () => {
     });
   });
 
+  describe('transferLookupKey', () => {
+    it('既定ではtransfer_lookup_keyを渡さない', () => {
+      const stack = createStack();
+      new Price(stack, 'P', { product: 'prod_123', currency: 'usd', lookupKey: 'pro' });
+
+      const props = stack.synth().resources.find(r => r.id === 'P')!.properties;
+
+      expect(props).not.toHaveProperty('transfer_lookup_key');
+    });
+
+    it('transferLookupKey: trueはtransfer_lookup_keyとして渡される', () => {
+      const stack = createStack();
+      new Price(stack, 'P', { product: 'prod_123', currency: 'usd', lookupKey: 'pro', transferLookupKey: true });
+
+      const props = stack.synth().resources.find(r => r.id === 'P')!.properties;
+
+      expect(props.transfer_lookup_key).toBe(true);
+    });
+  });
+
   describe('synthesizeProperties（synth経由）', () => {
     it('Productオブジェクト参照時にidが使われる', () => {
       const stack = createStack();

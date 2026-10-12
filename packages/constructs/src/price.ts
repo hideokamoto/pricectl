@@ -75,6 +75,12 @@ interface PriceBaseProps extends ResourceProps {
   readonly lookupKey?: string;
 
   /**
+   * Take `lookupKey` over from a price that pricectl does not manage. Without it, a deploy
+   * is refused when the key is held by a price outside the stack.
+   */
+  readonly transferLookupKey?: boolean;
+
+  /**
    * One of one_time or recurring depending on whether the price is for a one-time purchase or a recurring subscription.
    */
   readonly type?: 'one_time' | 'recurring';
@@ -172,6 +178,7 @@ export class Price extends Resource {
   public readonly recurring?: RecurringProps;
   public readonly metadata?: Record<string, string>;
   public readonly lookupKey?: string;
+  public readonly transferLookupKey?: boolean;
   public readonly type?: 'one_time' | 'recurring';
   public readonly transformQuantity?: {
     divideBy: number;
@@ -203,6 +210,7 @@ export class Price extends Resource {
     this.recurring = props.recurring;
     this.metadata = props.metadata;
     this.lookupKey = props.lookupKey;
+    this.transferLookupKey = props.transferLookupKey;
     this.type = props.type;
     this.taxBehavior = props.taxBehavior;
     this.transformQuantity = props.transformQuantity;
@@ -248,6 +256,7 @@ export class Price extends Resource {
     if (this.nickname !== undefined) params.nickname = this.nickname;
     if (this.metadata !== undefined) params.metadata = this.metadata;
     if (this.lookupKey !== undefined) params.lookup_key = this.lookupKey;
+    if (this.transferLookupKey) params.transfer_lookup_key = true;
     if (this.taxBehavior !== undefined) params.tax_behavior = this.taxBehavior;
     if (this.tiersMode !== undefined) params.tiers_mode = this.tiersMode;
 
