@@ -1,5 +1,6 @@
 import { Construct } from './construct';
 import { DUPLICATE_RESOURCE_ID_ERROR, STRIPE_API_KEY_MISSING_ERROR } from './errors';
+import { checkManifest } from './manifest-checks';
 
 /**
  * The Stripe API version pricectl uses unless a stack sets one: the version that the
@@ -120,13 +121,18 @@ export class Stack extends Construct {
       }
     }
 
-    return {
+    const manifest: StackManifest = {
       stackId: this.node.id,
       apiVersion: this.apiVersion,
       description: this.description,
       tags: this.tags,
       resources,
     };
+    const problems = checkManifest(manifest);
+    if (problems.length > 0) {
+      throw new Error(`The definition of stack "${this.node.id}" has problems:\n` + problems.map((p) => `  - ${p}`).join('\n'));
+    }
+    return manifest;
   }
 }
 
