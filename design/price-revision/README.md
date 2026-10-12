@@ -43,8 +43,8 @@ time. Removals deactivate only the meters plan saw. Apalache stopped at the step
 | concurrentNoFloating | holds up to 14 steps | no violation |
 | concurrentForeignOnlyWhenClaimed | holds up to 13 steps | no violation |
 | concurrentConverges | counterexample: a deploy of an older commit creates a meter after a newer deploy planned its removal; the meter stays tracked as `removing` | |
-| soloDeployRecovers (a later deploy that runs alone ends as defined) | see below | |
-| witnesses: two deploys at once, both names managed | reachable | |
+| soloDeployRecovers (after overlapping deploys, a later deploy of the latest commit that runs alone ends as defined) | holds up to 12 steps | no violation |
+| witnesses: two deploys at once, both names managed, a lone deploy finishing after an overlap | reachable | |
 
 Before removals were bound to what plan saw, `serialForeignOnlyWhenClaimed` had a
 counterexample: a deploy still running from an older commit deactivated a meter created in

@@ -45,6 +45,7 @@ module meter_lock_v3b {
     latestOk: bool,
     // the same, and that deploy ran alone (no other deploy at any point while it ran)
     latestSoloOk: bool,
+    everOverlapped: bool,      // two deploys ran at the same time at some point
   }
 
   var s: St
@@ -63,7 +64,7 @@ module meter_lock_v3b {
       concurrent: c, seq: 0, defined: Set(), lock: NAMES.mapBy(n => "none"), released: Set(),
       exists: Set(), active: Set(), deploys: DEPLOYS.mapBy(d => idleDeploy),
       foreignClaimed: false, foreignDeactivated: false,
-      latestOk: false, latestSoloOk: false,
+      latestOk: false, latestSoloOk: false, everOverlapped: false,
     }
   }
 
@@ -113,7 +114,8 @@ module meter_lock_v3b {
       s.deploys.get(d).phase == "idle",
       s.concurrent or running(s).size() == 0,
       upToDate,
-      s' = { ...s, deploys: s.deploys.keys().mapBy(x => if (x == d) {
+      s' = { ...s, everOverlapped: s.everOverlapped or running(s).size() > 0,
+        deploys: s.deploys.keys().mapBy(x => if (x == d) {
         phase: "run", seq: s.seq, defined: s.defined, lock: s.lock, todo: todo,
         planned: s.active.filter(m => s.lock.get(nameOf(m)) == "removing"),
         failed: false, sawOutsideChange: false, sawOtherDeploy: running(s).size() > 0,
@@ -219,5 +221,6 @@ module meter_lock_v3b {
         if (s.defined.contains(n)) activeWith(s, n).size() == 1
         else (s.lock.get(n) == "removing" implies activeWith(s, n).size() == 0))
 
-  val witnessNoSoloAfterConcurrent: bool = not(s.concurrent and s.latestSoloOk and s.lock.get("E1") == "removing")
+  // A lone deploy of the latest commit finishes after two deploys overlapped.
+  val witnessNoSoloAfterConcurrent: bool = not(s.everOverlapped and s.latestSoloOk)
 }

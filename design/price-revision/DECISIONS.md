@@ -69,6 +69,11 @@ existing subscriptions.
      A meter with a `removing` name is deactivated, including one created in the Dashboard
      while the entry was there; `plan` shows it and removal needs approval as for other
      resources.
+   - **Deploys of one stack should run one at a time** (one CI job per stack, e.g. a
+     concurrency group). pricectl cannot enforce it: Stripe has no lock. Checked in
+     `meter_lock_v3b.qnt`: when two deploys overlap, a deploy of an older commit can create a
+     meter after a newer deploy planned its removal, so the meter stays on sale. It stays
+     tracked (`removing`), so nothing floats, and the next deploy that runs alone removes it.
    - **deploy applies the plan it showed**: every change targets the Stripe IDs `plan` saw.
      A removal deactivates the meter `plan` found for a `removing` name, never a meter
      created after the plan (found by `meter_lock_v3b.qnt`: a deploy still running from an
