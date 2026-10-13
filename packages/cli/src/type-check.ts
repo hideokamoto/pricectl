@@ -47,3 +47,46 @@ export function compilerOptionsForLint(
   }
   return ts.convertCompilerOptionsFromJson(DEFAULT_LINT_COMPILER_OPTIONS, '').options;
 }
+
+/** What `pricectl lint` found in a stack definition. */
+export interface TypeCheckResult {
+  /** The tsconfig.json the definition was checked with, or undefined when the defaults were used. */
+  configFile?: string;
+  /** Problems found in the tsconfig.json, or else in the definition and the files it imports. */
+  diagnostics: readonly TypeScript.Diagnostic[];
+}
+
+/** tsconfig.json matches no files: irrelevant, the stack definition is always checked. */
+const NO_INPUTS_FOUND = 18003;
+
+const DECLARATION_FILE = /\.d\.[cm]?ts$/;
+
+/**
+ * Type-check the stack definition at `appPath` without emitting, like `tsc --noEmit`.
+ * The tsconfig.json is looked up from the definition's directory upward, as tsc does. The
+ * definition and the files it imports are checked, together with the declaration files the
+ * tsconfig.json includes (for ambient types); other files of the project are not.
+ */
+export function typeCheckApp(ts: typeof TypeScript, appPath: string): TypeCheckResult {
+  const configFile = ts.findConfigFile(path.dirname(appPath), ts.sys.fileExists);
+  const project = configFile ? readProject(ts, configFile) : undefined;
+  if (project && project.errors.length > 0) {
+    return { configFile, diagnostics: project.errors };
+  }
+
+  const program = ts.createProgram({
+    rootNames: [appPath, ...(project?.fileNames.filter((file) => DECLARATION_FILE.test(file)) ?? [])],
+    options: compilerOptionsForLint(ts, project?.options),
+    projectReferences: project?.projectReferences,
+  });
+  return { configFile, diagnostics: ts.getPreEmitDiagnostics(program) };
+}
+
+function readProject(ts: typeof TypeScript, configFile: string): TypeScript.ParsedCommandLine {
+  const read = ts.readConfigFile(configFile, ts.sys.readFile);
+  if (read.error) {
+    return { options: {}, fileNames: [], errors: [read.error] };
+  }
+  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, path.dirname(configFile), undefined, configFile);
+  return { ...parsed, errors: parsed.errors.filter((error) => error.code !== NO_INPUTS_FOUND) };
+}
