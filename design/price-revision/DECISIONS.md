@@ -40,7 +40,8 @@ existing subscriptions.
 6. **Logical IDs are permanent**: changing one replaces the price (new price, old one
    archived). `plan` warns when a new price and a removed price of the same type appear in
    one deploy ("looks like a rename; the price ID changes"). README says not to change
-   logical IDs. A rename-only `pricectl refactor` (like `cdk refactor`) is #51.
+   logical IDs. A rename-only `pricectl refactor` (like `cdk refactor`) is #51. Under decision 9
+   only a price with a derived lookup key needs it; see `design/refactor/DESIGN.md`.
 7. **Versions of a slot** (superseded by decision 9): every price tagged with the slot's logical ID is a version of it.
    `plan` picks a version that can be updated in place into the definition (one on sale
    first), and only otherwise creates a price. All other versions of the slot are archived.
