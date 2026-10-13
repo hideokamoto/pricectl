@@ -90,6 +90,27 @@ describe('Stack', () => {
     });
   });
 
+  describe('リソースのキー', () => {
+    it('synthしたリソースのkeyはスタックID_論理IDになる', () => {
+      const stack = new Stack(undefined, 'Billing', { apiKey: API_KEY });
+      new TestResource(stack, 'ProPlan', { type: 'Stripe::Product', properties: { name: 'Pro' } });
+
+      const manifest = stack.synth();
+
+      expect(manifest.resources[0].key).toBe('Billing_ProPlan');
+    });
+
+    it('入れ子のスコープにあるリソースのkeyも論理IDだけで決まる', () => {
+      const stack = new Stack(undefined, 'Billing', { apiKey: API_KEY });
+      const group = new Construct(stack, 'Group');
+      new TestResource(group, 'ProPlan', { type: 'Stripe::Product', properties: { name: 'Pro' } });
+
+      const manifest = stack.synth();
+
+      expect(manifest.resources.find((r) => r.id === 'ProPlan')!.key).toBe('Billing_ProPlan');
+    });
+  });
+
   describe('synth', () => {
     it('リソースがない場合は空のmanifestを返す', () => {
       const stack = new Stack(undefined, 'EmptyStack', { apiKey: API_KEY });
@@ -125,6 +146,7 @@ describe('Stack', () => {
       expect(manifest.resources).toHaveLength(1);
       expect(manifest.resources[0]).toEqual({
         id: 'Product1',
+        key: 'MyStack_Product1',
         path: 'MyStack/Product1',
         type: 'Stripe::Product',
         properties: { name: 'Widget' },

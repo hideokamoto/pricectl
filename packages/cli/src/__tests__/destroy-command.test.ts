@@ -12,20 +12,23 @@ jest.mock('stripe', () => jest.fn().mockImplementation(() => mockFakeStripe));
 const APP = path.join(FIXTURE_APPS, 'widget-app.ts');
 
 describe('destroy command', () => {
-  let stateDir: string;
+  let projectDir: string;
+  const originalCwd = process.cwd();
 
   beforeEach(() => {
     mockFakeStripe = new FakeStripe();
-    stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pricectl-cmd-'));
+    // pricectl.lock.json is kept in the current directory
+    projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pricectl-cmd-'));
+    process.chdir(projectDir);
   });
 
   afterEach(() => {
-    fs.rmSync(stateDir, { recursive: true, force: true });
+    process.chdir(originalCwd);
+    fs.rmSync(projectDir, { recursive: true, force: true });
   });
 
-  const deployWidget = () => runCommand(Deploy, ['--app', APP, '--state-file', stateDir, '--force']);
-  const destroy = (flags: string[] = [], options = {}) =>
-    runCommand(Destroy, ['--app', APP, '--state-file', stateDir, ...flags], options);
+  const deployWidget = () => runCommand(Deploy, ['--app', APP, '--force']);
+  const destroy = (flags: string[] = [], options = {}) => runCommand(Destroy, ['--app', APP, ...flags], options);
 
   describe('with a deployed product', () => {
     beforeEach(async () => {
@@ -36,20 +39,26 @@ describe('destroy command', () => {
       const run = await destroy(['--force']);
 
       expect(run.exitCode).toBe(0);
-      expect(run.stdout).toContain('deleted Widget [Stripe::Product]');
+      expect(run.stdout).toContain('removed CmdStack_Widget [Stripe::Product]');
       expect(mockFakeStripe.productsFor('Widget')).toHaveLength(0);
     });
 
-    it('drops the destroyed resource from the state file', async () => {
-      const resourcesInState = () => {
-        const state = JSON.parse(fs.readFileSync(path.join(stateDir, 'pricectl.state.json'), 'utf-8'));
-        return Object.keys(state.stacks.CmdStack?.resources ?? {});
-      };
-      expect(resourcesInState()).toEqual(['Widget']);
+    it('forgets the stack in pricectl.lock.json once everything was destroyed', async () => {
+      const stacksInLock = () => Object.keys(JSON.parse(fs.readFileSync(path.join(projectDir, 'pricectl.lock.json'), 'utf-8')).stacks);
+      expect(stacksInLock()).toEqual(['CmdStack']);
 
       await destroy(['--force']);
 
-      expect(resourcesInState()).toEqual([]);
+      expect(stacksInLock()).toEqual([]);
+    });
+
+    it('keeps the key in the lock as removing when the deletion fails, so the next destroy finishes', async () => {
+      mockFakeStripe.failNext('products.del', { message: 'Stripe is unavailable', type: 'api_error' });
+
+      await destroy(['--force']);
+
+      const lock = JSON.parse(fs.readFileSync(path.join(projectDir, 'pricectl.lock.json'), 'utf-8'));
+      expect(lock.stacks.CmdStack['Stripe::Product']).toEqual({ CmdStack_Widget: 'removing' });
     });
 
     it('lists what it would remove and changes nothing on --dry-run', async () => {
@@ -57,7 +66,8 @@ describe('destroy command', () => {
 
       expect(run.exitCode).toBe(0);
       expect(run.stdout).toContain('Dry run');
-      expect(run.stdout).toContain('CmdStack/Widget [Stripe::Product] (delete)');
+      expect(run.stdout).toContain('- CmdStack_Widget [Stripe::Product]');
+      expect(run.stdout).toContain('delete product CmdStack_Widget');
       expect(mockFakeStripe.productsFor('Widget')).toHaveLength(1);
     });
 
@@ -91,7 +101,7 @@ describe('destroy command', () => {
 
       expect(run.exitCode).toBe(1);
       expect(run.stdout).toContain('Stripe is unavailable');
-      expect(run.error?.message).toContain('Some resources could not be read or destroyed');
+      expect(run.error?.message).toContain('Some resources could not be destroyed');
       expect(mockFakeStripe.productsFor('Widget')).toHaveLength(1);
     });
 
@@ -101,7 +111,7 @@ describe('destroy command', () => {
       const run = await destroy([], { interactive: true });
 
       expect(run.exitCode).toBe(1);
-      expect(run.stdout).toContain('Stripe is unavailable');
+      expect(run.error?.message).toContain('Stripe is unavailable');
       expect(mockFakeStripe.productsFor('Widget')).toHaveLength(1);
     });
 
@@ -124,7 +134,7 @@ describe('destroy command', () => {
 
   describe('before anything can be destroyed', () => {
     it('exits with code 1 when the app file does not exist', async () => {
-      const run = await runCommand(Destroy, ['--app', path.join(stateDir, 'missing.ts'), '--force']);
+      const run = await runCommand(Destroy, ['--app', path.join(projectDir, 'missing.ts'), '--force']);
 
       expect(run.exitCode).toBe(1);
       expect(run.error?.message).toContain('App file not found');

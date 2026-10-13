@@ -136,6 +136,7 @@ Command-line interface:
 - `pricectl init`: Initialize a new project
 - `pricectl synth`: Synthesize stack to manifest
 - `pricectl diff`: Compare local vs deployed
+- `pricectl plan`: Show what deploy would do, without changing anything
 - `pricectl deploy`: Deploy to Stripe
 - `pricectl destroy`: Remove all resources
 
@@ -167,26 +168,63 @@ pricectl diff
 pricectl diff --app ./custom-stack.ts
 ```
 
+### `pricectl plan`
+
+Show what `deploy` would do to Stripe, without changing anything.
+
+```bash
+pricectl plan
+pricectl plan --frozen-lock   # CI: fail instead of updating pricectl.lock.json
+```
+
+`plan` reads Stripe and lists every step `deploy` would take. When Stripe would reject a step
+(a lookup key held by a price outside the stack, a coupon field that cannot change), `plan`
+says so and exits with an error; `deploy` then changes nothing.
+
 ### `pricectl deploy`
 
-Deploy your stack to Stripe.
+Deploy your stack to Stripe. `deploy` builds the same plan as `pricectl plan`, shows it, and
+applies exactly those steps.
 
 ```bash
 pricectl deploy
 pricectl deploy --app ./custom-stack.ts
+pricectl deploy --frozen-lock --force   # CI
 ```
 
-Resources that were deployed before but are no longer defined in your stack are
-removed: prices are deactivated, products are deleted (or archived when they have
-prices), coupons are deleted, and entitlement features and meters are deactivated.
-This relies on the state file (`pricectl.state.json`); without it, nothing is removed.
+**How resources are found.** pricectl names what it creates, so it finds it again without
+listing your account: products and coupons get the ID `{stackId}_{logicalId}`, prices get that
+string as their lookup key (unless you set `lookupKey`), entitlement features are found by
+`lookupKey`, and billing meters by the event name among the active meters. Changing a logical ID
+or a lookup key therefore replaces the object (`plan` warns when it looks like a rename).
+
+**Changing a price.** Stripe cannot change the amount, currency, recurring interval, tiers or
+product of a price, nor `tax_behavior` once it is set. `deploy` then creates a new version, moves
+the lookup key to it, moves the product's default price to it, and archives the old version.
+Nickname, `active`, metadata, the lookup key and an unset `tax_behavior` are updated in place.
+Declare `isDefault: true` on a price to make it the default price of its product; otherwise
+pricectl follows what is set in Stripe. A lookup key held by a price pricectl does not manage is
+taken over only with `transferLookupKey: true`.
+
+**`pricectl.lock.json`.** Stripe cannot remember what you removed from your code, so
+`synth`, `plan` and `deploy` keep a lock file with the keys your stack claims. Commit it to Git.
+It depends only on your definition. A key that leaves the definition becomes `removing`, and
+the next `deploy` removes its object (prices are archived, products are deleted or archived when
+they have prices, coupons are deleted, features and meters are deactivated). A `removing` entry
+stays in the lock until you delete it from the file, which lets pricectl forget the key.
+In CI use `--frozen-lock`: `deploy` then fails when the lock is out of date instead of
+rewriting it, so run `pricectl synth` locally and commit the result.
 
 Before removing anything, deploy lists the resources and asks for confirmation.
 Use `--force` (`-f`) to skip the prompt; in a non-interactive environment such as CI,
-deploy stops without changes unless `--force` is given. `pricectl deploy --dry-run`
-reads Stripe and shows, for each resource, whether it would be created, updated, replaced
-(a price whose definition changed) or left unchanged, plus the resources that would be removed.
-It needs the Stripe API key, like `diff`.
+deploy stops without changes unless `--force` is given. `pricectl deploy --dry-run` does what
+`pricectl plan` does: it reads Stripe and shows, for each resource, whether it would be created,
+updated or left unchanged (a price whose terms changed is created as a new version), plus the
+resources that would be removed. It needs the Stripe API key, like `diff`.
+
+Run one deploy of a stack at a time (for example one CI job per stack, with a concurrency
+group): Stripe has no lock, and two deploys at once can leave a removed object on sale until
+the next deploy runs alone.
 
 ### `pricectl destroy`
 
@@ -199,7 +237,8 @@ pricectl destroy --force
 Before changing anything, destroy reads the current state of each resource from Stripe and
 lists only the ones it would delete or deactivate. Resources that are already deleted or
 inactive are left out, and when nothing is left the command ends without asking.
-`pricectl destroy --dry-run` shows the same list without changing Stripe.
+`pricectl destroy --dry-run` shows the same list without changing Stripe. Resources you point to
+with `physicalId` are not created by pricectl and are never removed by it.
 
 ## Available Resources
 

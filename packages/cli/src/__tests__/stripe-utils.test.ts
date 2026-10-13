@@ -1,65 +1,34 @@
-import Stripe from 'stripe';
-import { fetchCurrentResource } from '../engine/stripe-utils';
+import type Stripe from 'stripe';
+import { listAttachedFeatures, normalizeResource } from '../engine/stripe-utils';
 import { FakeStripe } from './helpers/fake-stripe';
 import productFixture from './fixtures/stripe/product.json';
-import meterFixture from './fixtures/stripe/meter.json';
-import featureFixture from './fixtures/stripe/feature.json';
 
-describe('fetchCurrentResource', () => {
-  it('returns the product named by physicalId, as deploy adopts it', async () => {
-    const fake = new FakeStripe();
-    fake.seed('products', { ...productFixture, id: 'prod_unmanaged', metadata: {} });
+describe('normalizeResource', () => {
+  it('leaves out every metadata key pricectl writes itself, so tags never show up as differences', () => {
+    const product = {
+      ...productFixture,
+      metadata: { pricectl_stack: 'Shop', pricectl_id: 'Pro', pricectl_previous: 'price_1', tier: 'pro' },
+    } as unknown as Stripe.Product;
 
-    const current = await fetchCurrentResource(fake as unknown as Stripe, {
-      type: 'Stripe::Product',
-      id: 'Adopted',
-      physicalId: 'prod_unmanaged',
-    });
-
-    expect(current).toMatchObject({ id: 'prod_unmanaged' });
+    expect(normalizeResource(product, 'Stripe::Product').metadata).toEqual({ tier: 'pro' });
   });
 
-  it('does not ask Stripe for attached features when the product does not set features', async () => {
-    const fake = new FakeStripe();
-    fake.seed('products', productFixture);
-    const listFeatures = jest.spyOn(fake.products, 'listFeatures');
+  it('has no metadata when only pricectl tags are left', () => {
+    const product = { ...productFixture, metadata: { pricectl_stack: 'Shop' } } as unknown as Stripe.Product;
 
-    const current = await fetchCurrentResource(fake as unknown as Stripe, {
-      type: 'Stripe::Product',
-      id: 'FxProd',
-      physicalId: productFixture.id,
-      properties: { name: 'Widget' },
-    });
-
-    expect(current).not.toHaveProperty('features');
-    expect(listFeatures).not.toHaveBeenCalled();
+    expect(normalizeResource(product, 'Stripe::Product')).not.toHaveProperty('metadata');
   });
+});
 
-  it('includes the IDs of the entitlement features attached to a product', async () => {
+describe('listAttachedFeatures', () => {
+  it('maps each attached entitlement feature to the product feature that attaches it', async () => {
     const fake = new FakeStripe();
-    fake.seed('products', productFixture);
     const feature = await fake.entitlements.features.create({ name: 'Support', lookup_key: 'support' });
-    await fake.products.createFeature(productFixture.id, { entitlement_feature: feature.id });
+    await fake.products.create({ id: 'Shop_Pro', name: 'Pro' });
+    const attached = await fake.products.createFeature('Shop_Pro', { entitlement_feature: feature.id });
 
-    const current = await fetchCurrentResource(fake as unknown as Stripe, {
-      type: 'Stripe::Product',
-      id: 'FxProd',
-      physicalId: productFixture.id,
-      properties: { name: 'Widget', features: [feature.id] },
-    });
+    const result = await listAttachedFeatures(fake as unknown as Stripe, 'Shop_Pro');
 
-    expect(current).toMatchObject({ features: [feature.id] });
-  });
-
-  it.each([
-    ['Stripe::BillingMeter', 'meters', meterFixture],
-    ['Stripe::EntitlementFeature', 'features', featureFixture],
-  ] as const)('returns the %s named by physicalId, as deploy uses it', async (type, store, fixture) => {
-    const fake = new FakeStripe();
-    fake.seed(store, fixture);
-
-    const current = await fetchCurrentResource(fake as unknown as Stripe, { type, id: 'Adopted', physicalId: fixture.id });
-
-    expect(current).toMatchObject({ id: fixture.id });
+    expect([...result]).toEqual([[feature.id, attached.id]]);
   });
 });

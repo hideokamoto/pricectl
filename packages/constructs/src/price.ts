@@ -33,7 +33,7 @@ export interface RecurringProps {
   readonly meter?: Meter | string;
 }
 
-export interface PriceProps extends ResourceProps {
+interface PriceBaseProps extends ResourceProps {
   /**
    * The product this price belongs to
    */
@@ -55,12 +55,6 @@ export interface PriceProps extends ResourceProps {
   readonly unitAmountDecimal?: string;
 
   /**
-   * Whether the price can be used for new purchases.
-   * @default true
-   */
-  readonly active?: boolean;
-
-  /**
    * A brief description of the price.
    */
   readonly nickname?: string;
@@ -79,6 +73,12 @@ export interface PriceProps extends ResourceProps {
    * A lookup key used to retrieve prices dynamically from a static string.
    */
   readonly lookupKey?: string;
+
+  /**
+   * Take `lookupKey` over from a price that pricectl does not manage. Without it, a deploy
+   * is refused when the key is held by a price outside the stack.
+   */
+  readonly transferLookupKey?: boolean;
 
   /**
    * One of one_time or recurring depending on whether the price is for a one-time purchase or a recurring subscription.
@@ -114,6 +114,31 @@ export interface PriceProps extends ResourceProps {
   }>;
 }
 
+/**
+ * Properties of a Price. A price declared as its product's default (`isDefault: true`) must
+ * be on sale, so `active: false` is rejected by the type.
+ */
+export type PriceProps = PriceBaseProps &
+  (
+    | {
+        /**
+         * Make this price the default price of its product. Without it, pricectl follows
+         * what is set in Stripe.
+         */
+        readonly isDefault: true;
+        /** A default price is always on sale. */
+        readonly active?: true;
+      }
+    | {
+        readonly isDefault?: false;
+        /**
+         * Whether the price can be used for new purchases.
+         * @default true
+         */
+        readonly active?: boolean;
+      }
+  );
+
 /** Stripe rejects metered prices without a meter since this API version. */
 const METER_REQUIRED_SINCE = '2025-03-31.basil';
 
@@ -147,10 +172,13 @@ export class Price extends Resource {
   public readonly unitAmount?: number;
   public readonly unitAmountDecimal?: string;
   public readonly active: boolean;
+  /** Whether this price is declared as the default price of its product. */
+  public readonly isDefault: boolean;
   public readonly nickname?: string;
   public readonly recurring?: RecurringProps;
   public readonly metadata?: Record<string, string>;
   public readonly lookupKey?: string;
+  public readonly transferLookupKey?: boolean;
   public readonly type?: 'one_time' | 'recurring';
   public readonly transformQuantity?: {
     divideBy: number;
@@ -177,10 +205,12 @@ export class Price extends Resource {
     this.unitAmount = props.unitAmount;
     this.unitAmountDecimal = props.unitAmountDecimal;
     this.active = props.active ?? true;
+    this.isDefault = props.isDefault ?? false;
     this.nickname = props.nickname;
     this.recurring = props.recurring;
     this.metadata = props.metadata;
     this.lookupKey = props.lookupKey;
+    this.transferLookupKey = props.transferLookupKey;
     this.type = props.type;
     this.taxBehavior = props.taxBehavior;
     this.transformQuantity = props.transformQuantity;
@@ -226,6 +256,7 @@ export class Price extends Resource {
     if (this.nickname !== undefined) params.nickname = this.nickname;
     if (this.metadata !== undefined) params.metadata = this.metadata;
     if (this.lookupKey !== undefined) params.lookup_key = this.lookupKey;
+    if (this.transferLookupKey) params.transfer_lookup_key = true;
     if (this.taxBehavior !== undefined) params.tax_behavior = this.taxBehavior;
     if (this.tiersMode !== undefined) params.tiers_mode = this.tiersMode;
 

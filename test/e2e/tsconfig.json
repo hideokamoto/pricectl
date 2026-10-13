@@ -1,0 +1,25 @@
+{
+  "extends": "../../packages/cli/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "noEmit": true,
+    "paths": {
+      "@pricectl/core": [
+        "../../packages/core/src"
+      ],
+      "@pricectl/constructs": [
+        "../../packages/constructs/src"
+      ],
+      "stripe": [
+        "../../packages/cli/node_modules/stripe"
+      ]
+    }
+  },
+  "include": [
+    "./**/*",
+    "../../packages/*/src/**/*"
+  ],
+  "exclude": [
+    "../../packages/*/src/**/__tests__/**"
+  ]
+}

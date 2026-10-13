@@ -113,6 +113,25 @@ function fromStripe(existing: Stripe.Price): ComparablePrice {
   };
 }
 
+/** The fields of a price that Stripe lets you change on an existing price, or that pricectl handles separately. */
+type ChangeableField = 'active' | 'nickname' | 'lookupKey' | 'taxBehavior';
+
+/** A comparable price without its changeable fields: the terms a customer buys under. */
+function termsOf(price: ComparablePrice): Omit<ComparablePrice, ChangeableField> {
+  const { active: _active, nickname: _nickname, lookupKey: _lookupKey, taxBehavior: _taxBehavior, ...terms } = price;
+  return terms;
+}
+
+/**
+ * Whether an existing Stripe Price has the desired terms (product, currency, amounts, recurring,
+ * tiers, quantity transform). A price with other terms cannot be changed into the desired one: it
+ * needs a new version. Active, nickname, lookup key, tax behavior and metadata are left out
+ * because they can be updated in place.
+ */
+export function arePriceTermsEqual(existing: Stripe.Price, desired: Stripe.PriceCreateParams): boolean {
+  return JSON.stringify(termsOf(fromStripe(existing))) === JSON.stringify(termsOf(fromDesired(desired)));
+}
+
 /**
  * Whether an existing Stripe Price already satisfies the desired create params.
  * The existing price must be fetched with `expand: ['tiers']`; Stripe omits tiers otherwise.

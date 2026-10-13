@@ -1,5 +1,6 @@
 import { Construct } from './construct';
 import { DUPLICATE_RESOURCE_ID_ERROR, STRIPE_API_KEY_MISSING_ERROR } from './errors';
+import { checkManifest } from './manifest-checks';
 
 /**
  * The Stripe API version pricectl uses unless a stack sets one: the version that the
@@ -69,7 +70,7 @@ export class Stack extends Construct {
 
   /**
    * Record a resource id, which must be unique within the stack because resources are
-   * identified in Stripe and in the state file by id alone. Called by Resource.
+   * identified in Stripe and in pricectl.lock.json by id alone. Called by Resource.
    * @internal
    */
   public registerResourceId(id: string, path: string): void {
@@ -103,24 +104,35 @@ export class Stack extends Construct {
       const metadata = construct.node.getMetadata('resource') as StoredResourceMetadata | undefined;
       if (metadata) {
         // Read physicalId structurally: importing Resource here would create an import cycle
-        const physicalId = (construct as { physicalId?: string }).physicalId;
+        const { physicalId, key, isDefault } = construct as unknown as {
+          physicalId?: string;
+          key: string;
+          isDefault?: boolean;
+        };
         resources.push({
           id: construct.node.id,
+          key,
           path: construct.node.path,
           type: metadata.type,
           properties: metadata.properties,
           ...(physicalId ? { physicalId } : {}),
+          ...(isDefault ? { isDefault } : {}),
         });
       }
     }
 
-    return {
+    const manifest: StackManifest = {
       stackId: this.node.id,
       apiVersion: this.apiVersion,
       description: this.description,
       tags: this.tags,
       resources,
     };
+    const problems = checkManifest(manifest);
+    if (problems.length > 0) {
+      throw new Error(`The definition of stack "${this.node.id}" has problems:\n` + problems.map((p) => `  - ${p}`).join('\n'));
+    }
+    return manifest;
   }
 }
 
@@ -132,11 +144,15 @@ interface StoredResourceMetadata {
 
 export interface ResourceManifest {
   id: string;
+  /** The name pricectl finds the resource by in Stripe: `{stackId}_{logicalId}` */
+  key: string;
   path: string;
   type: string;
   properties: Record<string, unknown>;
   /** ID of an existing Stripe object this resource manages, when given in the construct props */
   physicalId?: string;
+  /** Set on a price declared as the default price of its product */
+  isDefault?: boolean;
 }
 
 export interface StackManifest {

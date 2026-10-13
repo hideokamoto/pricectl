@@ -51,7 +51,7 @@ Creates the following files if they don't already exist:
 | File | Description |
 |------|-------------|
 | `pricectl.ts` | Example stack definition |
-| `package.json` | Project manifest with `synth`, `diff`, and `deploy` scripts |
+| `package.json` | Project manifest with `synth`, `plan`, `diff`, and `deploy` scripts |
 | `tsconfig.json` | TypeScript compiler configuration |
 | `.env.example` | Template for your Stripe API key |
 | `.gitignore` | Sensible defaults (`.env`, `pricectl.out/`, `node_modules/`) |
@@ -100,13 +100,14 @@ pricectl diff --app ./infra/main.ts
 
 ---
 
-### `pricectl deploy`
+### `pricectl plan`
 
-Deploy your stack to Stripe (creates or updates resources).
+Show what `deploy` would do to Stripe, without changing anything. Exits with an error when a
+step would be rejected.
 
 ```bash
-pricectl deploy
-pricectl deploy --app ./infra/main.ts
+pricectl plan
+pricectl plan --frozen-lock
 ```
 
 **Flags**
@@ -114,6 +115,29 @@ pricectl deploy --app ./infra/main.ts
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
 | `--app` | `-a` | `./pricectl.ts` | Path to the stack definition file |
+| `--frozen-lock` | | `false` | Fail instead of updating `pricectl.lock.json` when it is out of date (for CI) |
+
+---
+
+### `pricectl deploy`
+
+Deploy your stack to Stripe (creates, updates and removes resources). It builds the plan that
+`pricectl plan` shows and applies exactly those steps. See the repository README for how
+resources are found and how price changes work.
+
+```bash
+pricectl deploy
+pricectl deploy --app ./infra/main.ts
+pricectl deploy --frozen-lock --force
+```
+
+**Flags**
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--app` | `-a` | `./pricectl.ts` | Path to the stack definition file |
+| `--force` | `-f` | `false` | Remove resources that are no longer defined without asking |
+| `--frozen-lock` | | `false` | Fail instead of updating `pricectl.lock.json` when it is out of date (for CI) |
 
 ---
 

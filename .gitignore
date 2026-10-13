@@ -41,3 +41,6 @@ coverage/
 .pricectl/
 /yarn.lock
 dev/
+
+# Formal model checker output
+_apalache-out/

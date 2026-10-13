@@ -14,19 +14,23 @@ const WIDGET_PRO_APP = path.join(FIXTURE_APPS, 'widget-pro-app.ts');
 const EMPTY_APP = path.join(FIXTURE_APPS, 'empty-app.ts');
 
 describe('diff command', () => {
-  let stateDir: string;
+  let projectDir: string;
+  const originalCwd = process.cwd();
 
   beforeEach(() => {
     mockFakeStripe = new FakeStripe();
-    stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pricectl-cmd-'));
+    // pricectl.lock.json is kept in the current directory
+    projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pricectl-cmd-'));
+    process.chdir(projectDir);
   });
 
   afterEach(() => {
-    fs.rmSync(stateDir, { recursive: true, force: true });
+    process.chdir(originalCwd);
+    fs.rmSync(projectDir, { recursive: true, force: true });
   });
 
-  const deployWidget = () => runCommand(Deploy, ['--app', WIDGET_APP, '--state-file', stateDir, '--force']);
-  const diff = (app: string) => runCommand(Diff, ['--app', app, '--state-file', stateDir]);
+  const deployWidget = () => runCommand(Deploy, ['--app', WIDGET_APP, '--force']);
+  const diff = (app: string) => runCommand(Diff, ['--app', app]);
 
   it('shows a resource that is not in Stripe yet as to be created', async () => {
     const run = await diff(WIDGET_APP);
@@ -58,7 +62,7 @@ describe('diff command', () => {
 
     const run = await diff(EMPTY_APP);
 
-    expect(run.stdout).toContain('[-] CmdStack/Widget [Stripe::Product]');
+    expect(run.stdout).toContain('[-] CmdStack_Widget [Stripe::Product]');
   });
 
   it('changes nothing in Stripe', async () => {
@@ -80,7 +84,7 @@ describe('diff command', () => {
   });
 
   it('exits with code 1 when the app file does not exist', async () => {
-    const run = await diff(path.join(stateDir, 'missing.ts'));
+    const run = await diff(path.join(projectDir, 'missing.ts'));
 
     expect(run.exitCode).toBe(1);
     expect(run.error?.message).toContain('App file not found');

@@ -49,6 +49,7 @@ export default class Init extends Command {
         scripts: {
           build: 'tsc',
           synth: 'pricectl synth',
+          plan: 'pricectl plan',
           deploy: 'pricectl deploy',
           diff: 'pricectl diff',
         },
@@ -155,7 +156,6 @@ export default stack;
     const gitignoreContent = `
 .env
 pricectl.out/
-pricectl.state.json
 node_modules/
 dist/
 *.js
@@ -169,7 +169,7 @@ dist/
       const existing = fs.readFileSync(gitignorePath, 'utf-8');
       const existingLines = new Set(existing.split('\n').map(l => l.trim()));
       const linesToAdd: string[] = [];
-      const requiredEntries = ['.env', 'pricectl.out/', 'pricectl.state.json', 'node_modules/', 'dist/', '*.js', '*.d.ts'];
+      const requiredEntries = ['.env', 'pricectl.out/', 'node_modules/', 'dist/', '*.js', '*.d.ts'];
       for (const entry of requiredEntries) {
         if (!existingLines.has(entry)) linesToAdd.push(entry);
       }
