@@ -85,14 +85,21 @@ describe('compilerOptionsForLint', () => {
     });
   });
 
-  it("keeps the project's own options, including a looser strictness, and only turns off emitting", () => {
-    const project: ts.CompilerOptions = { strict: false, module: ts.ModuleKind.ESNext, outDir: '/project/dist', noEmit: false };
+  it("keeps the project's own options, including a looser strictness, and only turns off emitting and skipping the check", () => {
+    const project: ts.CompilerOptions = {
+      strict: false,
+      module: ts.ModuleKind.ESNext,
+      outDir: '/project/dist',
+      noEmit: false,
+      noCheck: true,
+    };
 
     expect(compilerOptionsForLint(ts, project)).toEqual({
       strict: false,
       module: ts.ModuleKind.ESNext,
       outDir: '/project/dist',
       noEmit: true,
+      noCheck: false,
     });
   });
 });

@@ -38,14 +38,15 @@ export const DEFAULT_LINT_COMPILER_OPTIONS = { ...PROJECT_COMPILER_OPTIONS, noEm
 
 /**
  * The options `pricectl lint` checks with: the project's own (from its tsconfig.json) when it
- * has them, otherwise {@link DEFAULT_LINT_COMPILER_OPTIONS}. Nothing is ever emitted.
+ * has them, otherwise {@link DEFAULT_LINT_COMPILER_OPTIONS}. Nothing is ever emitted, and a project's
+ * `noCheck` is overridden because `lint` exists to check.
  */
 export function compilerOptionsForLint(
   ts: typeof TypeScript,
   project: TypeScript.CompilerOptions | undefined,
 ): TypeScript.CompilerOptions {
   if (project) {
-    return { ...project, noEmit: true };
+    return { ...project, noEmit: true, noCheck: false };
   }
   return ts.convertCompilerOptionsFromJson(DEFAULT_LINT_COMPILER_OPTIONS, '').options;
 }

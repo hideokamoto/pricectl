@@ -82,7 +82,8 @@ when there is a type error and with 0 otherwise.
 **Which compiler options are used**
 
 - The `tsconfig.json` found from the definition's directory upward (as `tsc` finds it) is used
-  with all its options, including `extends` and `paths`; only emitting is turned off. The
+  with all its options, including `extends` and `paths`; only emitting is turned off, and
+  `noCheck` is ignored, since the command exists to check. The
   definition, the files it imports and the declaration files (`.d.ts`) the `tsconfig.json`
   includes are checked. Other files of the project are not, so an error in a test or script
   that the definition does not import does not fail `lint`.

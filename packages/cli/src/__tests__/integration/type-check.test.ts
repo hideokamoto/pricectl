@@ -93,6 +93,13 @@ describe('typeCheckApp', () => {
       expect(codes(typeCheckApp(ts, app).diagnostics)).toEqual([7006]);
     });
 
+    it('still reports type errors when the tsconfig.json turns type checking off with noCheck', () => {
+      write('tsconfig.json', { compilerOptions: { strict: true, noCheck: true } });
+      const app = write('pricectl.ts', 'export function price(amount) { return amount; }\n');
+
+      expect(codes(typeCheckApp(ts, app).diagnostics)).toEqual([7006]);
+    });
+
     it('checks the definition even when the tsconfig.json does not include it', () => {
       write('tsconfig.json', { compilerOptions: { strict: true }, include: ['src/**/*'] });
       const app = write('pricectl.ts', 'export const amount: number = 1000;\n');
