@@ -51,7 +51,7 @@ export default class Plan extends Command {
       }
     } catch (error: unknown) {
       if (isOclifExit(error)) throw error;
-      this.error(`Plan failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.error(`Plan failed: ${error instanceof Error ? error.message : String(error)}`, { exit: 1 });
     }
   }
 }

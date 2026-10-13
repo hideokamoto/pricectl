@@ -217,7 +217,10 @@ rewriting it, so run `pricectl synth` locally and commit the result.
 
 Before removing anything, deploy lists the resources and asks for confirmation.
 Use `--force` (`-f`) to skip the prompt; in a non-interactive environment such as CI,
-deploy stops without changes unless `--force` is given.
+deploy stops without changes unless `--force` is given. `pricectl deploy --dry-run` does what
+`pricectl plan` does: it reads Stripe and shows, for each resource, whether it would be created,
+updated or left unchanged (a price whose terms changed is created as a new version), plus the
+resources that would be removed. It needs the Stripe API key, like `diff`.
 
 Run one deploy of a stack at a time (for example one CI job per stack, with a concurrency
 group): Stripe has no lock, and two deploys at once can leave a removed object on sale until

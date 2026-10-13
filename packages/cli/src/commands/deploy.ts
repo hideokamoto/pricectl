@@ -17,6 +17,7 @@ export default class Deploy extends Command {
   static examples = [
     '<%= config.bin %> <%= command.id %>',
     '<%= config.bin %> <%= command.id %> --app ./infra/main.ts',
+    '<%= config.bin %> <%= command.id %> --dry-run',
     '<%= config.bin %> <%= command.id %> --force',
     '<%= config.bin %> <%= command.id %> --frozen-lock --force',
   ];
@@ -26,6 +27,10 @@ export default class Deploy extends Command {
       char: 'a',
       description: 'Path to the app file that defines your stack',
       default: './pricectl.ts',
+    }),
+    'dry-run': Flags.boolean({
+      description: 'Show what would be created, updated or removed, read from Stripe, without changing anything (same as pricectl plan)',
+      default: false,
     }),
     force: Flags.boolean({
       char: 'f',
@@ -49,8 +54,10 @@ export default class Deploy extends Command {
       this.error(error instanceof Error ? error.message : String(error), { exit: 1 });
     }
 
-    this.log('Planning the deploy...');
-    this.log('');
+    if (!flags['dry-run']) {
+      this.log('Planning the deploy...');
+      this.log('');
+    }
 
     let failed = false;
     try {
@@ -66,6 +73,7 @@ export default class Deploy extends Command {
       if (refusals(plan).length > 0) {
         this.error('Nothing was changed. Fix the problems above and deploy again.', { exit: 1 });
       }
+      if (flags['dry-run']) return;
 
       const approval = decideRemovalApproval({
         removalCount: removals(plan).length,
@@ -90,7 +98,7 @@ export default class Deploy extends Command {
       for (const line of describeResult(result)) this.log(line);
     } catch (error: unknown) {
       if (isOclifExit(error)) throw error;
-      this.error(`Deployment failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.error(`Deployment failed: ${error instanceof Error ? error.message : String(error)}`, { exit: 1 });
     }
 
     if (failed) {

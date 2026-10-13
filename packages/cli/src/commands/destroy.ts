@@ -97,7 +97,7 @@ export default class Destroy extends Command {
       for (const line of describeResult(result)) this.log(line);
     } catch (error: unknown) {
       if (isOclifExit(error)) throw error;
-      this.error(`Destroy failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.error(`Destroy failed: ${error instanceof Error ? error.message : String(error)}`, { exit: 1 });
     }
 
     if (failed) {

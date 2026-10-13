@@ -88,7 +88,7 @@ export default class Diff extends Command {
         this.log(chalk.gray('No changes detected'));
       }
     } catch (error: unknown) {
-      this.error(`Diff failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.error(`Diff failed: ${error instanceof Error ? error.message : String(error)}`, { exit: 1 });
     }
   }
 

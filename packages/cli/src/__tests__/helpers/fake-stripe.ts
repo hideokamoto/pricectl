@@ -276,6 +276,7 @@ export class FakeStripe {
       return clone(product);
     },
     retrieve: async (id: string) => {
+      this.checkFailure('products.retrieve');
       const product = this.productStore.get(id);
       if (!product) throw resourceMissing('product', id);
       return clone(product);
