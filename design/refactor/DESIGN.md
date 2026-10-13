@@ -260,10 +260,16 @@ Before the command: after `synth`/`plan`, the lock has `K_old: removing` and `K_
 After a successful move, `K_old` has no holder and its entry causes no step [fake].
 Two options (open question 3):
 
-- **Drop `K_old`** from the lock after its move succeeded. The command is run by a person, and
-  dropping a `removing` entry is how a person releases a key (decision 8). The result equals
-  `nextLock` of the new definition, so `--frozen-lock` passes once it is committed.
+- **Drop `K_old`** from the lock once the move has succeeded **in every Stripe account that
+  uses this lock**. The command is run by a person, and dropping a `removing` entry is how a
+  person releases a key (decision 8). The result equals `nextLock` of the new definition, so
+  `--frozen-lock` passes once it is committed. The command moves one account at a time, so it
+  cannot know that the other accounts are done: dropping `K_old` after the first account would
+  leave the later accounts (for example live after test) with an old price that nothing tracks,
+  and their next `deploy` would create a new price instead of finding the old one. So a person
+  drops the entry, after the last account has migrated; the command does not do it by itself.
 - **Leave it** `removing`. Harmless, but the lock keeps a dead entry until a person deletes it.
+  This is the default of the command, for the reason above.
 
 Either way the lock is written only **after** Stripe was changed, and only for keys whose move
 succeeded.
@@ -301,7 +307,8 @@ succeeded.
    prices), or add a way to pin the key (for example a prop that overrides `key`, which would
    also change `claimedKey` and the lock)? Without it, #51's motivating example works for
    prices but not for products or coupons inside a construct used twice.
-3. **Lock after a move**: drop the old key (person releases it) or leave it `removing`?
+3. **Lock after a move**: the command leaves `K_old` as `removing`, and a person drops it after
+   every Stripe account has migrated (4.4). Or should the command check the accounts itself?
 4. **`pricectl_id`**: nothing reads it. Should refactor (or `deploy`) keep it in sync with
    the logical ID, or should it be documented as "the logical ID at creation"?
 5. **Guarding against replacement**: should `plan`/`deploy` refuse (or require a flag) when
