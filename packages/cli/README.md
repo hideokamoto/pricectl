@@ -64,6 +64,45 @@ Creates the following files if they don't already exist:
 
 ---
 
+### `pricectl lint`
+
+Type-check your stack definition, like `tsc --noEmit`. pricectl runs the definition without
+checking types, so `synth`, `plan` and `deploy` run definitions that do not type-check; `lint`
+is the separate step that catches them, for example `isDefault: true` together with
+`active: false` on a `Price`. It does not read Stripe.
+
+```bash
+pricectl lint
+pricectl lint --app ./infra/main.ts
+```
+
+Each error is printed as `file:line:col - error TSxxxx: message`. The command exits with 1
+when there is a type error and with 0 otherwise.
+
+**Which compiler options are used**
+
+- The `tsconfig.json` found from the definition's directory upward (as `tsc` finds it) is used
+  with all its options, including `extends` and `paths`; only emitting is turned off, and
+  `noCheck` is ignored, since the command exists to check. The
+  definition, the files it imports and the declaration files (`.d.ts`) the `tsconfig.json`
+  includes are checked. Other files of the project are not, so an error in a test or script
+  that the definition does not import does not fail `lint`.
+- Without a `tsconfig.json`, the options `pricectl init` writes are used, plus `noEmit`:
+  `strict`, `target: ES2020`, `module: commonjs`, `moduleResolution: node`,
+  `lib: ["ES2020"]`, `esModuleInterop`, `skipLibCheck`, `forceConsistentCasingInFileNames`
+  and `resolveJsonModule`.
+
+`lint` uses the TypeScript 5 compiler that comes with `@pricectl/cli`, whatever TypeScript
+version your project has installed.
+
+**Flags**
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--app` | `-a` | `./pricectl.ts` | Path to the stack definition file |
+
+---
+
 ### `pricectl synth`
 
 Synthesize your stack into a JSON manifest (`pricectl.out/manifest.json`).

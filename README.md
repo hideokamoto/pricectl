@@ -134,6 +134,7 @@ Stripe pricing resource implementations:
 
 Command-line interface:
 - `pricectl init`: Initialize a new project
+- `pricectl lint`: Type-check the stack definition
 - `pricectl synth`: Synthesize stack to manifest
 - `pricectl diff`: Compare local vs deployed
 - `pricectl plan`: Show what deploy would do, without changing anything
@@ -149,6 +150,22 @@ Initialize a new pricectl project with example code.
 ```bash
 pricectl init
 ```
+
+### `pricectl lint`
+
+Type-check your stack definition, like `tsc --noEmit`, and exit with 1 on a type error.
+
+```bash
+pricectl lint
+pricectl lint --app ./custom-stack.ts
+```
+
+pricectl runs the definition without checking types, so `synth`, `plan` and `deploy` do not
+catch type errors such as `isDefault: true` with `active: false` on a `Price`. Run `lint` as
+its own step (in CI, before `plan`). It uses your `tsconfig.json`, found from the definition's
+directory upward as `tsc` finds it. Without one, it uses the options `pricectl init` writes
+(strict, CommonJS, `moduleResolution: node`, ES2020). See the
+[CLI README](packages/cli/README.md#pricectl-lint) for details.
 
 ### `pricectl synth`
 
