@@ -85,6 +85,14 @@ describe('typeCheckApp', () => {
       expect(result).toEqual({ configFile, diagnostics: [] });
     });
 
+    it('follows the options a tsconfig.json takes from the one it extends', () => {
+      write('tsconfig.base.json', { compilerOptions: { strict: true } });
+      write('tsconfig.json', { extends: './tsconfig.base.json' });
+      const app = write('pricectl.ts', 'export function price(amount) { return amount; }\n');
+
+      expect(codes(typeCheckApp(ts, app).diagnostics)).toEqual([7006]);
+    });
+
     it('checks the definition even when the tsconfig.json does not include it', () => {
       write('tsconfig.json', { compilerOptions: { strict: true }, include: ['src/**/*'] });
       const app = write('pricectl.ts', 'export const amount: number = 1000;\n');
