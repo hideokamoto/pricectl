@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as ts from 'typescript';
-import { formatDiagnostic } from '../type-check';
+import { compilerOptionsForLint, formatDiagnostic } from '../type-check';
 
 const CWD = path.join(path.sep, 'project');
 
@@ -66,5 +66,33 @@ describe('formatDiagnostic', () => {
     const diagnostic = { ...diagnosticAt('let x = 1;\n', 'x', 'Something to look at.', 9999), category: ts.DiagnosticCategory.Warning };
 
     expect(formatDiagnostic(ts, diagnostic, CWD)).toBe('pricectl.ts:1:5 - warning TS9999: Something to look at.');
+  });
+});
+
+describe('compilerOptionsForLint', () => {
+  it('checks a project without a tsconfig.json strictly, as CommonJS resolved like Node, without emitting', () => {
+    expect(compilerOptionsForLint(ts, undefined)).toEqual({
+      strict: true,
+      noEmit: true,
+      target: ts.ScriptTarget.ES2020,
+      module: ts.ModuleKind.CommonJS,
+      moduleResolution: ts.ModuleResolutionKind.Node10,
+      lib: ['lib.es2020.d.ts'],
+      esModuleInterop: true,
+      skipLibCheck: true,
+      forceConsistentCasingInFileNames: true,
+      resolveJsonModule: true,
+    });
+  });
+
+  it("keeps the project's own options, including a looser strictness, and only turns off emitting", () => {
+    const project: ts.CompilerOptions = { strict: false, module: ts.ModuleKind.ESNext, outDir: '/project/dist', noEmit: false };
+
+    expect(compilerOptionsForLint(ts, project)).toEqual({
+      strict: false,
+      module: ts.ModuleKind.ESNext,
+      outDir: '/project/dist',
+      noEmit: true,
+    });
   });
 });

@@ -15,3 +15,35 @@ export function formatDiagnostic(ts: typeof TypeScript, diagnostic: TypeScript.D
   const { line, character } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
   return `${path.relative(cwd, diagnostic.file.fileName)}:${line + 1}:${character + 1} - ${message}`;
 }
+
+/**
+ * Compiler options used when the project has no tsconfig.json, written as in a tsconfig.json.
+ * The stack definition is loaded with `require` (CommonJS) by esbuild-register, so it is
+ * checked as CommonJS resolved like Node, and strictly.
+ */
+export const DEFAULT_LINT_COMPILER_OPTIONS = {
+  strict: true,
+  noEmit: true,
+  target: 'ES2020',
+  module: 'commonjs',
+  moduleResolution: 'node',
+  lib: ['ES2020'],
+  esModuleInterop: true,
+  skipLibCheck: true,
+  forceConsistentCasingInFileNames: true,
+  resolveJsonModule: true,
+};
+
+/**
+ * The options `pricectl lint` checks with: the project's own (from its tsconfig.json) when it
+ * has them, otherwise {@link DEFAULT_LINT_COMPILER_OPTIONS}. Nothing is ever emitted.
+ */
+export function compilerOptionsForLint(
+  ts: typeof TypeScript,
+  project: TypeScript.CompilerOptions | undefined,
+): TypeScript.CompilerOptions {
+  if (project) {
+    return { ...project, noEmit: true };
+  }
+  return ts.convertCompilerOptionsFromJson(DEFAULT_LINT_COMPILER_OPTIONS, '').options;
+}
