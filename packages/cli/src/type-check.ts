@@ -17,22 +17,24 @@ export function formatDiagnostic(ts: typeof TypeScript, diagnostic: TypeScript.D
 }
 
 /**
- * Compiler options used when the project has no tsconfig.json, written as in a tsconfig.json.
+ * The compiler options of a pricectl project, as `pricectl init` writes them to tsconfig.json.
  * The stack definition is loaded with `require` (CommonJS) by esbuild-register, so it is
- * checked as CommonJS resolved like Node, and strictly.
+ * compiled as CommonJS resolved like Node, and strictly.
  */
-export const DEFAULT_LINT_COMPILER_OPTIONS = {
-  strict: true,
-  noEmit: true,
+export const PROJECT_COMPILER_OPTIONS = {
   target: 'ES2020',
   module: 'commonjs',
-  moduleResolution: 'node',
   lib: ['ES2020'],
+  strict: true,
   esModuleInterop: true,
   skipLibCheck: true,
   forceConsistentCasingInFileNames: true,
   resolveJsonModule: true,
+  moduleResolution: 'node',
 };
+
+/** Compiler options used when the project has no tsconfig.json: those `pricectl init` writes. */
+export const DEFAULT_LINT_COMPILER_OPTIONS = { ...PROJECT_COMPILER_OPTIONS, noEmit: true };
 
 /**
  * The options `pricectl lint` checks with: the project's own (from its tsconfig.json) when it

@@ -2,6 +2,7 @@ import { Command, Flags } from '@oclif/core';
 import * as fs from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
+import { PROJECT_COMPILER_OPTIONS } from '../type-check';
 
 // Import CLI package.json to get current version
 const cliPackageJson = require('../../package.json');
@@ -72,17 +73,7 @@ export default class Init extends Command {
     const tsconfigPath = path.join(cwd, 'tsconfig.json');
     if (!fs.existsSync(tsconfigPath) || flags.force) {
       const tsconfig = {
-        compilerOptions: {
-          target: 'ES2020',
-          module: 'commonjs',
-          lib: ['ES2020'],
-          strict: true,
-          esModuleInterop: true,
-          skipLibCheck: true,
-          forceConsistentCasingInFileNames: true,
-          resolveJsonModule: true,
-          moduleResolution: 'node',
-        },
+        compilerOptions: PROJECT_COMPILER_OPTIONS,
         include: ['*.ts'],
       };
 

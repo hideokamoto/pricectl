@@ -31,14 +31,12 @@ export default class Lint extends Command {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const ts: typeof TypeScript = require('typescript');
     const appName = path.relative(cwd, appPath);
-    const configFile = ts.findConfigFile(path.dirname(appPath), ts.sys.fileExists);
+    const { configFile, diagnostics } = typeCheckApp(ts, appPath);
     this.log(
       configFile
         ? `Type-checking ${appName} with ${path.relative(cwd, configFile)}`
         : `Type-checking ${appName} with pricectl's default compiler options (no tsconfig.json found)`,
     );
-
-    const { diagnostics } = typeCheckApp(ts, appPath);
     for (const diagnostic of diagnostics) {
       this.log(formatDiagnostic(ts, diagnostic, cwd));
     }
