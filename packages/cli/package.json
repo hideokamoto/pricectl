@@ -17,6 +17,7 @@
     "test": "jest --passWithNoTests",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
+    "pretypecheck": "pnpm --filter \"@pricectl/cli^...\" run build",
     "prepublishOnly": "pnpm run build"
   },
   "engines": {
