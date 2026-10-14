@@ -12,7 +12,8 @@
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "clean": "pnpm -r clean",
-    "test:e2e": "jest --config test/e2e/jest.config.js --runInBand"
+    "test:e2e": "jest --config test/e2e/jest.config.js --runInBand",
+    "release": "pnpm -r run clean && pnpm -r run build && pnpm -r publish"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",

@@ -147,6 +147,18 @@ Use conventional commits format:
 - Add JSDoc comments for public APIs
 - Keep functions small and focused
 
+## Publishing (Maintainers)
+
+The packages under `packages/` use `workspace:*` dependency ranges, so they **must** be published with pnpm. `npm publish` will fail because it cannot resolve the `workspace:` protocol.
+
+1. Make sure the `@pricectl` npm organization exists and your account is a member
+2. Bump the `version` field in the packages you intend to release (they are versioned independently)
+3. Run the release script from the repository root:
+   ```bash
+   pnpm release
+   ```
+   This cleans, rebuilds all packages in dependency order, and runs `pnpm -r publish`. `private` packages (examples) are skipped automatically, and `prepublishOnly` rebuilds each package's `dist` before packing.
+
 ## Adding Examples
 
 Examples help users understand how to use pricectl:
