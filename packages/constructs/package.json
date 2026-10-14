@@ -37,7 +37,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@pricectl/core": "workspace:*",
+    "@pricectl/core": "workspace:^",
     "stripe": "^23.0.0"
   },
   "devDependencies": {}
