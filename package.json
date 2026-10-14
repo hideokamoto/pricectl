@@ -3,10 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "description": "pricectl - Infrastructure as Code for Stripe pricing resources",
-  "workspaces": [
-    "packages/*",
-    "examples/*"
-  ],
   "scripts": {
     "build": "pnpm -r build",
     "test": "pnpm -r test",
