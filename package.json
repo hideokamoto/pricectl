@@ -29,15 +29,6 @@
     "ts-jest": "^29.4.14",
     "typescript": "^5.9.3"
   },
-  "pnpm": {
-    "overrides": {
-      "minimatch@9": "^9.0.9",
-      "argparse@1": "^2.0.1"
-    },
-    "auditConfig": {
-      "ignoreGhsas": ["GHSA-vfj7-8cjw-p6xm"]
-    }
-  },
   "packageManager": "pnpm@10.29.3",
   "engines": {
     "node": ">=20.0.0",
