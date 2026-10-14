@@ -16,6 +16,7 @@
     "clean": "rimraf dist",
     "test": "jest --passWithNoTests",
     "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
     "prepublishOnly": "pnpm run build"
   },
   "engines": {
@@ -40,8 +41,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@pricectl/core": "workspace:*",
-    "@pricectl/constructs": "workspace:*",
+    "@pricectl/core": "workspace:^",
+    "@pricectl/constructs": "workspace:^",
     "@oclif/core": "^3.27.0",
     "@oclif/plugin-help": "^6.3.0",
     "stripe": "^23.0.0",
