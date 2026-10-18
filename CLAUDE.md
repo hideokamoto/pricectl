@@ -96,6 +96,13 @@ When adding a new Stripe resource, construct, CLI command, or any other feature,
 - Never refactor and add behavior in the same commit.
 - Test code is production code: refactor it with the same care.
 
+## Agent Skill
+
+`skills/pricectl/SKILL.md` is the Agent Skill that tells agents how to use the CLI (installed with
+`npx skills add hideokamoto/pricectl`). Whenever a change touches a CLI command, a flag, what a
+command reads or writes, or a version requirement, update the skill (and the `--help` text) in
+the same change. `packages/cli/src/__tests__/skill.test.ts` catches part of the drift, not all of it.
+
 ## Code Style
 
 - Use TypeScript for all new code.

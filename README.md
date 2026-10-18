@@ -260,6 +260,20 @@ inactive are left out, and when nothing is left the command ends without asking.
 `pricectl destroy --dry-run` shows the same list without changing Stripe. Resources you point to
 with `physicalId` are not created by pricectl and are never removed by it.
 
+## Agent Skill
+
+The repository ships an [Agent Skill](https://agentskills.io/specification) for coding agents
+that support Agent Skills in
+[`skills/pricectl`](./skills/pricectl/SKILL.md). It tells the agent how to run pricectl: check
+types with `lint`, show `plan` to you, and run `deploy` or `destroy` only after you approve.
+Install it into your project with:
+
+```bash
+npx skills add hideokamoto/pricectl
+```
+
+The skill is not part of the npm packages.
+
 ## Available Resources
 
 ### Product

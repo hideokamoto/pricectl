@@ -121,6 +121,14 @@ pnpm build
 pnpm deploy
 ```
 
+### Changing the CLI
+
+`skills/pricectl/SKILL.md` describes the CLI to coding agents. When you add, remove or change a
+command, a flag, what a command reads or writes, or a version requirement, update the skill in
+the same pull request. `packages/cli/src/__tests__/skill.test.ts` fails when the skill names a
+command or flag the CLI does not have, or a Node.js version other than the `engines` field of
+`@pricectl/cli`; the rest has to be checked by reading.
+
 ## Pull Request Process
 
 1. Update documentation for any user-facing changes
