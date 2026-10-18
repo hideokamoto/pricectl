@@ -6,8 +6,8 @@ Thank you for your interest in contributing to pricectl! This document provides 
 
 ### Prerequisites
 
-- Node.js >= 18.0.0
-- pnpm >= 8.0.0
+- Node.js >= 20.0.0 (the `stripe` SDK the CLI depends on requires Node.js 20)
+- pnpm >= 10.5.1 (the first version that applies the `overrides` in `pnpm-workspace.yaml`; older versions fail `pnpm install --frozen-lockfile`)
 - A Stripe account (for testing)
 
 ### Setup
