@@ -59,6 +59,7 @@
   "oclif": {
     "bin": "pricectl",
     "commands": "./dist/commands",
+    "helpClass": "./dist/help",
     "hooks": {
       "init": "./dist/hooks/init"
     },

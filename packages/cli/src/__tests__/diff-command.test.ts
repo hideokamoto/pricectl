@@ -73,6 +73,12 @@ describe('diff command', () => {
     expect(mockFakeStripe.productsFor('Widget')).toHaveLength(1);
   });
 
+  it('does not write pricectl.lock.json, as its help says', async () => {
+    await diff(WIDGET_APP);
+
+    expect(fs.existsSync(path.join(projectDir, 'pricectl.lock.json'))).toBe(false);
+  });
+
   it('fails with a non-zero exit code when Stripe cannot be read', async () => {
     await deployWidget();
     mockFakeStripe.failNext('products.retrieve', { message: 'Stripe is unavailable', type: 'api_error' });

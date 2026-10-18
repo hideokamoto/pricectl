@@ -5,9 +5,16 @@ import { describePlan } from '../engine/describe-plan';
 import { FileLockStore } from '../engine/lock-store';
 import { refusals } from '../engine/plan';
 import { planDeploy } from '../engine/stack-run';
+import { APP_FILE_HELP, LOCK_FILE_HELP } from '../help-text';
 
 export default class Plan extends Command {
-  static description = 'Show what deploy would do to Stripe, without changing anything';
+  static summary = 'Show what deploy would do to Stripe, without changing Stripe';
+
+  static description = [
+    'Reads Stripe and lists every step pricectl deploy would take. Exits with 1 when Stripe would refuse a ' +
+      'step. ' + LOCK_FILE_HELP + ' An out-of-date lock then fails before Stripe is read.',
+    APP_FILE_HELP,
+  ].join('\n\n');
 
   static examples = [
     '<%= config.bin %> <%= command.id %>',

@@ -11,9 +11,18 @@ import { FileLockStore } from '../engine/lock-store';
 import { removals } from '../engine/plan';
 import { readObservations } from '../engine/read-stripe';
 import { indexResources, resolveReferences } from '../engine/refs';
+import { APP_FILE_HELP } from '../help-text';
 
 export default class Diff extends Command {
-  static description = 'Compare the deployed stack with the local definition';
+  static summary = 'Compare the stack definition with what is in Stripe';
+
+  static description = [
+    'Reads Stripe and prints each resource that differs: [+] will be created, [~] differs (shown as a ' +
+      'unified diff), [-] is no longer defined and will be removed by the next deploy. It changes nothing in ' +
+      'Stripe and does not write pricectl.lock.json. Exits with 0 whether or not there are differences; ' +
+      'use pricectl plan to fail on a step Stripe would refuse.',
+    APP_FILE_HELP,
+  ].join('\n\n');
 
   static examples = [
     '<%= config.bin %> <%= command.id %>',

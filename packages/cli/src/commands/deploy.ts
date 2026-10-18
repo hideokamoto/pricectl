@@ -10,9 +10,21 @@ import { deployOutcome } from '../engine/outcome';
 import { refusals, removals } from '../engine/plan';
 import { decideRemovalApproval } from '../engine/removal-approval';
 import { planDeploy } from '../engine/stack-run';
+import { APP_FILE_HELP, LOCK_FILE_HELP } from '../help-text';
 
 export default class Deploy extends Command {
-  static description = 'Deploy the stack to Stripe';
+  static summary = 'Apply the stack definition to Stripe: create, update and remove resources';
+
+  static description = [
+    'Builds the same plan as pricectl plan, prints it, and applies exactly those steps. When Stripe would ' +
+      'refuse a step, nothing is changed in Stripe and deploy exits with 1. ' + LOCK_FILE_HELP,
+    'Creating and updating resources is not confirmed. Only removing resources that are no longer defined ' +
+      'asks for confirmation; without an interactive terminal (in CI) deploy then stops without changing ' +
+      'anything unless --force is given. Removed prices are archived, products are deleted (archived when ' +
+      'they have prices), coupons are deleted, entitlement features and meters are deactivated. When a step ' +
+      'fails, the removals after it are skipped and deploy exits with 1.',
+    APP_FILE_HELP,
+  ].join('\n\n');
 
   static examples = [
     '<%= config.bin %> <%= command.id %>',
@@ -29,12 +41,14 @@ export default class Deploy extends Command {
       default: './pricectl.ts',
     }),
     'dry-run': Flags.boolean({
-      description: 'Show what would be created, updated or removed, read from Stripe, without changing anything (same as pricectl plan)',
+      description:
+        'Print the plan without changing Stripe, like pricectl plan (pricectl.lock.json is still updated unless --frozen-lock)',
       default: false,
     }),
     force: Flags.boolean({
       char: 'f',
-      description: 'Remove resources that are no longer defined without asking for confirmation',
+      description:
+        'Remove resources that are no longer defined without asking (needed to remove them without an interactive terminal)',
       default: false,
     }),
     'frozen-lock': Flags.boolean({
