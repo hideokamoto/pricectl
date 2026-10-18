@@ -27,6 +27,8 @@ pricectl is an Infrastructure as Code (IaC) tool for Stripe pricing resources. I
 
 ### Installation
 
+Requires Node.js 20 or later.
+
 ```bash
 # Using npm
 npm install -g @pricectl/cli
@@ -53,7 +55,8 @@ my-pricing-infrastructure/
 ├── pricectl.ts        # Your stack definition
 ├── package.json
 ├── tsconfig.json
-└── .env.example
+├── .env.example
+└── .gitignore
 ```
 
 ### Define Your Infrastructure
