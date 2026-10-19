@@ -80,11 +80,13 @@ change the key; do not switch to a different key on your own.
 
    Wait for an explicit yes. A request such as "update the price" is not approval of a plan
    the user has not seen.
-5. **Deploy.** Run `npx pricectl deploy`. Creating and updating resources is not confirmed by
-   the CLI; only removals are. In a terminal it asks before removing; without one (as when an
-   agent runs it) it stops without changing anything when something would be removed, unless
-   `--force` is given. Pass `--force` only when the user has approved exactly the removals the
-   plan listed.
+5. **Deploy.** Run `npx pricectl deploy` without `--force` first. `deploy` builds its plan
+   again from your definition, the lock and what Stripe holds now, so it can differ from the
+   plan the user approved if Stripe changed in between. Creating and updating resources is not
+   confirmed by the CLI; only removals are. When something would be removed and there is no
+   interactive terminal (as when an agent runs it), `deploy` prints the removals and stops
+   without changing anything. Compare them with the removals the user approved: if they
+   differ, stop and ask again; only if they match, run `npx pricectl deploy --force` at once.
 6. **Commit the lock.** Tell the user to commit `pricectl.lock.json` together with the
    definition.
 

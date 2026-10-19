@@ -74,8 +74,9 @@ describe('diff command', () => {
   });
 
   it('does not write pricectl.lock.json, as its help says', async () => {
-    await diff(WIDGET_APP);
+    const run = await diff(WIDGET_APP);
 
+    expect(run.exitCode).toBe(0);
     expect(fs.existsSync(path.join(projectDir, 'pricectl.lock.json'))).toBe(false);
   });
 
