@@ -24,7 +24,9 @@ around it.
   require it.
 - **The CLI.** In a project made with `pricectl init`, `@pricectl/cli` is a dev dependency, so
   run `npx pricectl <command>` after `npm install`. Otherwise it can be installed globally with
-  `npm install -g @pricectl/cli`.
+  `npm install -g @pricectl/cli`. The binary `pricectl` belongs to `@pricectl/cli`; this
+  project does not publish a package named `pricectl`, so if `npx` offers to download one,
+  decline and install `@pricectl/cli` instead.
 - **A Stripe API key** for every command except `init` and `lint`, including `synth`, which
   does not contact Stripe but cannot load the definition without a key. The key is the stack's
   `apiKey`, or else the `STRIPE_SECRET_KEY` environment variable. pricectl does not read a
