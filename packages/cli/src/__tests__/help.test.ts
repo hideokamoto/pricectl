@@ -71,6 +71,7 @@ describe('pricectl --help', () => {
 
     expect(help).toContain('Creating and updating resources is not confirmed');
     expect(help).toContain('without an interactive terminal');
+    expect(help).toContain('stops without changing Stripe');
   });
 
   it('says in the help of init that --typescript has no effect and that --force never overwrites package.json', async () => {

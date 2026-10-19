@@ -20,7 +20,7 @@ export default class Deploy extends Command {
       'refuse a step, nothing is changed in Stripe and deploy exits with 1. ' + LOCK_FILE_HELP,
     'Creating and updating resources is not confirmed. Only removing resources that are no longer defined ' +
       'asks for confirmation; without an interactive terminal (in CI) deploy then stops without changing ' +
-      'anything unless --force is given. Removed prices are archived, products are deleted (archived when ' +
+      'Stripe unless --force is given (pricectl.lock.json may already have been updated). Removed prices are archived, products are deleted (archived when ' +
       'they have prices), coupons are deleted, entitlement features and meters are deactivated. When a step ' +
       'fails, the removals after it are skipped and deploy exits with 1.',
     APP_FILE_HELP,

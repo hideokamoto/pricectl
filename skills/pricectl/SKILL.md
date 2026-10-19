@@ -87,7 +87,7 @@ change the key; do not switch to a different key on your own.
    plan the user approved if Stripe changed in between. Creating and updating resources is not
    confirmed by the CLI; only removals are. When something would be removed and there is no
    interactive terminal (as when an agent runs it), `deploy` prints the removals and stops
-   without changing anything. Compare them with the removals the user approved: if they
+   without changing Stripe (it may have updated `pricectl.lock.json`). Compare them with the removals the user approved: if they
    differ, stop and ask again; only if they match, run `npx pricectl deploy --force` at once.
 6. **Commit the lock.** Tell the user to commit `pricectl.lock.json` together with the
    definition.

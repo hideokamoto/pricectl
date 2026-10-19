@@ -140,7 +140,7 @@ Command-line interface:
 - `pricectl lint`: Type-check the stack definition
 - `pricectl synth`: Synthesize stack to manifest
 - `pricectl diff`: Compare local vs deployed
-- `pricectl plan`: Show what deploy would do, without changing anything
+- `pricectl plan`: Show what deploy would do, without changing Stripe
 - `pricectl deploy`: Deploy to Stripe
 - `pricectl destroy`: Remove all resources
 
@@ -190,7 +190,7 @@ pricectl diff --app ./custom-stack.ts
 
 ### `pricectl plan`
 
-Show what `deploy` would do to Stripe, without changing anything.
+Show what `deploy` would do to Stripe, without changing Stripe.
 
 ```bash
 pricectl plan
@@ -237,7 +237,7 @@ rewriting it, so run `pricectl synth` locally and commit the result.
 
 Before removing anything, deploy lists the resources and asks for confirmation.
 Use `--force` (`-f`) to skip the prompt; in a non-interactive environment such as CI,
-deploy stops without changes unless `--force` is given. `pricectl deploy --dry-run` does what
+deploy stops without changing Stripe unless `--force` is given. `pricectl deploy --dry-run` does what
 `pricectl plan` does: it reads Stripe and shows, for each resource, whether it would be created,
 updated or left unchanged (a price whose terms changed is created as a new version), plus the
 resources that would be removed. It needs the Stripe API key, like `diff`.

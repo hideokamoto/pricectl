@@ -151,7 +151,8 @@ pricectl diff --app ./infra/main.ts
 
 ### `pricectl plan`
 
-Show what `deploy` would do to Stripe, without changing anything. Exits with an error when a
+Show what `deploy` would do to Stripe, without changing Stripe (it may update
+`pricectl.lock.json`). Exits with an error when a
 step would be rejected.
 
 ```bash
@@ -190,8 +191,8 @@ pricectl deploy --frozen-lock --force
 | `--frozen-lock` | | `false` | Fail instead of updating `pricectl.lock.json` when it is out of date (for CI) |
 
 Creating and updating resources is not confirmed; only removals are. Without an interactive
-terminal (in CI), deploy stops without changing anything when there is something to remove,
-unless `--force` is given.
+terminal (in CI), deploy stops without changing Stripe when there is something to remove,
+unless `--force` is given (`pricectl.lock.json` may already have been updated).
 
 ---
 
