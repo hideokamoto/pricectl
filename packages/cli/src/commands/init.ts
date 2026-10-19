@@ -8,22 +8,28 @@ import { PROJECT_COMPILER_OPTIONS } from '../type-check';
 const cliPackageJson = require('../../package.json');
 
 export default class Init extends Command {
-  static description = 'Initialize a new pricectl project';
+  static summary = 'Create the files of a new pricectl project in the current directory';
+
+  static description =
+    'Creates package.json and .gitignore when there are none, and tsconfig.json, pricectl.ts and ' +
+    '.env.example when they do not exist or --force is given. It does not install dependencies and does ' +
+    'not contact Stripe.';
 
   static examples = [
     '<%= config.bin %> <%= command.id %>',
-    '<%= config.bin %> <%= command.id %> --typescript',
+    '<%= config.bin %> <%= command.id %> --force',
   ];
 
   static flags = {
     typescript: Flags.boolean({
       char: 't',
-      description: 'Use TypeScript (default)',
+      description: 'Has no effect: the project is always TypeScript (kept for compatibility)',
       default: true,
     }),
     force: Flags.boolean({
       char: 'f',
-      description: 'Overwrite existing files',
+      description:
+        'Overwrite tsconfig.json, pricectl.ts and .env.example, and add missing entries to an existing .gitignore (package.json is never overwritten)',
       default: false,
     }),
   };

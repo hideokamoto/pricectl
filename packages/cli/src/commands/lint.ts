@@ -5,8 +5,13 @@ import type * as TypeScript from 'typescript';
 import { formatDiagnostic, typeCheckApp } from '../type-check';
 
 export default class Lint extends Command {
+  static summary = 'Type-check the stack definition, like tsc --noEmit';
+
   static description =
-    'Type-check the stack definition (like tsc --noEmit), using the project tsconfig.json when there is one';
+    'Uses the tsconfig.json found from the directory of the app file upward, as tsc finds it, or else the ' +
+    'compiler options pricectl init writes. Checks the app file, the files it imports and the .d.ts files ' +
+    'the tsconfig.json includes. It does not run the app file, so it needs no Stripe API key and does not ' +
+    'contact Stripe. Exits with 1 when there is a type error.';
 
   static examples = ['<%= config.bin %> <%= command.id %>', '<%= config.bin %> <%= command.id %> --app ./infra/main.ts'];
 

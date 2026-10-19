@@ -10,9 +10,21 @@ import { destroyOutcome } from '../engine/outcome';
 import { refusals, removals } from '../engine/plan';
 import { decideRemovalApproval } from '../engine/removal-approval';
 import { finishDestroy, planDestroy } from '../engine/stack-run';
+import { APP_FILE_HELP } from '../help-text';
 
 export default class Destroy extends Command {
-  static description = 'Destroy all resources in the stack';
+  static summary = 'Remove every resource of the stack from Stripe';
+
+  static description = [
+    'Removes the resources the stack defines and those pricectl.lock.json (in the current directory) claims ' +
+      'for it: prices are archived, products are deleted (archived when they have prices), coupons are ' +
+      'deleted, entitlement features and meters are deactivated. Resources that are already removed are left ' +
+      'out, and when nothing is left destroy ends without asking.',
+    'Asks for confirmation; without an interactive terminal (in CI) it stops without changing anything ' +
+      'unless --force is given. When everything was removed, the stack is dropped from pricectl.lock.json; ' +
+      'otherwise its keys stay "removing" there, so that the next destroy or deploy finishes the job.',
+    APP_FILE_HELP,
+  ].join('\n\n');
 
   static examples = [
     '<%= config.bin %> <%= command.id %>',
@@ -29,11 +41,11 @@ export default class Destroy extends Command {
     }),
     force: Flags.boolean({
       char: 'f',
-      description: 'Skip confirmation prompt',
+      description: 'Skip the confirmation prompt (needed to destroy without an interactive terminal)',
       default: false,
     }),
     'dry-run': Flags.boolean({
-      description: 'Preview what would be destroyed, read from Stripe, without changing anything',
+      description: 'Print what would be removed, read from Stripe, without changing Stripe or pricectl.lock.json',
       default: false,
     }),
   };

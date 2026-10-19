@@ -6,8 +6,8 @@ Thank you for your interest in contributing to pricectl! This document provides 
 
 ### Prerequisites
 
-- Node.js >= 18.0.0
-- pnpm >= 8.0.0
+- Node.js >= 20.0.0 (the `stripe` SDK the CLI depends on requires Node.js 20)
+- pnpm >= 10.5.1 (the first version that applies the `overrides` in `pnpm-workspace.yaml`; older versions fail `pnpm install --frozen-lockfile`)
 - A Stripe account (for testing)
 
 ### Setup
@@ -120,6 +120,14 @@ pnpm install
 pnpm build
 pnpm deploy
 ```
+
+### Changing the CLI
+
+`skills/pricectl/SKILL.md` describes the CLI to coding agents. When you add, remove or change a
+command, a flag, what a command reads or writes, or a version requirement, update the skill in
+the same pull request. `packages/cli/src/__tests__/skill.test.ts` fails when the skill names a
+command or flag the CLI does not have, or a Node.js version other than the `engines` field of
+`@pricectl/cli`; the rest has to be checked by reading.
 
 ## Pull Request Process
 

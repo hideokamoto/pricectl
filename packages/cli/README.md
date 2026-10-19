@@ -11,7 +11,7 @@ npm install -g @pricectl/cli
 pnpm add -g @pricectl/cli
 ```
 
-After installation the `pricectl` binary is available on your `PATH`.
+Requires Node.js 20 or later. After installation the `pricectl` binary is available on your `PATH`.
 
 ## Quick Start
 
@@ -46,7 +46,9 @@ pricectl init
 pricectl init --force   # Overwrite existing files
 ```
 
-Creates the following files if they don't already exist:
+Creates the following files if they don't already exist. With `--force`, `tsconfig.json`,
+`pricectl.ts` and `.env.example` are overwritten and the missing entries are appended to an
+existing `.gitignore`; `package.json` is never overwritten. `init` does not install dependencies.
 
 | File | Description |
 |------|-------------|
@@ -60,7 +62,8 @@ Creates the following files if they don't already exist:
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--force` | `-f` | Overwrite existing files |
+| `--force` | `-f` | Overwrite `tsconfig.json`, `pricectl.ts` and `.env.example`, and add missing entries to `.gitignore` |
+| `--typescript` | `-t` | Has no effect: the project is always TypeScript (kept for compatibility) |
 
 ---
 
@@ -119,12 +122,19 @@ pricectl synth --output ./build
 |------|-------|---------|-------------|
 | `--app` | `-a` | `./pricectl.ts` | Path to the stack definition file |
 | `--output` | `-o` | `./pricectl.out` | Output directory for the manifest |
+| `--frozen-lock` | | `false` | Fail instead of updating `pricectl.lock.json` when it is out of date (for CI) |
+
+`synth` does not contact Stripe, but loading the stack definition still needs a Stripe API key
+(see [Environment Variables](#environment-variables)). It also creates or updates
+`pricectl.lock.json` in the current directory.
 
 ---
 
 ### `pricectl diff`
 
 Show the difference between your local stack definition and the resources currently deployed in Stripe.
+`diff` changes nothing in Stripe, does not write `pricectl.lock.json`, and exits with 0 whether or
+not there are differences.
 
 ```bash
 pricectl diff
@@ -141,7 +151,8 @@ pricectl diff --app ./infra/main.ts
 
 ### `pricectl plan`
 
-Show what `deploy` would do to Stripe, without changing anything. Exits with an error when a
+Show what `deploy` would do to Stripe, without changing Stripe (it may update
+`pricectl.lock.json`). Exits with an error when a
 step would be rejected.
 
 ```bash
@@ -175,8 +186,13 @@ pricectl deploy --frozen-lock --force
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
 | `--app` | `-a` | `./pricectl.ts` | Path to the stack definition file |
+| `--dry-run` | | `false` | Print the plan without changing Stripe, like `pricectl plan` |
 | `--force` | `-f` | `false` | Remove resources that are no longer defined without asking |
 | `--frozen-lock` | | `false` | Fail instead of updating `pricectl.lock.json` when it is out of date (for CI) |
+
+Creating and updating resources is not confirmed; only removals are. Without an interactive
+terminal (in CI), deploy stops without changing Stripe when there is something to remove,
+unless `--force` is given (`pricectl.lock.json` may already have been updated).
 
 ---
 
@@ -197,9 +213,11 @@ inactive are left out, and when nothing is left the command ends without asking.
 
 **Flags**
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--force` | `-f` | Skip confirmation prompt |
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--app` | `-a` | `./pricectl.ts` | Path to the stack definition file |
+| `--dry-run` | | `false` | Print what would be removed without changing Stripe or `pricectl.lock.json` |
+| `--force` | `-f` | `false` | Skip the confirmation prompt (needed without an interactive terminal) |
 
 ---
 
@@ -209,7 +227,14 @@ inactive are left out, and when nothing is left the command ends without asking.
 |----------|-------------|
 | `STRIPE_SECRET_KEY` | Your Stripe secret key (`sk_test_...` or `sk_live_...`) |
 
-The key can also be supplied via `Stack` props in your stack definition file.
+The key can also be supplied via `Stack` props in your stack definition file. Every command that
+loads the stack definition (`synth`, `diff`, `plan`, `deploy`, `destroy`) needs one; `lint` and
+`init` do not. pricectl does not read a `.env` file: export the variable in your shell or CI.
+
+`pricectl.lock.json` is read from and written to the current directory, not the directory of the
+stack definition, so run the commands from the directory where you commit the lock.
+
+Run `pricectl --help` or `pricectl <command> --help` for the same information in the terminal.
 
 ## Project Structure
 

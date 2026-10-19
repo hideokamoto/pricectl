@@ -27,6 +27,8 @@ pricectl is an Infrastructure as Code (IaC) tool for Stripe pricing resources. I
 
 ### Installation
 
+Requires Node.js 20 or later.
+
 ```bash
 # Using npm
 npm install -g @pricectl/cli
@@ -53,7 +55,8 @@ my-pricing-infrastructure/
 ├── pricectl.ts        # Your stack definition
 ├── package.json
 ├── tsconfig.json
-└── .env.example
+├── .env.example
+└── .gitignore
 ```
 
 ### Define Your Infrastructure
@@ -137,7 +140,7 @@ Command-line interface:
 - `pricectl lint`: Type-check the stack definition
 - `pricectl synth`: Synthesize stack to manifest
 - `pricectl diff`: Compare local vs deployed
-- `pricectl plan`: Show what deploy would do, without changing anything
+- `pricectl plan`: Show what deploy would do, without changing Stripe
 - `pricectl deploy`: Deploy to Stripe
 - `pricectl destroy`: Remove all resources
 
@@ -187,7 +190,7 @@ pricectl diff --app ./custom-stack.ts
 
 ### `pricectl plan`
 
-Show what `deploy` would do to Stripe, without changing anything.
+Show what `deploy` would do to Stripe, without changing Stripe.
 
 ```bash
 pricectl plan
@@ -234,7 +237,7 @@ rewriting it, so run `pricectl synth` locally and commit the result.
 
 Before removing anything, deploy lists the resources and asks for confirmation.
 Use `--force` (`-f`) to skip the prompt; in a non-interactive environment such as CI,
-deploy stops without changes unless `--force` is given. `pricectl deploy --dry-run` does what
+deploy stops without changing Stripe unless `--force` is given. `pricectl deploy --dry-run` does what
 `pricectl plan` does: it reads Stripe and shows, for each resource, whether it would be created,
 updated or left unchanged (a price whose terms changed is created as a new version), plus the
 resources that would be removed. It needs the Stripe API key, like `diff`.
@@ -256,6 +259,20 @@ lists only the ones it would delete or deactivate. Resources that are already de
 inactive are left out, and when nothing is left the command ends without asking.
 `pricectl destroy --dry-run` shows the same list without changing Stripe. Resources you point to
 with `physicalId` are not created by pricectl and are never removed by it.
+
+## Agent Skill
+
+The repository ships an [Agent Skill](https://agentskills.io/specification) for coding agents
+that support Agent Skills in
+[`skills/pricectl`](./skills/pricectl/SKILL.md). It tells the agent how to run pricectl: check
+types with `lint`, show `plan` to you, and run `deploy` or `destroy` only after you approve.
+Install it into your project with:
+
+```bash
+npx skills add hideokamoto/pricectl
+```
+
+The skill is not part of the npm packages.
 
 ## Available Resources
 

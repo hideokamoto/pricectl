@@ -2,13 +2,21 @@ import { Command, Flags } from '@oclif/core';
 import * as path from 'path';
 import * as fs from 'fs';
 import { FileLockStore, syncLock } from '../engine/lock-store';
+import { APP_FILE_HELP, LOCK_FILE_HELP } from '../help-text';
 
 export default class Synth extends Command {
-  static description = 'Synthesize the stack definition into a deployable manifest';
+  static summary = 'Write the manifest of the stack definition to <output>/manifest.json, without contacting Stripe';
+
+  static description = [
+    'Runs the app file and writes the manifest it synthesizes. ' + LOCK_FILE_HELP,
+    APP_FILE_HELP + ' synth needs it even though it does not contact Stripe.',
+  ].join('\n\n');
 
   static examples = [
     '<%= config.bin %> <%= command.id %>',
     '<%= config.bin %> <%= command.id %> --app ./infra/main.ts',
+    '<%= config.bin %> <%= command.id %> --output ./build',
+    '<%= config.bin %> <%= command.id %> --frozen-lock',
   ];
 
   static flags = {
